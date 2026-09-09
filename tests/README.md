@@ -1,7 +1,7 @@
 # Tests
 
 ```bash
-php artisan test                    # 403 test
+php artisan test                    # 740 test, 2.442 asersi
 php artisan test --testsuite Unit   # tier cepat
 composer coverage                   # ringkasan coverage di terminal
 composer test-report                # semua laporan ke coverage/
@@ -35,9 +35,34 @@ for f in t.getroot().iter('file'):
 EOF
 ```
 
-Terakhir dijalankan: **403 test, 1.301 assertion, 99,94% baris (1701/1702), 99,73% method.**
-Satu baris sengaja tidak tercakup — `app/Actions/Auth/VerifyEmailAction.php:103`, cek ulang
-setelah `lockForUpdate()` yang hanya terpicu kalau ada dua koneksi berbarengan.
+Terakhir dijalankan: **740 test, 2.442 assertion, 44 berkas** — diverifikasi pada
+Laravel 11.55.1 / PHP 8.5.10.
+
+**Coverage** (diukur pada Laravel 11.55.1 / PHP 8.5.10 dengan pcov):
+
+| | |
+|---|---|
+| Baris | **99,75%** (2829/2836) |
+| Method | 99,38% (484/487) |
+| Kelas | 98,79% (163/165) |
+
+Tujuh baris tidak tercakup, dan ketiga-tiganya cabang defensif untuk keadaan yang
+skema nyata tidak pernah capai. Disebut spesifik supaya tidak jadi tempat
+sembunyi kode mati:
+
+| Berkas | Baris | Kenapa |
+|---|---|---|
+| `app/Actions/Auth/VerifyEmailAction.php` | 103 | Cek ulang setelah `lockForUpdate()`; butuh dua koneksi berbarengan |
+| `app/Console/Commands/BuildInstallSqlCommand.php` | 141-145 | Peringatan lingkaran foreign key; skema ini tidak punya lingkaran |
+| `app/Console/Commands/BuildInstallSqlCommand.php` | 215 | Cabang tabel acuan kosong (lihat catatan di bawah) |
+
+Baris 215 tidak bisa dijangkau test dengan andal: suite ini mencampur
+RefreshDatabase dan DatabaseTruncation, jadi `categories` bisa berisi baris
+ter-commit dari kelas lain dan tidak pernah dijamin kosong. Yang dijaga adalah
+invariannya — tidak ada `INSERT` tanpa kolom — bukan cabangnya.
+
+`pcov` sudah terpasang tapi tidak dimuat lewat `php.ini`; script `composer coverage`
+memuatnya sendiri lewat `-d extension=`. Jadi `php -m` tidak menampilkannya.
 
 ## Prasyarat sekali pasang
 

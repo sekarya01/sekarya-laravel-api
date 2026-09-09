@@ -1,6 +1,11 @@
 # Sekarya API
 
-Laravel 13 / PHP 8.5 REST API. **Action-Based Architecture** (Clean Architecture / DDD Lite).
+Laravel 11.55.1 (dipin persis) / PHP 8.3-8.4 REST API. **Action-Based Architecture**
+(Clean Architecture / DDD Lite).
+
+> Diturunkan dari Laravel 13 agar cocok dengan katalog installer hosting. Konsekuensinya
+> tercatat di README, bagian **Konsekuensi memakai Laravel 11** — baca sebelum menyentuh
+> `app/Models/User.php` atau menaikkan versi PHP ke 8.5.
 
 The full blueprint lives in the `laravel-action-api` skill — invoke it before writing code here.
 This file records only what is specific to *this* project.
@@ -20,7 +25,7 @@ Business logic lives **only** in Action classes. Never in Controllers, Models, R
 |---|---|---|
 | Database | **MySQL 8+ / InnoDB** | Switched from SQLite on 2026-09-08 by explicit instruction. |
 | Auth | Sanctum (`auth:sanctum`) | via `php artisan install:api`. |
-| Tests | PHPUnit 12 | Pest is *not* installed. |
+| Tests | PHPUnit 11 (Laravel 11 belum mendukung 12) | Pest is *not* installed. |
 | Money | integer, smallest unit | `transactions.deal_price` is `unsignedBigInteger`. |
 | Pagination | cursor only | `paginate()` is banned. See below. |
 | API prefix | `/api/v1`, routes named `v1.*` | one route line per invokable controller. |
@@ -237,7 +242,7 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
 #   CREATE DATABASE sekarya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 php artisan migrate:fresh --seed  # 13 tabel + kategori & skills
 php artisan serve                 # http://localhost:8000
-php artisan test                  # 716 tests
+php artisan test                  # 740 test, 2.442 asersi
 composer test-report              # coverage/html + junit + testdox (lihat tests/README.md)
 php artisan sekarya:axiom --audit # buktikan penyaringan PII sebelum kirim apa pun
 php artisan test tests/Unit       # fast tier

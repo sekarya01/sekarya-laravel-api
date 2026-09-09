@@ -16,13 +16,21 @@ Periksa **sebelum** membeli atau mengunggah apa pun.
 
 | Kebutuhan | Minimum | Cara memeriksa |
 |---|---|---|
-| PHP | **8.3** | cPanel > MultiPHP Manager, atau `php -v` lewat SSH |
+| PHP | **8.4** (8.3 minimum, **jangan 8.5**) | cPanel > MultiPHP Manager, atau `php -v` lewat SSH |
 | MySQL | **8.0+**, InnoDB | phpMyAdmin > tab SQL: `SELECT VERSION();` |
 | Format baris InnoDB | `DYNAMIC` | Sudah ditulis eksplisit di berkas pemasangan; tidak perlu diminta ke penyedia |
 | Ekstensi PHP | `pdo_mysql` `mbstring` `openssl` `tokenizer` `xml` `ctype` `json` `bcmath` `fileinfo` `curl` | cPanel > Select PHP Version > Extensions |
 | Cron | ada | cPanel > Cron Jobs |
 | Email keluar | berfungsi | Wajib — pendaftaran tidak selesai tanpa kode verifikasi |
 
+> **Jangan pilih PHP 8.5.** Laravel 11 tidak pernah dirilis untuk 8.5: config bawaannya di
+> dalam `vendor/` memakai konstanta yang sudah *deprecated*, dan PHP akan menyisipkan
+> peringatan HTML ke dalam badan setiap respons JSON sehingga responsnya tidak bisa
+> di-parse klien — sekaligus **membocorkan path absolut server** ke siapa pun yang memanggil
+> API, tanpa perlu login. `APP_DEBUG=false` tidak menutupnya, karena peringatan itu dipancarkan
+> PHP sebelum Laravel menangani apa pun. Di 8.4 persoalan ini tidak ada. Kalau terlanjur di 8.5, `config:cache`
+> menutupnya — tapi jangan pernah `config:clear` di produksi.
+>
 > **PHP di bawah 8.3 adalah penghalang mutlak.** Kode ini memakai sintaks yang tidak akan
 > ter-parse di versi lama; tidak ada penyesuaian kecil yang bisa menolongnya. Banyak paket
 > shared hosting masih menawarkan 8.1 sebagai bawaan tapi menyediakan 8.3 di
@@ -225,6 +233,11 @@ membutuhkannya.
 
 ## 6. Optimasi produksi
 
+> **Di PHP 8.5, `config:cache` bukan optimasi — ia wajib.** Tanpa config ter-cache,
+> Laravel 11 menyisipkan peringatan *deprecated* ke dalam badan setiap respons JSON dan
+> seluruh API mengembalikan JSON rusak. Di PHP 8.4 (disarankan) hal ini tidak terjadi,
+> dan `config:cache` kembali sekadar optimasi.
+
 ```bash
 php artisan config:cache
 php artisan route:cache
@@ -246,6 +259,12 @@ berhasil), atau lewat Terminal di cPanel bila tersedia.
 ```bash
 php artisan optimize:clear && php artisan config:cache && php artisan route:cache
 ```
+
+> Ketiganya harus dijalankan **sebagai satu rangkaian**. Di PHP 8.5, jeda antara
+> `optimize:clear` dan `config:cache` adalah jendela ketika API mengembalikan JSON rusak.
+> Jangan pernah menjalankan `optimize:clear` sendirian di produksi.
+
+
 
 Nilai `.env` yang baru **tidak akan terbaca** selama cache lama masih ada. Ini penyebab
 paling umum dari "sudah saya ubah tapi tidak ngefek".
