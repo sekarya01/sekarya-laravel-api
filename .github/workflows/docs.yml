@@ -1,0 +1,72 @@
+---
+# Terbitkan dokumentasi API ke GitHub Pages.
+#
+# Kenapa lewat GitHub, bukan dari server produksi: rute /docs sengaja hanya
+# didaftarkan di luar production (lihat routes/web.php), karena spesifikasi ini
+# memuat seluruh endpoint dan kode galat. Repo ini sudah publik, jadi
+# docs/openapi.yaml memang sudah terbaca siapa pun di GitHub -- menyajikannya
+# lewat Pages tidak menambah paparan apa pun, sementara host API tetap bersih.
+#
+# docs/api.html TIDAK di-commit (ada di .gitignore). Ia dibangun di sini setiap
+# kali spesifikasinya berubah, jadi yang terbit tidak mungkin tertinggal dari
+# sumbernya.
+
+name: Dokumentasi API
+
+"on":
+  push:
+    branches: [main]
+    paths:
+      - 'docs/openapi.yaml'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+# Hanya membaca repo; menulis hanya ke Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Satu penerbitan pada satu waktu. Antrean tidak dibatalkan supaya penerbitan
+# yang sedang berjalan tidak berhenti separuh jalan.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Bangun
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Lint dulu. Spesifikasi yang rusak harus menggagalkan build di sini,
+      # bukan terbit sebagai halaman yang salah.
+      - name: Lint spesifikasi
+        run: npx --yes -p @redocly/cli redocly lint docs/openapi.yaml
+
+      - name: Bangun HTML
+        run: |
+          mkdir -p _site
+          npx --yes -p @redocly/cli redocly build-docs docs/openapi.yaml -o _site/index.html
+          cp docs/openapi.yaml _site/openapi.yaml
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Terbitkan
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

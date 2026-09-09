@@ -85,6 +85,8 @@ info:
     identifier: LicenseRef-Proprietary
 
 servers:
+  - url: https://sekarya.com/api/v1
+    description: Produksi
   - url: http://127.0.0.1:8000/api/v1
     description: Pengembangan lokal (php artisan serve)
 
