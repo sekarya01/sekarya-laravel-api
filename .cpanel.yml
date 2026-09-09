@@ -37,6 +37,7 @@ deployment:
     - 'export APP_ROOT="$HOME/sekarya"'
     - 'export SRC="$(pwd)"'
     - 'export PHP="$(command -v ea-php84 || echo /opt/cpanel/ea-php84/root/usr/bin/php)"'
+    - 'export DOCROOT="$HOME/public_html"'
     - 'echo "=== Deploy Sekarya API ==="'
     - 'echo "sumber  = $SRC"'
     - 'echo "tujuan  = $APP_ROOT"'
@@ -67,6 +68,27 @@ deployment:
     # 755, bukan 777: PHP berjalan sebagai pengguna akun ini sendiri.
     - '/bin/chmod -R 755 "$APP_ROOT/storage" "$APP_ROOT/bootstrap/cache"'
 
+    # ── Titik masuk web di public_html ──────────────────────────────────────
+    # Domain utama cPanel dilayani dari ~/public_html dan document root-nya
+    # tidak bisa diubah dari panel. Jadi HANYA isi public/ yang ditaruh di
+    # situ -- kode aplikasi tetap di ~/sekarya, di luar jangkauan web.
+    #
+    # index.php mencari ../vendor dan ../bootstrap relatif terhadap dirinya.
+    # Dari public_html itu menunjuk ke ~/vendor yang tidak ada, jadi ketiga
+    # path-nya ditulis ulang menjadi ../sekarya/...
+    #
+    # Berkasnya disalin ULANG dari repo setiap deploy sebelum ditulis ulang,
+    # dan regex-nya memakai negative lookahead (?!sekarya/) -- tanpa itu,
+    # deploy kedua menghasilkan ../sekarya/sekarya/ dan situs mati.
+    - '/bin/mkdir -p "$DOCROOT"'
+    - '/bin/cp "$SRC/public/index.php" "$DOCROOT/index.php"'
+    - '/bin/cp "$SRC/public/.htaccess" "$DOCROOT/.htaccess"'
+    - '/bin/cp "$SRC/public/favicon.ico" "$DOCROOT/favicon.ico"'
+    - '/bin/cp "$SRC/public/robots.txt" "$DOCROOT/robots.txt"'
+    - 'perl -pi -e "s{__DIR__\.''/\.\./(?!sekarya/)}{__DIR__.''/../sekarya/}g" "$DOCROOT/index.php"'
+    - 'echo "titik masuk web = $DOCROOT/index.php"'
+    - 'grep -c sekarya/vendor "$DOCROOT/index.php" >/dev/null || { echo "GAGAL - penulisan ulang path index.php tidak berhasil"; exit 1; }'
+
     # Composer kalau ada; kalau tidak, vendor/ yang sudah diunggah tetap dipakai
     # dan deploy TIDAK digagalkan.
     - 'cd "$APP_ROOT"'
@@ -84,7 +106,11 @@ deployment:
     - '"$PHP" artisan route:cache'
     - '"$PHP" artisan view:cache'
     - '"$PHP" artisan event:cache'
-    - '"$PHP" artisan storage:link || true'
+    # Symlink storage publik, dibuat dengan ln alih-alih `artisan storage:link`.
+    # Di hosting ini `exec()` dimatikan lewat disable_functions, sehingga
+    # storage:link berhenti dengan "Call to undefined function exec()".
+    # Dibutuhkan karena avatar disajikan lewat Storage::disk('public')->url().
+    - '/bin/ln -sfn "$APP_ROOT/storage/app/public" "$DOCROOT/storage"'
 
     # --force wajib di produksi, tanpanya artisan bertanya dan deploy menggantung.
     # Pemasangan pertama lewat sekarya-install.sql, jadi biasanya "Nothing to migrate".
