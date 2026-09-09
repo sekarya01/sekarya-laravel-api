@@ -190,6 +190,18 @@ Sesuaikan jalurnya di `composer.json`, atau jalankan PHPUnit langsung dengan Xde
 
 ## Dokumentasi API
 
+**Referensi online:** <https://sekarya01.github.io/sekarya-laravel-api/>
+— spec mentahnya di [`/openapi.yaml`](https://sekarya01.github.io/sekarya-laravel-api/openapi.yaml).
+
+Diterbitkan otomatis oleh [`.github/workflows/docs.yml`](.github/workflows/docs.yml) setiap
+kali `docs/openapi.yaml` masuk `main`, jadi ia tidak bisa tertinggal dari sumbernya.
+
+> **Kenapa di GitHub Pages, bukan di server API?** Rute `/docs` sengaja hanya didaftarkan
+> di luar produksi — spec ini menyebutkan setiap endpoint, parameter, dan kode galat.
+> Repo ini publik, jadi `docs/openapi.yaml` memang sudah terbaca siapa pun; menyajikannya
+> lewat Pages tidak menambah paparan apa pun, sementara host API tetap bersih.
+> `https://sekarya.com/docs` menjawab 404, dan itu memang disengaja.
+
 | Berkas | Isi |
 |---|---|
 | [`docs/openapi.yaml`](docs/openapi.yaml) | **Kontrak.** OpenAPI 3.1, ditulis tangan |
@@ -199,7 +211,8 @@ Sesuaikan jalurnya di `composer.json`, atau jalankan PHPUnit langsung dengan Xde
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Konvensi commit |
 | [`CLAUDE.md`](CLAUDE.md) | Keputusan arsitektur yang tidak boleh "dirapikan" |
 
-Di luar produksi, spec juga dilayani aplikasi:
+Di luar produksi, spec juga dilayani aplikasi sendiri — berguna saat mengembangkan
+tanpa jaringan:
 
 ```
 GET /docs               referensi ter-render
