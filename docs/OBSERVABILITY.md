@@ -48,7 +48,7 @@ Kalau tidak terkirim, alasannya ada di `storage/logs/laravel.log` dengan awalan
 
 > `AXIOM_ENABLED` default **false**. Aplikasi harus jalan normal tanpa Axiom, dan
 > tidak boleh ada pengiriman keluar yang aktif hanya karena lupa. Di test ia
-> dimatikan keras lewat `phpunit.xml` — 595 test berjalan dengan payload berisi
+> dimatikan keras lewat `phpunit.xml` — 718 test berjalan dengan payload berisi
 > kata sandi dan kode verifikasi, dan sekali suite jalan dengan Axiom hidup,
 > semuanya terkirim ke pihak ketiga tanpa bisa ditarik kembali.
 

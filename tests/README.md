@@ -1,7 +1,7 @@
 # Tests
 
 ```bash
-php artisan test                    # 403 test
+php artisan test                    # 718 test, 2.238 asersi
 php artisan test --testsuite Unit   # tier cepat
 composer coverage                   # ringkasan coverage di terminal
 composer test-report                # semua laporan ke coverage/
@@ -35,9 +35,15 @@ for f in t.getroot().iter('file'):
 EOF
 ```
 
-Terakhir dijalankan: **403 test, 1.301 assertion, 99,94% baris (1701/1702), 99,73% method.**
-Satu baris sengaja tidak tercakup — `app/Actions/Auth/VerifyEmailAction.php:103`, cek ulang
-setelah `lockForUpdate()` yang hanya terpicu kalau ada dua koneksi berbarengan.
+Terakhir dijalankan: **718 test, 2.238 assertion, 42 berkas** — diverifikasi pada
+Laravel 11.55.1 / PHP 8.5.10.
+
+**Coverage belum diukur ulang setelah penurunan ke Laravel 11.** Angka terakhir yang
+terukur (di Laravel 13) adalah 99,94% baris — 1701/1702 — dan 99,73% method, dengan satu
+baris yang sengaja tidak tercakup: `app/Actions/Auth/VerifyEmailAction.php:103`, cek ulang
+setelah `lockForUpdate()` yang hanya terpicu kalau ada dua koneksi berbarengan. Untuk
+mengukur ulang dibutuhkan pcov atau Xdebug (lihat *Prasyarat sekali pasang* di bawah),
+lalu `composer coverage`.
 
 ## Prasyarat sekali pasang
 

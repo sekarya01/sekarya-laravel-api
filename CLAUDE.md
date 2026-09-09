@@ -242,7 +242,7 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
 #   CREATE DATABASE sekarya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 php artisan migrate:fresh --seed  # 13 tabel + kategori & skills
 php artisan serve                 # http://localhost:8000
-php artisan test                  # 716 tests
+php artisan test                  # 718 test, 2.238 asersi
 composer test-report              # coverage/html + junit + testdox (lihat tests/README.md)
 php artisan sekarya:axiom --audit # buktikan penyaringan PII sebelum kirim apa pun
 php artisan test tests/Unit       # fast tier
