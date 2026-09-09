@@ -1,0 +1,98 @@
+---
+# =============================================================================
+#  Deploy otomatis lewat cPanel > Git Version Control
+# =============================================================================
+#  Dijalankan cPanel setiap kali tombol "Deploy HEAD Commit" ditekan.
+#  Seluruh task digabung jadi satu skrip bash, jadi `export` tetap berlaku
+#  di task berikutnya.
+#
+#  TIGA HAL YANG SENGAJA TIDAK DISENTUH SKRIP INI:
+#
+#   1. `.env`      — berisi kredensial, tidak ada di git. Ditaruh sekali secara
+#                    manual di $APP_ROOT/.env. Menimpanya berarti menghapus
+#                    kata sandi basis data dan email.
+#   2. `vendor/`   — tidak ada di git (terlalu besar). Diunggah sekali dari
+#                    sekarya-vendor-laravel11.zip, atau dibangun ulang oleh
+#                    Composer di bawah kalau tersedia.
+#   3. `storage/`  — berisi unggahan pengguna dan log. Hanya foldernya yang
+#                    dibuat kalau belum ada; isinya tidak pernah dihapus.
+#
+#  `cp -R` dipakai, BUKAN `rsync --delete`. Menyalin menimpa berkas yang sama
+#  nama tapi tidak pernah menghapus apa pun — supaya salah konfigurasi tidak
+#  bisa berujung kehilangan data.
+# =============================================================================
+
+deployment:
+  tasks:
+    - export APP_ROOT="$HOME/sekarya"
+    - export SRC="$(pwd)"
+    - export PHP="$(command -v ea-php84 || echo /opt/cpanel/ea-php84/root/usr/bin/php)"
+    - echo "=== Deploy Sekarya API ==="
+    - echo "sumber  : $SRC"
+    - echo "tujuan  : $APP_ROOT"
+    - echo "php     : $PHP"
+
+    # ── Pastikan strukturnya ada, tanpa menghapus apa pun ────────────────────
+    - /bin/mkdir -p "$APP_ROOT"
+    - /bin/mkdir -p "$APP_ROOT/storage/app/private"
+    - /bin/mkdir -p "$APP_ROOT/storage/app/public"
+    - /bin/mkdir -p "$APP_ROOT/storage/framework/cache/data"
+    - /bin/mkdir -p "$APP_ROOT/storage/framework/sessions"
+    - /bin/mkdir -p "$APP_ROOT/storage/framework/views"
+    - /bin/mkdir -p "$APP_ROOT/storage/logs"
+    - /bin/mkdir -p "$APP_ROOT/bootstrap/cache"
+
+    # ── Kode aplikasi ────────────────────────────────────────────────────────
+    # storage/ TIDAK ikut di sini. tests/ dan docs/ juga tidak: keduanya artefak
+    # pengembangan dan tidak dibutuhkan produksi.
+    - /bin/cp -R "$SRC/app"       "$APP_ROOT/"
+    - /bin/cp -R "$SRC/bootstrap" "$APP_ROOT/"
+    - /bin/cp -R "$SRC/config"    "$APP_ROOT/"
+    - /bin/cp -R "$SRC/database"  "$APP_ROOT/"
+    - /bin/cp -R "$SRC/public"    "$APP_ROOT/"
+    - /bin/cp -R "$SRC/resources" "$APP_ROOT/"
+    - /bin/cp -R "$SRC/routes"    "$APP_ROOT/"
+    - /bin/cp    "$SRC/artisan"        "$APP_ROOT/"
+    - /bin/cp    "$SRC/composer.json"  "$APP_ROOT/"
+    - /bin/cp    "$SRC/composer.lock"  "$APP_ROOT/"
+
+    # ── Izin ─────────────────────────────────────────────────────────────────
+    # 755, bukan 777. Di shared hosting PHP berjalan sebagai pengguna akun ini
+    # sendiri, jadi 755 sudah cukup; 777 membuat berkas bisa ditulis akun lain
+    # di server yang sama.
+    - /bin/chmod -R 755 "$APP_ROOT/storage" "$APP_ROOT/bootstrap/cache"
+
+    # ── Composer, kalau tersedia ─────────────────────────────────────────────
+    # Banyak shared hosting tidak menyediakannya. Kalau tidak ada, vendor/ yang
+    # sudah diunggah manual tetap dipakai dan deploy TIDAK digagalkan.
+    - cd "$APP_ROOT"
+    - if command -v composer >/dev/null 2>&1; then echo "composer ditemukan, menyegarkan vendor..."; composer install --no-dev --optimize-autoloader --no-interaction; else echo "composer tidak ada di server — memakai vendor/ yang sudah diunggah"; fi
+
+    # ── Berhenti dengan pesan jelas kalau prasyaratnya belum ada ─────────────
+    - if [ ! -f "$APP_ROOT/vendor/autoload.php" ]; then echo "GAGAL: $APP_ROOT/vendor belum ada. Unggah sekarya-vendor-laravel11.zip dan ekstrak di situ."; exit 1; fi
+    - if [ ! -f "$APP_ROOT/.env" ]; then echo "GAGAL: $APP_ROOT/.env belum ada. Unggah .env.sekarya-produksi ke situ dengan nama .env."; exit 1; fi
+
+    # ── Cache ────────────────────────────────────────────────────────────────
+    # Di PHP 8.5 config:cache BUKAN optimasi melainkan syarat: tanpanya Laravel 11
+    # menyisipkan peringatan deprecated ke badan setiap respons JSON. Di PHP 8.4
+    # (yang seharusnya dipakai) ia kembali sekadar optimasi.
+    #
+    # optimize:clear dan config:cache SATU RANGKAIAN — jeda di antaranya adalah
+    # jendela ketika API mengembalikan JSON rusak.
+    - "$PHP" artisan optimize:clear
+    - "$PHP" artisan config:cache
+    - "$PHP" artisan route:cache
+    - "$PHP" artisan view:cache
+    - "$PHP" artisan event:cache
+
+    # ── Symlink storage publik ───────────────────────────────────────────────
+    # Aman diulang; kalau sudah ada, artisan hanya memberi tahu.
+    - "$PHP" artisan storage:link || true
+
+    # ── Migrasi ──────────────────────────────────────────────────────────────
+    # --force wajib di produksi: tanpanya artisan bertanya dan deploy menggantung.
+    # Pemasangan pertama memakai database/schema/sekarya-install.sql lewat
+    # phpMyAdmin, jadi biasanya di sini hasilnya "Nothing to migrate".
+    - "$PHP" artisan migrate --force
+
+    - echo "=== Selesai. Uji: curl -i https://sekarya.com/api/v1/categories ==="
