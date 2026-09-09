@@ -38,12 +38,31 @@ EOF
 Terakhir dijalankan: **718 test, 2.238 assertion, 42 berkas** — diverifikasi pada
 Laravel 11.55.1 / PHP 8.5.10.
 
-**Coverage belum diukur ulang setelah penurunan ke Laravel 11.** Angka terakhir yang
-terukur (di Laravel 13) adalah 99,94% baris — 1701/1702 — dan 99,73% method, dengan satu
-baris yang sengaja tidak tercakup: `app/Actions/Auth/VerifyEmailAction.php:103`, cek ulang
-setelah `lockForUpdate()` yang hanya terpicu kalau ada dua koneksi berbarengan. Untuk
-mengukur ulang dibutuhkan pcov atau Xdebug (lihat *Prasyarat sekali pasang* di bawah),
-lalu `composer coverage`.
+**Coverage** (diukur pada Laravel 11.55.1 / PHP 8.5.10 dengan pcov):
+
+| | |
+|---|---|
+| Baris | **95,59%** (2711/2836) |
+| Method | 98,36% (479/487) |
+| Kelas | 98,79% (163/165) |
+
+125 baris tidak tercakup, terbagi dua:
+
+- **124 baris — `app/Console/Commands/BuildInstallSqlCommand.php`, nol tercakup.**
+  `InstallSchemaTest` menguji berkas SQL yang *dihasilkan*, bukan command yang
+  menghasilkannya, jadi kelas command-nya tidak pernah dieksekusi test. Ini celah
+  nyata, bukan artefak pengukuran.
+- **1 baris — `app/Actions/Auth/VerifyEmailAction.php:103`**, sengaja tidak tercakup:
+  cek ulang setelah `lockForUpdate()` yang hanya terpicu kalau ada dua koneksi
+  berbarengan.
+
+Angka 99,94% yang tercatat sebelumnya diukur pada 2026-09-09 09:34, sebelum command
+tersebut ada (di-commit 12:57). Basis kodenya waktu itu 1.702 baris, sekarang 2.836.
+Penurunan ke Laravel 11 **tidak** mengubah coverage: jumlah baris tercakup sama persis
+(2711) di kedua versi, dan tidak ada berkas yang hilang.
+
+`pcov` sudah terpasang tapi tidak dimuat lewat `php.ini`; script `composer coverage`
+memuatnya sendiri lewat `-d extension=`. Jadi `php -m` tidak menampilkannya.
 
 ## Prasyarat sekali pasang
 
