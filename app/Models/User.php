@@ -11,8 +11,6 @@ use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
 use App\Models\Concerns\HasUlid;
 use Database\Factories\UserFactory;
-use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -21,15 +19,23 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable([
-    'name', 'email', 'phone', 'password', 'avatar_path', 'bio',
-    'active_mode', 'address_line', 'city', 'province', 'postal_code', 'theme',
-])]
-#[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, HasUlid, Notifiable, SoftDeletes;
+
+    /**
+     * Kolom hak akses (status, role) sengaja tidak ada di sini.
+     *
+     * @var list<string>
+     */
+    protected $fillable = [
+        'name', 'email', 'phone', 'password', 'avatar_path', 'bio',
+        'active_mode', 'address_line', 'city', 'province', 'postal_code', 'theme',
+    ];
+
+    /** @var list<string> */
+    protected $hidden = ['password', 'remember_token'];
 
     /** @return array<string, string> */
     protected function casts(): array

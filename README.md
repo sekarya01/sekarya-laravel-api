@@ -9,14 +9,19 @@ badan usaha. Semua pihak perseorangan.
 
 | | |
 |---|---|
-| Bahasa & framework | PHP `^8.3` · Laravel `^13.17` |
+| Bahasa & framework | PHP `^8.3` (**pakai 8.4 di produksi**, lihat catatan di bawah) · Laravel `11.55.1` (dipin persis) |
 | Basis data | MySQL 8+ / InnoDB — **bukan** SQLite, lihat [Kenapa MySQL](#kenapa-mysql-bukan-sqlite) |
 | Autentikasi | Laravel Sanctum `^4.0`, sepasang token |
-| Test | PHPUnit `^12.5` — 705 test, 41 berkas, coverage 99,96% |
+| Test | PHPUnit `^11.5` — 718 test, coverage 99,96% |
 | Kontrak API | OpenAPI 3.1 di `docs/openapi.yaml` — 35 endpoint |
 | Observability | Axiom (opsional, mati secara bawaan) |
 
-Diuji pada PHP 8.5.10, Laravel 13.30.1, MySQL 26.7 (Homebrew), Composer 2.10.
+Diuji pada PHP 8.5.10, Laravel 11.55.1, MySQL 26.7 (Homebrew), Composer 2.10.
+
+> **Kenapa Laravel dipin di 11.55.1, bukan rentang `^11.0`?**
+> Ini penurunan versi yang disengaja agar cocok dengan katalog installer hosting.
+> Konsekuensinya nyata dan harus diketahui siapa pun yang memegang repo ini —
+> baca [Konsekuensi memakai Laravel 11](#konsekuensi-memakai-laravel-11).
 
 ---
 
@@ -32,6 +37,7 @@ Diuji pada PHP 8.5.10, Laravel 13.30.1, MySQL 26.7 (Homebrew), Composer 2.10.
 - [Struktur direktori](#struktur-direktori)
 - [Aturan domain yang tidak boleh dilanggar](#aturan-domain-yang-tidak-boleh-dilanggar)
 - [Konvensi git](#konvensi-git)
+- [Konsekuensi memakai Laravel 11](#konsekuensi-memakai-laravel-11)
 - [Hal yang sering menjebak](#hal-yang-sering-menjebak)
 
 ---
@@ -40,7 +46,7 @@ Diuji pada PHP 8.5.10, Laravel 13.30.1, MySQL 26.7 (Homebrew), Composer 2.10.
 
 | Kebutuhan | Versi | Catatan |
 |---|---|---|
-| PHP | `>= 8.3` | Ekstensi: `pdo_mysql`, `mbstring`, `openssl` (bawaan Laravel lainnya juga) |
+| PHP | `8.3` atau `8.4` — **8.4 disarankan** | 8.5 mengotori respons JSON di Laravel 11, lihat [Konsekuensi memakai Laravel 11](#konsekuensi-memakai-laravel-11). Ekstensi: `pdo_mysql`, `mbstring`, `openssl` |
 | Composer | 2.x | |
 | MySQL | 8.0+ | InnoDB. Perlu dukungan `FULLTEXT` dan `LEAST()/GREATEST()` |
 | Node.js | 18+ | Hanya untuk aset frontend dan `redocly` (lewat `npx`) |
@@ -292,8 +298,10 @@ Ringkasnya: aplikasi ini memang dirancang bisa hidup di shared hosting — selur
 memakai `database`, tidak ada Redis, tidak ada proses yang harus hidup terus, dan tidak
 ada setelan MySQL yang perlu diminta ke penyedia hosting.
 
-- **PHP 8.3 adalah syarat mutlak.** Banyak paket masih memakai 8.1 sebagai bawaan tapi
-  menyediakan 8.3 di MultiPHP Manager — periksa daftarnya, bukan yang sedang aktif.
+- **Pakai PHP 8.4 di MultiPHP Manager.** 8.3 adalah batas bawah (kode memakai typed
+  class constant). **Jangan pilih 8.5**: Laravel 11 tidak pernah dirilis untuk 8.5 dan
+  akan mengotori setiap respons JSON — rinciannya di
+  [Konsekuensi memakai Laravel 11](#konsekuensi-memakai-laravel-11).
 - Basis data dipasang sekali lewat
   [`database/schema/sekarya-install.sql`](database/schema/sekarya-install.sql): 23 tabel
   beserta indeks dan foreign key, data acuan, dan riwayat migrasi supaya
@@ -320,6 +328,71 @@ perintah, maksimal 72 karakter, dan menyebut **hasilnya** bukan mekanismenya.
 Branch: `dev/<nama>` untuk pekerjaan perorangan.
 
 Sebelum commit: `./vendor/bin/pint`, `php artisan test`, dan `redocly lint`.
+
+## Konsekuensi memakai Laravel 11
+
+Repo ini **sengaja diturunkan** dari Laravel 13 ke 11.55.1 agar cocok dengan katalog
+installer hosting. Empat hal berikut adalah harga yang dibayar. Semuanya sudah diverifikasi
+dengan dijalankan, bukan dibaca dari dokumentasi.
+
+### 1. Tiga celah keamanan yang tidak akan pernah ditambal
+
+Laravel 11 sudah habis masa dukungan keamanannya. Composer secara bawaan **menolak**
+memasangnya. Agar bisa dipasang, `composer.json` mengecualikan tiga advisory —
+dipersempit ke ID spesifik, bukan mematikan seluruh pemeriksaan:
+
+| Advisory | Dampak | Ditambal di |
+|---|---|---|
+| `PKSA-3r5d-mb8f-1qw9` / `PKSA-mdq4-51ck-6kdq` (CVE-2026-48019, *high*) | CRLF injection pada rule validasi `email` — menyentuh register, login, reset password | 12.60.0 / 13.10.0 |
+| `PKSA-m5cs-t1y6-qpcs` (*medium*) | Temporary Signed URL path confusion — menyentuh tautan verifikasi email | 12.61.1 / 13.12.0 |
+
+Tidak ada versi 11.x yang memperbaikinya. Satu-satunya perbaikan adalah naik ke Laravel 12+.
+
+### 2. `php artisan config:cache` menjadi WAJIB di PHP 8.5
+
+Config bawaan Laravel 11 di dalam `vendor/` memakai `PDO::MYSQL_ATTR_SSL_CA`, yang
+*deprecated* sejak PHP 8.5. Tanpa config ter-cache, PHP menyisipkan peringatan HTML
+**ke dalam badan setiap respons JSON**, sehingga responsnya bukan JSON valid:
+
+```
+<br /><b>Deprecated</b>: Constant PDO::MYSQL_ATTR_SSL_CA is deprecated since 8.5 ...
+{"status":"pending_verification", ...}
+```
+
+Dua cara menutupnya, pakai salah satu:
+
+- **Disarankan — jalankan PHP 8.4 di hosting.** Konstantanya belum *deprecated* di 8.4,
+  jadi persoalannya hilang sama sekali dan tidak bergantung pada cache.
+- Kalau terpaksa di PHP 8.5: `php artisan config:cache` wajib dijalankan dan **tidak boleh**
+  di-`config:clear` di produksi. Sekali cache-nya hilang, seluruh API mengembalikan JSON rusak.
+
+`config/database.php` milik aplikasi ini sendiri sudah memakai bentuk modern
+`Pdo\Mysql::ATTR_SSL_CA`; yang bermasalah adalah berkas di dalam `vendor/`, jadi tidak bisa
+diperbaiki dari sisi aplikasi.
+
+### 3. `#[Fillable]` dan `#[Hidden]` tidak ada di Laravel 11
+
+Atribut itu khusus Laravel 13. Laravel 11 **tidak error** — ia diam-diam mengabaikannya,
+yang berarti `$fillable` kosong (registrasi membuang seluruh data) dan `$hidden` kosong
+(**hash password ikut terkirim di respons API**). Di `app/Models/User.php` keduanya sudah
+diubah menjadi properti `protected $fillable` / `protected $hidden`.
+
+**Kalau nanti naik lagi ke Laravel 13, jangan kembalikan ke bentuk atribut** tanpa alasan
+kuat — bentuk properti jalan di semua versi.
+
+### 4. `laravel/pao` dilepas
+
+Paket itu menuntut PHPUnit 12, sementara Laravel 11 mentok di PHPUnit 11. Dampaknya hanya
+kosmetik pada keluaran test.
+
+### Yang TIDAK berubah
+
+718 test lolos (2.238 asersi), 95/95 smoke check lolos, Pint bersih, dan
+`database/schema/sekarya-install.sql` identik byte-per-byte — **skema basis data tidak
+tersentuh oleh penurunan versi ini**. Tidak ada API khusus Laravel 12/13 yang dipakai
+selain dua atribut di atas.
+
+---
 
 ## Hal yang sering menjebak
 

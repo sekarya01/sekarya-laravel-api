@@ -1,6 +1,11 @@
 # Sekarya API
 
-Laravel 13 / PHP 8.5 REST API. **Action-Based Architecture** (Clean Architecture / DDD Lite).
+Laravel 11.55.1 (dipin persis) / PHP 8.3-8.4 REST API. **Action-Based Architecture**
+(Clean Architecture / DDD Lite).
+
+> Diturunkan dari Laravel 13 agar cocok dengan katalog installer hosting. Konsekuensinya
+> tercatat di README, bagian **Konsekuensi memakai Laravel 11** — baca sebelum menyentuh
+> `app/Models/User.php` atau menaikkan versi PHP ke 8.5.
 
 The full blueprint lives in the `laravel-action-api` skill — invoke it before writing code here.
 This file records only what is specific to *this* project.
