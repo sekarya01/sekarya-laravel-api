@@ -26,7 +26,9 @@ Periksa **sebelum** membeli atau mengunggah apa pun.
 > **Jangan pilih PHP 8.5.** Laravel 11 tidak pernah dirilis untuk 8.5: config bawaannya di
 > dalam `vendor/` memakai konstanta yang sudah *deprecated*, dan PHP akan menyisipkan
 > peringatan HTML ke dalam badan setiap respons JSON sehingga responsnya tidak bisa
-> di-parse klien. Di 8.4 persoalan ini tidak ada. Kalau terlanjur di 8.5, `config:cache`
+> di-parse klien — sekaligus **membocorkan path absolut server** ke siapa pun yang memanggil
+> API, tanpa perlu login. `APP_DEBUG=false` tidak menutupnya, karena peringatan itu dipancarkan
+> PHP sebelum Laravel menangani apa pun. Di 8.4 persoalan ini tidak ada. Kalau terlanjur di 8.5, `config:cache`
 > menutupnya — tapi jangan pernah `config:clear` di produksi.
 >
 > **PHP di bawah 8.3 adalah penghalang mutlak.** Kode ini memakai sintaks yang tidak akan

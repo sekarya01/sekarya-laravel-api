@@ -359,6 +359,11 @@ Config bawaan Laravel 11 di dalam `vendor/` memakai `PDO::MYSQL_ATTR_SSL_CA`, ya
 {"status":"pending_verification", ...}
 ```
 
+`APP_DEBUG=false` **tidak menutup ini** — itu setelan Laravel, sedangkan peringatan di atas
+dipancarkan PHP sebelum Laravel sempat menangani apa pun. Yang bocor adalah path absolut
+di server (`/home/<user-cpanel>/...`), ke klien mana pun tanpa perlu autentikasi. Sudah
+diverifikasi dengan menjalankannya, bukan diasumsikan.
+
 Dua cara menutupnya, pakai salah satu:
 
 - **Disarankan — jalankan PHP 8.4 di hosting.** Konstantanya belum *deprecated* di 8.4,
