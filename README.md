@@ -12,7 +12,7 @@ badan usaha. Semua pihak perseorangan.
 | Bahasa & framework | PHP `^8.3` (**pakai 8.4 di produksi**, lihat catatan di bawah) · Laravel `11.55.1` (dipin persis) |
 | Basis data | MySQL 8+ / InnoDB — **bukan** SQLite, lihat [Kenapa MySQL](#kenapa-mysql-bukan-sqlite) |
 | Autentikasi | Laravel Sanctum `^4.0`, sepasang token |
-| Test | PHPUnit `^11.5` — 718 test, 2.238 asersi, 42 berkas, coverage baris 95,59% |
+| Test | PHPUnit `^11.5` — 740 test, 2.442 asersi, 44 berkas, coverage baris 99,75% |
 | Kontrak API | OpenAPI 3.1 di `docs/openapi.yaml` — 35 endpoint |
 | Observability | Axiom (opsional, mati secara bawaan) |
 
@@ -162,7 +162,7 @@ php artisan route:list --path=api
 ## Test
 
 ```bash
-php artisan test                  # 718 test, 2.238 asersi
+php artisan test                  # 740 test, 2.442 asersi
 php artisan test tests/Unit       # lapis cepat
 composer test-report              # + coverage/html, junit, testdox
 bash docs/smoke.sh                # 95 pemeriksaan HTTP sungguhan, server sendiri
@@ -392,7 +392,7 @@ kosmetik pada keluaran test.
 
 ### Yang TIDAK berubah
 
-718 test lolos (2.238 asersi), 95/95 smoke check lolos, Pint bersih, dan
+740 test lolos (2.442 asersi), 95/95 smoke check lolos, Pint bersih, dan
 `database/schema/sekarya-install.sql` identik byte-per-byte — **skema basis data tidak
 tersentuh oleh penurunan versi ini**. Tidak ada API khusus Laravel 12/13 yang dipakai
 selain dua atribut di atas.

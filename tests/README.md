@@ -1,7 +1,7 @@
 # Tests
 
 ```bash
-php artisan test                    # 718 test, 2.238 asersi
+php artisan test                    # 740 test, 2.442 asersi
 php artisan test --testsuite Unit   # tier cepat
 composer coverage                   # ringkasan coverage di terminal
 composer test-report                # semua laporan ke coverage/
@@ -35,31 +35,31 @@ for f in t.getroot().iter('file'):
 EOF
 ```
 
-Terakhir dijalankan: **718 test, 2.238 assertion, 42 berkas** — diverifikasi pada
+Terakhir dijalankan: **740 test, 2.442 assertion, 44 berkas** — diverifikasi pada
 Laravel 11.55.1 / PHP 8.5.10.
 
 **Coverage** (diukur pada Laravel 11.55.1 / PHP 8.5.10 dengan pcov):
 
 | | |
 |---|---|
-| Baris | **95,59%** (2711/2836) |
-| Method | 98,36% (479/487) |
+| Baris | **99,75%** (2829/2836) |
+| Method | 99,38% (484/487) |
 | Kelas | 98,79% (163/165) |
 
-125 baris tidak tercakup, terbagi dua:
+Tujuh baris tidak tercakup, dan ketiga-tiganya cabang defensif untuk keadaan yang
+skema nyata tidak pernah capai. Disebut spesifik supaya tidak jadi tempat
+sembunyi kode mati:
 
-- **124 baris — `app/Console/Commands/BuildInstallSqlCommand.php`, nol tercakup.**
-  `InstallSchemaTest` menguji berkas SQL yang *dihasilkan*, bukan command yang
-  menghasilkannya, jadi kelas command-nya tidak pernah dieksekusi test. Ini celah
-  nyata, bukan artefak pengukuran.
-- **1 baris — `app/Actions/Auth/VerifyEmailAction.php:103`**, sengaja tidak tercakup:
-  cek ulang setelah `lockForUpdate()` yang hanya terpicu kalau ada dua koneksi
-  berbarengan.
+| Berkas | Baris | Kenapa |
+|---|---|---|
+| `app/Actions/Auth/VerifyEmailAction.php` | 103 | Cek ulang setelah `lockForUpdate()`; butuh dua koneksi berbarengan |
+| `app/Console/Commands/BuildInstallSqlCommand.php` | 141-145 | Peringatan lingkaran foreign key; skema ini tidak punya lingkaran |
+| `app/Console/Commands/BuildInstallSqlCommand.php` | 215 | Cabang tabel acuan kosong (lihat catatan di bawah) |
 
-Angka 99,94% yang tercatat sebelumnya diukur pada 2026-09-09 09:34, sebelum command
-tersebut ada (di-commit 12:57). Basis kodenya waktu itu 1.702 baris, sekarang 2.836.
-Penurunan ke Laravel 11 **tidak** mengubah coverage: jumlah baris tercakup sama persis
-(2711) di kedua versi, dan tidak ada berkas yang hilang.
+Baris 215 tidak bisa dijangkau test dengan andal: suite ini mencampur
+RefreshDatabase dan DatabaseTruncation, jadi `categories` bisa berisi baris
+ter-commit dari kelas lain dan tidak pernah dijamin kosong. Yang dijaga adalah
+invariannya — tidak ada `INSERT` tanpa kolom — bukan cabangnya.
 
 `pcov` sudah terpasang tapi tidak dimuat lewat `php.ini`; script `composer coverage`
 memuatnya sendiri lewat `-d extension=`. Jadi `php -m` tidak menampilkannya.
