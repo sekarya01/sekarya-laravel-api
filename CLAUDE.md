@@ -65,7 +65,7 @@ keduanya dijaga test:
   pertama tanpa keterangan. Perintahnya mengurutkan menurut ketergantungan.
   Migrasi baru **wajib** ikut ke sini; `tests/Feature/Deployment/InstallSchemaTest.php`
   menggagalkan suite kalau tidak, dan menolak data selain kategori, keahlian, dan migrasi —
-  berkas ini ada di repo publik.
+  berkas ini dilacak git, dan riwayat git tidak bisa ditarik kembali.
 - **`.env.production.example`** — template produksi, tiap nilai berkomentar.
 
 Yang mudah terlewat: **cache rute harus dibuat DI SERVER.** Rute `/docs` didaftarkan hanya

@@ -89,9 +89,10 @@ final class InstallSchemaTest extends TestCase
     /**
      * Dan HANYA data acuan.
      *
-     * Berkas ini ada di repositori publik. Satu baris `users` di dalamnya
-     * berarti data pribadi seseorang ikut terbit, dan berkas yang sudah masuk
-     * riwayat git tidak bisa ditarik kembali.
+     * Repositorinya privat hari ini, dan itu bukan alasan untuk longgar:
+     * repo berpindah tangan, dibuka untuk umum, di-clone kontraktor, dan
+     * di-fork. Satu baris `users` di sini berarti data pribadi seseorang ikut
+     * masuk riwayat git — dan riwayat git tidak bisa ditarik kembali.
      */
     public function test_the_install_file_carries_no_personal_data(): void
     {

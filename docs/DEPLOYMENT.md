@@ -400,7 +400,8 @@ dihindari:
 
 `tests/Feature/Deployment/InstallSchemaTest.php` menjaga kelimanya, plus memastikan berkas
 ini tidak pernah memuat data selain kategori, keahlian, dan riwayat migrasi — ia ada di
-repositori publik.
+repositori — dan riwayat git tidak bisa ditarik kembali kalau repo itu suatu
+saat dibuka untuk umum.
 
 ---
 

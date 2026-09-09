@@ -41,7 +41,8 @@
 --      sudah dijalankan dan tidak mengulanginya di atas tabel yang sudah ada
 --
 --    TIDAK berisi pengguna, task, penawaran, pembayaran, atau data pribadi
---    apa pun. Berkas ini aman disimpan di repositori publik.
+--    apa pun. Berkas ini aman dilacak git, termasuk kalau repositorinya
+--    suatu saat dibuka untuk umum.
 --
 --  SIFAT BERKAS INI
 --    - Tabel diurutkan menurut KETERGANTUNGAN, bukan abjad: setiap foreign
