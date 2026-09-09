@@ -51,6 +51,22 @@ Business logic lives **only** in Action classes. Never in Controllers, Models, R
   haversine second. Never haversine alone — a computed expression cannot be indexed,
   so it would scan the whole table.
 
+## Deploy
+
+Panduan shared hosting: `docs/DEPLOYMENT.md`. Dua artefak yang harus tetap seiring, dan
+keduanya dijaga test:
+
+- **`database/schema/sekarya-install.sql`** — pemasangan sekali jalan untuk hosting tanpa
+  SSH. Berisi struktur, data acuan, dan riwayat migrasi. Migrasi baru **wajib** ikut ke
+  sini; `tests/Feature/Deployment/InstallSchemaTest.php` menggagalkan suite kalau tidak.
+  Berkas ini ada di repo publik — test yang sama menolak data selain kategori, keahlian,
+  dan migrasi.
+- **`.env.production.example`** — template produksi, tiap nilai berkomentar.
+
+Yang mudah terlewat: **cache rute harus dibuat DI SERVER.** Rute `/docs` didaftarkan hanya
+saat `APP_ENV` bukan production; cache yang dibuat di laptop akan membawa spesifikasi API
+lengkap ke produksi.
+
 ## Feed & pencarian nama
 
 Filter feed: `q` (nama), `lat`/`lng`/`radius_km` (jarak), `posted_within_hours` (waktu),
@@ -216,7 +232,7 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
 #   CREATE DATABASE sekarya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 php artisan migrate:fresh --seed  # 13 tabel + kategori & skills
 php artisan serve                 # http://localhost:8000
-php artisan test                  # 705 tests
+php artisan test                  # 712 tests
 composer test-report              # coverage/html + junit + testdox (lihat tests/README.md)
 php artisan sekarya:axiom --audit # buktikan penyaringan PII sebelum kirim apa pun
 php artisan test tests/Unit       # fast tier
