@@ -189,6 +189,7 @@ Sesuaikan jalurnya di `composer.json`, atau jalankan PHPUnit langsung dengan Xde
 | [`docs/openapi.yaml`](docs/openapi.yaml) | **Kontrak.** OpenAPI 3.1, ditulis tangan |
 | [`docs/API.md`](docs/API.md) | Panduan manusia — alur lengkap dengan `curl` yang bisa disalin |
 | [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) | Logging, redaksi PII, kueri Axiom |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Pemasangan di shared hosting, dari kelayakan sampai verifikasi |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Konvensi commit |
 | [`CLAUDE.md`](CLAUDE.md) | Keputusan arsitektur yang tidak boleh "dirapikan" |
 
@@ -282,6 +283,26 @@ disiplin kode.
 
 **Login, kirim ulang kode, dan verifikasi memberi jawaban identik** apakah emailnya ada
 atau tidak — kalau tidak, ketiganya menjadi alat pemetaan akun.
+
+## Deploy
+
+Panduan lengkap untuk shared hosting cPanel: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+Ringkasnya: aplikasi ini memang dirancang bisa hidup di shared hosting — seluruh driver
+memakai `database`, tidak ada Redis, tidak ada proses yang harus hidup terus, dan tidak
+ada setelan MySQL yang perlu diminta ke penyedia hosting.
+
+- **PHP 8.3 adalah syarat mutlak.** Banyak paket masih memakai 8.1 sebagai bawaan tapi
+  menyediakan 8.3 di MultiPHP Manager — periksa daftarnya, bukan yang sedang aktif.
+- Basis data dipasang sekali lewat
+  [`database/schema/sekarya-install.sql`](database/schema/sekarya-install.sql): 23 tabel
+  beserta indeks dan foreign key, data acuan, dan riwayat migrasi supaya
+  `php artisan migrate` tahu semuanya sudah dijalankan. Tanpa data pengguna. Tabelnya urut
+  menurut ketergantungan dan tidak menghapus apa pun, jadi bisa diimpor lewat phpMyAdmin
+  dan aman diulang. Dibuat ulang dengan `php artisan sekarya:build-install-sql`.
+- Salin `.env.production.example` jadi `.env` di server; tiap nilainya berkomentar.
+- Aplikasi harus berada **di luar** `public_html`. Kalau `https://domain/.env` bisa
+  diunduh, seluruh kredensial Anda sudah bocor.
 
 ## Konvensi git
 
