@@ -1,0 +1,2298 @@
+openapi: 3.1.0
+
+info:
+  title: Sekarya API
+  version: 1.0.0
+  summary: Marketplace freelance pekerjaan acak, perseorangan, dengan lelang dan dana ditahan.
+  description: |
+    **Sekarya** menyatukan orang yang butuh bantuan dengan orang yang mencari kerja.
+    Pekerjaannya acak — mencuci, membersihkan rumah, menjaga hewan, mengantarkan barang,
+    dan lainnya. Semua pihak perseorangan; tidak ada konsep mitra atau badan usaha.
+
+    Satu orang bisa berada di **kedua sisi**, bergantian:
+
+    | Peran | Sebutan di API | Yang dilakukan |
+    |---|---|---|
+    | Pemberi kerja | `poster` | Membuat task dengan rentang budget |
+    | Penerima kerja | `worker` | Mengajukan penawaran dengan budget sendiri |
+
+    ## Alur inti
+
+    ```
+    poster buat task (budget min–max)
+      → worker ajukan penawaran
+      → poster pilih SATU  ............ DEAL
+      → poster transfer  .............. dana DITAHAN, activity dibuka
+      → worker kerjakan lalu serahkan
+      → poster setujui  ............... task selesai, dana DILEPAS
+      → penilaian dua arah
+    ```
+
+    ## Melacak sebuah request
+
+    Setiap respons membawa header `X-Request-Id`. Sertakan nilainya saat
+    melaporkan masalah — seluruh jejak request tersimpan di bawah id itu.
+    Klien juga boleh mengirim `X-Request-Id` sendiri untuk menyatukan jejak
+    lintas layanan. Lihat `components/headers/RequestId`.
+
+    ## Autentikasi
+
+    Setiap panggilan butuh token. Ada **dua jenis** dengan peran berbeda:
+
+    | Token | Umur | Boleh dipakai untuk |
+    |---|---|---|
+    | `access_token` | **8 jam** | Semua endpoint aplikasi |
+    | `long_lived_token` | 30 hari | **Hanya** `POST /auth/refresh` |
+
+    Memakai `long_lived_token` pada endpoint aplikasi menghasilkan `403`, dan
+    sebaliknya. Setelah `POST /auth/refresh`, **access token lama langsung tidak
+    berlaku**.
+
+    Pendaftaran **tidak** langsung mengaktifkan akun: `POST /auth/register`
+    mengembalikan `202` tanpa token, dan akun berstatus `pending_verification`
+    sampai kode dari email diterima oleh `POST /auth/verify-email`.
+
+    ## Dua bentuk galat, jangan campur
+
+    | Bentuk | Arti | Sumber |
+    |---|---|---|
+    | `{ message, errors: { field: [...] } }` | Bentuk request salah | Validasi |
+    | `{ message, code, context? }` | Aturan bisnis dilanggar | Action |
+
+    Bercabanglah pada `code`, **jangan** pada `message`.
+
+    ## Rate limit
+
+    Semua endpoint dibatasi. Respons membawa `X-RateLimit-Limit` dan
+    `X-RateLimit-Remaining`; saat terlampaui balasannya `429` dengan `Retry-After`.
+
+    | Kelompok | Batas /menit | Kunci |
+    |---|---|---|
+    | Endpoint aplikasi | 120 | pengguna |
+    | `login` | 5 | email + IP |
+    | `register` | 5 | IP |
+    | `verify-email` | 6 | email + IP |
+    | `resend-code` | 3 | email |
+    | `refresh` | 10 | pengguna |
+    | Buat task & penawaran | 30 | pengguna |
+
+    ## Pagination
+
+    Cursor (keyset) saja. `meta` membawa `next_cursor`/`prev_cursor` dan **tidak**
+    punya `current_page`, `total`, atau `last_page`. Parameter `page` diabaikan.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+
+servers:
+  - url: http://127.0.0.1:8000/api/v1
+    description: Pengembangan lokal (php artisan serve)
+
+security:
+  - accessToken: []
+
+tags:
+  - name: Auth
+    description: Pendaftaran, verifikasi email, token.
+  - name: Katalog
+    description: Kategori pekerjaan (dengan harga referensi) dan keahlian.
+  - name: Akun
+    description: Profil sendiri dan verifikasi identitas.
+  - name: Task
+    description: Pekerjaan yang diposting pemberi kerja.
+  - name: Lelang
+    description: Penawaran dari penerima kerja, sampai deal.
+  - name: Uang
+    description: Transfer dan dana yang ditahan. **Stub** — menunggu riset.
+  - name: Activity
+    description: Eksekusi pekerjaan, dibuka oleh transfer.
+  - name: Penilaian
+    description: Rating dua arah, terikat task yang selesai.
+
+paths:
+
+  # ─────────────────────────────── AUTH ───────────────────────────────
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: register
+      summary: Daftar akun baru
+      security: []
+      description: |
+        Membuat akun berstatus `pending_verification` dan mengirim kode ke email.
+
+        **Tidak mengembalikan token.** Akun belum bisa apa-apa sampai
+        `POST /auth/verify-email` berhasil.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              name: Budi Prasetyo
+              email: budi@example.com
+              phone: '+628111222333'
+              password: RahasiaKuat2026
+              password_confirmation: RahasiaKuat2026
+              city: Jakarta
+              province: DKI Jakarta
+      responses:
+        '202':
+          description: Akun dibuat, kode dikirim.
+          content:
+            application/json:
+              example:
+                message: Akun dibuat. Kode verifikasi dikirim ke email Anda.
+                data:
+                  email: budi@example.com
+                  status: pending_verification
+                  code_expires_in_minutes: 15
+                  next_step: POST /api/v1/auth/verify-email
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/verify-email:
+    post:
+      tags: [Auth]
+      operationId: verifyEmail
+      summary: Verifikasi kode dan aktifkan akun
+      security: []
+      description: |
+        Satu-satunya jalan dari `pending_verification` ke `active`. Berhasil →
+        akun aktif dan pasangan token diterbitkan.
+
+        Kode punya **dua** batas yang berbeda cara gagalnya: rate limit per
+        email+IP (bisa dihindari dengan rotasi IP), dan **batas percobaan pada
+        kodenya sendiri** (5 kali, tidak bisa dihindari). Kode yang percobaannya
+        habis tidak bisa dipakai lagi walau angkanya benar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+            example:
+              email: budi@example.com
+              code: '331217'
+      responses:
+        '200':
+          $ref: '#/components/responses/TokenPair'
+        '422':
+          description: |
+            Kode salah, kedaluwarsa, atau percobaan habis. `context.attempts_left`
+            menunjukkan sisa percobaan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              examples:
+                salah:
+                  value:
+                    message: Kode verifikasi salah.
+                    code: invalid_verification_code
+                    context: { attempts_left: 4 }
+                habis:
+                  value:
+                    message: Percobaan kode habis. Minta kode baru.
+                    code: invalid_verification_code
+                    context: { attempts_left: 0 }
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/resend-code:
+    post:
+      tags: [Auth]
+      operationId: resendCode
+      summary: Kirim ulang kode verifikasi
+      security: []
+      description: |
+        Kode lama dibatalkan, kode baru dikirim. Ada cooldown 60 detik.
+
+        Respons **selalu sama** entah email terdaftar atau tidak, dan entah akun
+        sudah aktif atau belum — endpoint ini tidak boleh jadi alat memeriksa
+        email mana yang punya akun.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+            example: { email: budi@example.com }
+      responses:
+        '202':
+          description: Diterima. Kode dikirim hanya bila memang perlu.
+          content:
+            application/json:
+              example:
+                message: Jika email terdaftar dan belum terverifikasi, kode baru sudah dikirim.
+        '429':
+          description: |
+            Cooldown belum lewat (`resend_too_soon`, dengan
+            `context.retry_after_seconds`), atau rate limit terlampaui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Tunggu 42 detik sebelum meminta kode lagi.
+                code: resend_too_soon
+                context: { retry_after_seconds: 42 }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Masuk dengan email atau nomor HP
+      security: []
+      description: |
+        Kirim `email` **atau** `phone`, bersama `password`.
+
+        Balasan untuk email tak terdaftar dan kata sandi salah **identik** —
+        termasuk waktu responsnya — agar endpoint ini tidak bisa dipakai
+        memeriksa keberadaan akun.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              email:
+                value: { email: budi@example.com, password: RahasiaKuat2026 }
+              phone:
+                value: { phone: '+628111222333', password: RahasiaKuat2026 }
+      responses:
+        '200':
+          $ref: '#/components/responses/TokenPair'
+        '401':
+          description: Kredensial salah.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Email atau kata sandi salah.
+                code: invalid_credentials
+        '403':
+          description: |
+            Email belum diverifikasi (`email_not_verified`) atau akun tidak aktif
+            (`account_not_active`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              examples:
+                belumVerifikasi:
+                  value:
+                    message: Email belum diverifikasi. Masukkan kode yang dikirim ke email Anda.
+                    code: email_not_verified
+                tidakAktif:
+                  value:
+                    message: 'Akun tidak aktif (status: suspended).'
+                    code: account_not_active
+                    context: { status: suspended }
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshAccessToken
+      summary: Tukar long_lived token jadi access token baru
+      security:
+        - longLivedToken: []
+      description: |
+        Kirim **`long_lived_token`** sebagai Bearer, bukan access token.
+
+        Access token lama **dicabut** — begitu token baru diterbitkan, yang lama
+        tidak berlaku lagi. `long_lived_token` sendiri tidak berubah, jadi klien
+        tetap memakai yang sudah dipegang.
+
+        Status akun diperiksa ulang di sini: akun yang di-suspend setelah login
+        tidak bisa memperpanjang akses.
+      responses:
+        '200':
+          description: Access token baru.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AccessToken'
+              example:
+                data:
+                  token_type: Bearer
+                  access_token: 12|xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+                  access_expires_at: '2026-09-08T17:54:55+00:00'
+                  access_expires_in_seconds: 28799
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          description: |
+            Token yang dipakai bukan `long_lived_token` (`Invalid ability provided.`),
+            atau akun tidak aktif (`account_not_active`).
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Keluar dan cabut semua token
+      description: |
+        Mencabut **seluruh** token, termasuk `long_lived_token`. Mencabut access
+        token saja akan menyisakan kredensial yang masih bisa menerbitkan akses
+        baru — itu bukan logout.
+
+        Menerima kedua jenis token, supaya pengguna tetap bisa keluar walau
+        access token-nya sudah kedaluwarsa.
+      responses:
+        '200':
+          description: Semua token dicabut.
+          content:
+            application/json:
+              example: { message: 'Berhasil keluar. Semua token dicabut.' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  # ───────────────────────────── KATALOG ──────────────────────────────
+  /categories:
+    get:
+      tags: [Katalog]
+      operationId: listCategories
+      summary: Kategori pekerjaan dengan harga referensi
+      description: |
+        Dibaca **sebelum** pemberi kerja menentukan budget.
+
+        Perhatikan `reference_price.from_real_data`: bila `false`, angkanya masih
+        perkiraan manual, bukan hasil hitungan dari pekerjaan yang benar-benar
+        selesai. UI **wajib** membedakan keduanya — menampilkan nilai awal seolah
+        data nyata akan menyesatkan pemberi kerja sejak hari pertama.
+
+        Harga referensi dihitung dari `agreed_amount` task berstatus `completed`,
+        memakai **median** (bukan rata-rata, agar satu task mahal tidak merusak
+        angkanya).
+      responses:
+        '200':
+          description: Semua kategori aktif.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Category'
+              example:
+                data:
+                  - id: 2
+                    slug: bersih-rumah
+                    name: Membersihkan Rumah
+                    description: Bersih-bersih rumah, kamar, dapur, kamar mandi
+                    icon: broom
+                    reference_price:
+                      min: 75000
+                      max: 300000
+                      median: 150000
+                      sample_size: 0
+                      from_real_data: false
+                      computed_at: null
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /skills:
+    get:
+      tags: [Katalog]
+      operationId: listSkills
+      summary: Daftar keahlian
+      description: |
+        Lebih rinci daripada kategori: kategori "Membersihkan Rumah" memuat
+        keahlian "cuci AC", "bersih kamar mandi", "poles lantai".
+
+        Dipakai untuk menandai task saat dibuat, dan untuk memfilter feed.
+      parameters:
+        - name: category_id
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Keahlian aktif.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Skill'
+              example:
+                data:
+                  - { slug: cuci-ac, name: Cuci ac }
+                  - { slug: setrika, name: Setrika }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  # ─────────────────────────────── AKUN ───────────────────────────────
+  /me:
+    get:
+      tags: [Akun]
+      operationId: showMe
+      summary: Profil sendiri
+      responses:
+        '200':
+          description: Pengguna yang sedang masuk.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+    patch:
+      tags: [Akun]
+      operationId: updateProfile
+      summary: Ubah profil
+      description: |
+        Semua field opsional; hanya yang dikirim yang diubah.
+
+        `avatar_path` adalah foto **publik**. Foto verifikasi identitas punya
+        endpoint sendiri dan tidak pernah tampil ke orang lain.
+
+        `skills` berisi **slug**, dan disinkronkan (bukan ditambahkan).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+            example:
+              bio: Tukang berpengalaman, spesialis AC.
+              skills: [cuci-ac, listrik]
+              active_mode: working
+              city: Jakarta
+              postal_code: '10110'
+      responses:
+        '200':
+          description: Profil terbaru.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /me/verifications:
+    get:
+      tags: [Akun]
+      operationId: listMyVerifications
+      summary: Riwayat pengajuan verifikasi
+      description: |
+        Hanya **status** yang dikembalikan. Path foto KTP, path selfie, NIK
+        (baik hash maupun terenkripsi), dan nomor rekening **tidak pernah**
+        keluar dari API.
+      responses:
+        '200':
+          description: Pengajuan, terbaru dulu.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Verification'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+    post:
+      tags: [Akun]
+      operationId: submitVerification
+      summary: Ajukan verifikasi identitas atau rekening
+      description: |
+        `type = identity` mengirim foto KTP **dan** selfie sekaligus — keduanya
+        dinilai bersamaan, karena gunanya selfie justru untuk dicocokkan dengan
+        foto di KTP.
+
+        `type = bank_account` mengirim data rekening.
+
+        Field foto berisi **path** hasil unggahan ke storage privat, bukan URL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitVerificationRequest'
+            examples:
+              identity:
+                value:
+                  type: identity
+                  id_card_photo_path: verifications/ktp-abc.jpg
+                  selfie_photo_path: verifications/selfie-abc.jpg
+                  document_number: '3174012345678901'
+                  name_on_document: Budi Prasetyo
+              bankAccount:
+                value:
+                  type: bank_account
+                  bank_code: bca
+                  account_number: '1234567890'
+                  account_holder_name: Budi Prasetyo
+      responses:
+        '202':
+          description: Pengajuan diterima, menunggu review.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Verification'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  # ─────────────────────────────── TASK ───────────────────────────────
+  /tasks:
+    get:
+      tags: [Task]
+      operationId: listOpenTasks
+      summary: Feed pekerjaan siap dilamar
+      description: |
+        Beranda mode cari kerja. **Urutan default: tanggal pembuatan, terbaru dulu.**
+        Kata kunci, jarak, dan keahlian adalah **filter**, bukan pengubah urutan —
+        itu yang membuat cursor tetap bertumpu pada kolom berindeks dan hasilnya
+        stabil.
+
+        Tiga hal dikecualikan supaya feed ini tidak berbohong:
+
+        1. Hanya task yang **benar-benar** bisa dilamar. Status `open` saja tidak
+           cukup — masa lelangnya bisa sudah lewat.
+        2. **Bukan task milik sendiri.** Di aplikasi ini satu orang normalnya ada
+           di kedua sisi, jadi ini kejadian biasa.
+        3. Penawaran sendiri disertakan sebagai `my_bid`, agar UI bisa menandai
+           "sudah dilamar" tanpa panggilan kedua.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/CategoryId'
+        - $ref: '#/components/parameters/City'
+        - $ref: '#/components/parameters/BudgetFrom'
+        - $ref: '#/components/parameters/BudgetTo'
+        - $ref: '#/components/parameters/PostedWithinHours'
+        - $ref: '#/components/parameters/Keyword'
+        - $ref: '#/components/parameters/Latitude'
+        - $ref: '#/components/parameters/Longitude'
+        - $ref: '#/components/parameters/RadiusKm'
+        - $ref: '#/components/parameters/Skills'
+        - $ref: '#/components/parameters/MatchMySkills'
+        - $ref: '#/components/parameters/ExcludeMyBids'
+      responses:
+        '200':
+          $ref: '#/components/responses/TaskPage'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          description: |
+            Validasi gagal. Perhatikan: `lat` dan `lng` **wajib berpasangan** —
+            mengirim salah satu saja ditolak, bukan diabaikan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                message: Filter jarak butuh lat dan lng sekaligus.
+                errors:
+                  lng: [Filter jarak butuh lat dan lng sekaligus.]
+    post:
+      tags: [Task]
+      operationId: createTask
+      summary: Buat task
+      description: |
+        `budget_min` wajib. **`budget_max` opsional** — biarkan kosong untuk
+        menyatakan tidak ada batas atas.
+
+        Bila `publish_now` bernilai true, task langsung `open` dan menerima
+        penawaran; bila tidak, task tersimpan sebagai `draft` sampai
+        `POST /tasks/{task}/publish`.
+
+        Harga referensi kategori **disalin** ke task saat dibuat, agar sengketa
+        bisa dinilai dengan angka yang berlaku waktu itu.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+            examples:
+              tanpaBatasAtas:
+                summary: Budget maksimum tidak diisi
+                value:
+                  category_id: 2
+                  title: Cuci AC 2 unit di rumah
+                  description: Servis AC split, freon dan cuci evaporator.
+                  budget_min: 150000
+                  city: Jakarta
+                  latitude: -6.1754
+                  longitude: 106.8272
+                  skills: [cuci-ac]
+                  publish_now: true
+                  options:
+                    - { label: Bawa alat sendiri, value: true }
+              banyakPekerja:
+                summary: Merekrut 30 orang sekaligus
+                value:
+                  category_id: 2
+                  title: Bersih-bersih gudang sehari
+                  description: Butuh 30 orang untuk merapikan gudang dalam satu hari.
+                  budget_min: 150000
+                  workers_needed: 30
+                  needed_at: '2026-09-20T01:00:00Z'
+                  publish_now: true
+              lengkap:
+                summary: Dengan batas atas dan jadwal
+                value:
+                  category_id: 2
+                  title: Bersihkan rumah 2 lantai
+                  description: Sapu, pel, kamar mandi.
+                  budget_min: 200000
+                  budget_max: 400000
+                  needed_at: '2026-09-12T02:00:00Z'
+                  bidding_closes_at: '2026-09-10T10:00:00Z'
+                  publish_now: true
+      responses:
+        '201':
+          $ref: '#/components/responses/SingleTask'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /tasks/posted:
+    get:
+      tags: [Task]
+      operationId: listMyPostedTasks
+      summary: Task yang saya posting
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/TaskStatusFilter'
+      responses:
+        '200':
+          $ref: '#/components/responses/TaskPage'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /tasks/worked:
+    get:
+      tags: [Task]
+      operationId: listMyWorkedTasks
+      summary: Task yang saya kerjakan
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/TaskStatusFilter'
+      responses:
+        '200':
+          $ref: '#/components/responses/TaskPage'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /tasks/{task}:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    get:
+      tags: [Task]
+      operationId: showTask
+      summary: Detail task
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleTask'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tasks/{task}/publish:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    post:
+      tags: [Task]
+      operationId: publishTask
+      summary: Terbitkan task draft
+      description: Hanya pemilik task. `draft` → `open`, mulai menerima penawaran.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleTask'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Perpindahan status tidak diizinkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Tidak bisa berpindah dari completed ke open.
+                code: invalid_status_transition
+                context: { from: completed, to: open }
+
+  /tasks/{task}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    post:
+      tags: [Task]
+      operationId: cancelTask
+      summary: Batalkan task
+      description: |
+        Bisa dilakukan pemberi kerja maupun penerima kerja yang sudah deal.
+
+        Dana yang sudah ditahan **dikembalikan**; bila belum masuk, pembayaran
+        dibatalkan. Penawaran yang masih menggantung ditutup. Pembatalan setelah
+        deal dicatat sebagai sinyal risiko pada orangnya.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: [string, 'null'], maxLength: 255 }
+            example: { reason: Rencana berubah }
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleTask'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /tasks/{task}/start:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    post:
+      tags: [Task]
+      operationId: startTaskWithCurrentWorkers
+      summary: Mulai dengan pekerja yang sudah diterima
+      description: |
+        Berhenti merekrut lebih awal, tanpa menunggu slot penuh.
+
+        Task 30 orang yang hanya mendapat 18 pelamar layak tidak boleh
+        tersandera oleh angka 30 — pekerjaan bertanggal tetap harus jalan.
+
+        Yang terjadi: `workers_needed` **diturunkan** ke jumlah yang sudah
+        diterima, pelamar yang masih menunggu ditolak, dan task masuk `dealt`.
+        Targetnya diturunkan, bukan sekadar dipaksa deal, supaya setelah ini
+        task tidak selamanya terlihat kekurangan orang.
+
+        Hanya pemberi kerja, dan hanya selama task masih `open`.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleTask'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Belum ada pelamar yang diterima, atau task tidak lagi `open`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Belum ada pelamar yang diterima, jadi pekerjaan belum bisa dimulai.
+                code: no_workers_hired
+
+  # ────────────────────────────── LELANG ──────────────────────────────
+  /tasks/{task}/bids:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    post:
+      tags: [Lelang]
+      operationId: placeBid
+      summary: Ajukan penawaran
+      description: |
+        Penerima kerja menyertakan **budget-nya sendiri**.
+
+        Satu orang **satu** penawaran per task: mengirim lagi akan **mengubah**
+        penawaran yang ada (balasan `200`, bukan `201`).
+
+        `budget_min` adalah batas keras. **`budget_max` tidak divalidasi** —
+        pemberi kerja diberi kebebasan penuh memilih, termasuk tawaran di atas
+        anggarannya.
+
+        **Jumlah pelamar tidak dibatasi**, juga pada task yang merekrut banyak
+        orang: `hiring.workers_needed` menentukan berapa yang akan diterima,
+        bukan berapa yang boleh melamar. Justru dari banyaknya penawaran itulah
+        pemberi kerja punya sesuatu untuk dipilih.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceBidRequest'
+            example:
+              amount: 220000
+              message: Bawa alat sendiri, sekitar 3 jam selesai.
+              estimated_hours: 3
+      responses:
+        '201':
+          description: Penawaran baru dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Bid'
+        '200':
+          description: Penawaran yang sudah ada diubah.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Bid'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          description: Menawar task sendiri.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Tidak bisa mengajukan penawaran pada task sendiri.
+                code: cannot_bid_own_task
+        '422':
+          description: |
+            Task tidak menerima penawaran (`task_not_biddable`) atau nominal di
+            bawah budget minimum (`bid_below_minimum`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              examples:
+                dibawahMinimum:
+                  value:
+                    message: Penawaran tidak boleh di bawah budget minimum task.
+                    code: bid_below_minimum
+                    context: { budget_min: 150000 }
+                lelangTutup:
+                  value:
+                    message: Masa penawaran task ini sudah ditutup.
+                    code: task_not_biddable
+                    context: { status: open }
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    get:
+      tags: [Lelang]
+      operationId: listTaskBids
+      summary: Daftar penawaran pada sebuah task
+      description: |
+        Hanya pemilik task. Inilah bahan pertimbangannya: setiap penawaran
+        membawa `bidder` lengkap dengan rating dua peran, jumlah pekerjaan
+        selesai, dan status verifikasi identitas.
+
+        Sinyal kepercayaan itu **dibaca saat ditampilkan**, tidak disalin ke
+        baris penawaran — salinan akan basi.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - name: sort
+          in: query
+          required: false
+          description: |
+            `amount` termurah dulu (default), `rating` reputasi tertinggi dulu,
+            `newest` terbaru dulu.
+          schema:
+            type: string
+            enum: [amount, rating, newest]
+            default: amount
+      responses:
+        '200':
+          description: Halaman penawaran.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Bid'
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /bids/mine:
+    get:
+      tags: [Lelang]
+      operationId: listMyBids
+      summary: Penawaran yang saya ikuti
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Halaman penawaran saya.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Bid'
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /bids/{bid}/withdraw:
+    parameters:
+      - $ref: '#/components/parameters/BidUlid'
+    post:
+      tags: [Lelang]
+      operationId: withdrawBid
+      summary: Tarik penawaran
+      description: Hanya penawarnya sendiri, dan hanya selama masih `pending`.
+      responses:
+        '200':
+          description: Penawaran ditarik.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Bid'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Penawaran sudah tidak `pending`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+
+  /bids/{bid}/accept:
+    parameters:
+      - $ref: '#/components/parameters/BidUlid'
+    post:
+      tags: [Lelang]
+      operationId: acceptBid
+      summary: DEAL — pilih satu penawaran
+      description: |
+        Hanya pemilik task, dan hanya **satu** penawaran.
+
+        Dalam satu transaksi: penawaran terpilih jadi `accepted`, semua penawaran
+        lain otomatis `rejected`, task jadi `dealt` dengan `agreed_amount`, dan
+        tagihan pembayaran dibuat berstatus `pending`.
+
+        Langkah berikutnya adalah `POST /tasks/{task}/payment/hold`.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleTask'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Task sudah deal dengan orang lain.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Task ini sudah deal dengan penerima kerja lain.
+                code: task_already_dealt
+
+  # ─────────────────────────────── UANG ───────────────────────────────
+  /tasks/{task}/payment:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    get:
+      tags: [Uang]
+      operationId: showTaskPayment
+      summary: Status uang sebuah task
+      responses:
+        '200':
+          description: Status pembayaran.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Payment'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tasks/{task}/payment/hold:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    post:
+      tags: [Uang]
+      operationId: holdPayment
+      summary: Transfer diterima — dana ditahan, activity dibuka
+      description: |
+        **STUB.** Mekanisme pembayaran belum diriset, jadi belum ada gateway.
+        Endpoint ini menandai dana sudah masuk, lalu **membuka activity**.
+
+        Nanti pemicunya webhook gateway, bukan endpoint ini. Yang tidak berubah:
+        activity hanya boleh terbuka ketika dana benar-benar ditahan — itulah
+        satu aturan yang harus dipegang sekarang.
+
+        **Satu transfer membuka satu activity PER pekerja.** Tagihannya satu
+        baris sebesar jumlah seluruh penawaran yang diterima; pembagiannya ada
+        di `agreed_amount` masing-masing activity. Task satu orang memakai
+        bentuk respons yang sama, berisi satu elemen.
+
+        Perekrutan harus **selesai** lebih dulu (task berstatus `dealt`). Selama
+        masih ada slot kosong, endpoint ini menolak — kalau tidak, pekerja yang
+        direkrut belakangan tidak akan pernah punya activity.
+      responses:
+        '201':
+          description: Dana ditahan, satu activity dibuka untuk setiap pekerja.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Activity'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Pembayaran sudah tidak berstatus `pending`, atau perekrutan belum selesai.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Tidak bisa berpindah dari held ke held.
+                code: invalid_status_transition
+                context: { from: held, to: held }
+
+  # ───────────────────────────── ACTIVITY ─────────────────────────────
+  /activities/mine:
+    get:
+      tags: [Activity]
+      operationId: listMyActivities
+      summary: Pekerjaan yang saya kerjakan
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Halaman activity.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Activity'
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /activities/{activity}:
+    parameters:
+      - $ref: '#/components/parameters/ActivityUlid'
+    get:
+      tags: [Activity]
+      operationId: showActivity
+      summary: Detail activity
+      description: Bisa dilihat penerima kerja maupun pemberi kerja.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleActivity'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /activities/{activity}/start:
+    parameters:
+      - $ref: '#/components/parameters/ActivityUlid'
+    post:
+      tags: [Activity]
+      operationId: startActivity
+      summary: Mulai mengerjakan
+      description: |
+        Hanya penerima kerja. Status dana diperiksa **ulang** di sini: dana bisa
+        saja sudah dikembalikan sejak activity dibuka.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleActivity'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: |
+            Dana tidak lagi ditahan (`payment_not_held`) atau perpindahan status
+            tidak diizinkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: 'Dana belum ditahan, activity tidak bisa dibuka (status: refunded).'
+                code: payment_not_held
+                context: { payment_status: refunded }
+
+  /activities/{activity}/submit:
+    parameters:
+      - $ref: '#/components/parameters/ActivityUlid'
+    post:
+      tags: [Activity]
+      operationId: submitActivity
+      summary: Serahkan hasil kerja
+      description: |
+        Hanya penerima kerja.
+
+        `proof_photos` bukan pelengkap: begitu ada dana ditahan, akan ada
+        sengketa "pekerjaannya tidak beres", dan tanpa bukti berfoto keputusan
+        admin cuma tebak-tebakan.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitActivityRequest'
+            example:
+              worker_note: Sudah beres semua, AC sudah dicuci dan diisi freon.
+              proof_photos: [proof/a.jpg, proof/b.jpg]
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleActivity'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Perpindahan status tidak diizinkan.
+
+  /activities/{activity}/approve:
+    parameters:
+      - $ref: '#/components/parameters/ActivityUlid'
+    post:
+      tags: [Activity]
+      operationId: approveActivity
+      summary: Setujui hasil — task selesai, dana dilepas
+      description: |
+        Hanya pemberi kerja. Task jadi `completed`, pembayaran jadi `released`,
+        dan `tasks_completed` penerima kerja bertambah.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                poster_note: { type: [string, 'null'], maxLength: 2000 }
+            example: { poster_note: 'Rapi, terima kasih' }
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleActivity'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Perpindahan status tidak diizinkan.
+
+  /activities/{activity}/reject:
+    parameters:
+      - $ref: '#/components/parameters/ActivityUlid'
+    post:
+      tags: [Activity]
+      operationId: rejectActivity
+      summary: Tolak hasil — sengketa
+      description: |
+        Hanya pemberi kerja. Task jadi `disputed` dan **dana tetap ditahan**.
+        Penyelesaiannya (admin memutuskan dilepas atau dikembalikan) belum
+        tersedia di API ini.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                poster_note: { type: [string, 'null'], maxLength: 2000 }
+            example: { poster_note: Kamar mandi masih berkerak }
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleActivity'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ──────────────────────────── PENILAIAN ─────────────────────────────
+  /tasks/{task}/reviews:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    post:
+      tags: [Penilaian]
+      operationId: createReview
+      summary: Beri penilaian
+      description: |
+        Dua arah: pemberi kerja menilai penerima kerja, dan sebaliknya. Perannya
+        ditentukan otomatis dari posisi pemanggil pada task itu.
+
+        Hanya setelah task `completed`, dan **satu kali** per orang per task.
+        Kedua aturan itulah yang membuat rating tidak bisa dipalsukan: hanya
+        orang yang benar-benar bertransaksi, sekali saja.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReviewRequest'
+            example: { rating: 5, comment: Kerja bagus dan tepat waktu }
+      responses:
+        '201':
+          description: Penilaian tersimpan.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Review'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Bukan peserta task ini — `404`, bukan `403`, agar keberadaan task tidak terkonfirmasi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Task tidak ditemukan.
+                code: task_not_found
+        '422':
+          description: Task belum selesai, atau sudah pernah dinilai.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              examples:
+                belumSelesai:
+                  value:
+                    message: Penilaian hanya bisa diberikan setelah task selesai.
+                    code: review_not_allowed
+                sudahMenilai:
+                  value:
+                    message: Anda sudah memberi penilaian untuk task ini.
+                    code: review_not_allowed
+
+  /users/{user}/reviews:
+    parameters:
+      - name: user
+        in: path
+        required: true
+        description: ULID pengguna.
+        schema: { type: string, minLength: 26, maxLength: 26 }
+    get:
+      tags: [Penilaian]
+      operationId: listUserReviews
+      summary: Penilaian yang diterima seseorang
+      description: |
+        Bisa dipisah per peran lewat `role` — reputasi sebagai pemberi kerja dan
+        sebagai penerima kerja adalah dua hal berbeda.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - name: role
+          in: query
+          required: false
+          description: Sudut pandang penilai.
+          schema:
+            $ref: '#/components/schemas/ReviewerRole'
+      responses:
+        '200':
+          description: Halaman penilaian.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Review'
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+components:
+
+  securitySchemes:
+    accessToken:
+      type: http
+      scheme: bearer
+      description: |
+        `access_token` dari `/auth/verify-email`, `/auth/login`, atau
+        `/auth/refresh`. Umur **8 jam**.
+
+        Wajib untuk semua endpoint aplikasi. Memakai `long_lived_token` di sini
+        menghasilkan `403 Invalid ability provided.`
+
+        Sertakan juga `Accept: application/json`, jika tidak Laravel bisa
+        membalas HTML.
+    longLivedToken:
+      type: http
+      scheme: bearer
+      description: |
+        `long_lived_token`, umur 30 hari. **Hanya** untuk `POST /auth/refresh`.
+        Memakainya di endpoint lain menghasilkan `403`.
+
+  headers:
+    RequestId:
+      description: |
+        Pengenal korelasi untuk request ini. **Ada di setiap respons**, termasuk
+        yang tidak mencantumkannya secara eksplisit di spesifikasi ini.
+
+        Sebutkan nilainya saat melaporkan masalah: seluruh jejak request —
+        galat, kueri lambat, panggilan keluar — tersimpan di bawah id yang sama
+        dan bisa ditemukan tanpa menebak dari jam kejadian.
+
+        Klien boleh mengirimkan `X-Request-Id` sendiri; nilai yang cocok dengan
+        `^[A-Za-z0-9._-]{8,64}$` akan dipakai apa adanya sehingga satu jejak
+        tetap menyatu melewati beberapa layanan. Selain itu, server membuat ULID.
+      schema: { type: string, maxLength: 64, example: 01M21JSGAETJGA3DY1PE4BDJCT }
+
+  parameters:
+    PerPage:
+      name: per_page
+      in: query
+      required: false
+      description: Baris per halaman. Nilai di atas maksimum ditolak `422`.
+      schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Cursor opaque dari `meta.next_cursor`/`prev_cursor`. Jangan disusun manual.
+      schema: { type: string, maxLength: 255 }
+    CategoryId:
+      name: category_id
+      in: query
+      required: false
+      schema: { type: integer }
+    City:
+      name: city
+      in: query
+      required: false
+      schema: { type: string, maxLength: 80 }
+    BudgetFrom:
+      name: budget_from
+      in: query
+      required: false
+      description: Batas bawah, dibandingkan dengan `budget_min` task.
+      schema: { type: integer, minimum: 0 }
+    BudgetTo:
+      name: budget_to
+      in: query
+      required: false
+      description: Batas atas, dibandingkan dengan `budget_min` task.
+      schema: { type: integer, minimum: 0 }
+    PostedWithinHours:
+      name: posted_within_hours
+      in: query
+      required: false
+      description: |
+        Hanya task yang diposting dalam sekian **jam** terakhir.
+
+        Jam, bukan tanggal: pencari kerja yang memantau feed sepanjang hari
+        berpikir dalam "sejak tadi pagi", bukan dalam rentang kalender. Batasnya
+        dihitung dari jam server — tanggal dari perangkat yang jamnya meleset
+        akan menyembunyikan task yang sebenarnya baru.
+      schema: { type: integer, minimum: 1, maximum: 720, examples: [24] }
+    Keyword:
+      name: q
+      in: query
+      required: false
+      description: |
+        Nama pekerjaan. Dicari di judul **dan** deskripsi lewat indeks terbalik
+        FULLTEXT — **bukan `LIKE`**, yang tidak bisa memakai indeks apa pun dan
+        biayanya tumbuh linear terhadap jumlah task.
+
+        Semua kata harus cocok (AND), dan kata **terakhir** dicocokkan sebagai
+        awalan sehingga "bersih rum" sudah menemukan "bersih rumah" sebelum
+        selesai diketik.
+
+        Dua hal yang ditangani khusus, keduanya tetap lewat indeks:
+
+        - **Kata pendek.** `innodb_ft_min_token_size` bawaan MySQL adalah 3,
+          jadi "AC" tidak akan pernah terindeks apa adanya. Kata di bawah ambang
+          itu disimpan dengan penanda sehingga tetap bisa dicari — dan
+          dicocokkan PERSIS, jadi "ac" tidak ikut menangkap "macet" atau
+          "acara".
+        - **Imbuhan.** Akar kata ikut disimpan, sehingga "bersih" menemukan
+          judul yang berbunyi "Membersihkan".
+
+        Masukan hanya tanda baca menghasilkan nol baris, bukan seluruh data.
+      schema: { type: string, minLength: 2, maxLength: 120 }
+      example: cuci ac
+    Latitude:
+      name: lat
+      in: query
+      required: false
+      description: '**Wajib berpasangan dengan `lng`.** Koordinat GPS perangkat.'
+      schema: { type: number, minimum: -90, maximum: 90 }
+      example: -6.1754
+    Longitude:
+      name: lng
+      in: query
+      required: false
+      description: '**Wajib berpasangan dengan `lat`.**'
+      schema: { type: number, minimum: -180, maximum: 180 }
+      example: 106.8272
+    RadiusKm:
+      name: radius_km
+      in: query
+      required: false
+      description: |
+        Radius dalam kilometer dari `lat`/`lng`. Hanya berlaku bila koordinat
+        lengkap. Task yang lolos membawa `distance_km`.
+      schema: { type: number, minimum: 0.1, maximum: 100, default: 10 }
+    Skills:
+      name: skills
+      in: query
+      required: false
+      description: |
+        Slug keahlian, dipisah koma (atau `skills[]` berulang). Task cocok bila
+        membutuhkan **salah satu** keahlian tersebut.
+      schema: { type: string }
+      example: cuci-ac,setrika
+    MatchMySkills:
+      name: match_my_skills
+      in: query
+      required: false
+      description: |
+        Bila true, hanya task yang membutuhkan keahlian yang tercatat pada profil
+        saya. Diabaikan bila `skills` juga dikirim.
+      schema: { type: boolean, default: false }
+    ExcludeMyBids:
+      name: exclude_my_bids
+      in: query
+      required: false
+      description: |
+        Sembunyikan task yang sudah saya tawar. Default `false` — sengaja tetap
+        ditampilkan agar penerima kerja bisa melihat dan mengubah tawarannya.
+      schema: { type: boolean, default: false }
+    TaskStatusFilter:
+      name: status
+      in: query
+      required: false
+      schema:
+        $ref: '#/components/schemas/TaskStatus'
+    TaskUlid:
+      name: task
+      in: path
+      required: true
+      description: ULID task (bukan id numerik).
+      schema: { type: string, minLength: 26, maxLength: 26 }
+    BidUlid:
+      name: bid
+      in: path
+      required: true
+      description: ULID penawaran.
+      schema: { type: string, minLength: 26, maxLength: 26 }
+    ActivityUlid:
+      name: activity
+      in: path
+      required: true
+      description: ULID activity.
+      schema: { type: string, minLength: 26, maxLength: 26 }
+
+  responses:
+    TokenPair:
+      description: Pasangan token. Nilai token hanya bisa dibaca **sekali**, di sini.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                $ref: '#/components/schemas/TokenPair'
+          example:
+            data:
+              token_type: Bearer
+              access_token: 11|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+              long_lived_token: 10|bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+              access_expires_at: '2026-09-08T17:54:55+00:00'
+              long_lived_expires_at: '2026-10-08T09:54:55+00:00'
+              access_expires_in_seconds: 28799
+              user:
+                id: 01M1ZZTZ1DK98NQCGFGDJ77EW8
+                name: Budi Prasetyo
+                phone: '+628111222333'
+                email: budi@example.com
+                phone_verified: false
+                status: active
+                active_mode: hiring
+                theme: system
+                as_worker: { rating_avg: 0, rating_count: 0, tasks_completed: 0, bids_won: 0 }
+                as_poster: { rating_avg: 0, rating_count: 0, tasks_posted: 0 }
+    SingleTask:
+      description: Satu task.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                $ref: '#/components/schemas/Task'
+    TaskPage:
+      description: Halaman task, cursor-paginated.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, links, meta]
+            properties:
+              data:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+              links: { $ref: '#/components/schemas/CursorLinks' }
+              meta: { $ref: '#/components/schemas/CursorMeta' }
+    SingleActivity:
+      description: Satu activity.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                $ref: '#/components/schemas/Activity'
+    Unauthenticated:
+      description: Token tidak ada, tidak sah, atau sudah kedaluwarsa.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [message, code]
+            properties:
+              message: { type: string }
+              code: { type: string, const: unauthenticated }
+          example:
+            message: Token tidak valid atau sudah kedaluwarsa.
+            code: unauthenticated
+    Forbidden:
+      description: |
+        Tidak berhak atas objek ini, atau jenis token salah
+        (`Invalid ability provided.`).
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+    NotFound:
+      description: Tidak ditemukan — atau ada tapi bukan milik Anda.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+    ValidationFailed:
+      description: Bentuk request tidak sah.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+    RateLimited:
+      description: Batas laju terlampaui.
+      headers:
+        Retry-After:
+          description: Detik sebelum boleh mencoba lagi.
+          schema: { type: integer }
+        X-RateLimit-Limit:
+          schema: { type: integer }
+        X-RateLimit-Remaining:
+          schema: { type: integer }
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+
+  schemas:
+
+    # ── enum ──
+    TaskStatus:
+      type: string
+      enum: [draft, open, dealt, active, submitted, completed, expired, cancelled, disputed, refunded]
+      description: |
+        Alur: `draft → open → dealt → active → submitted → completed`.
+        Cabang: `open → expired`, `submitted → disputed → refunded`,
+        pembatalan dari `open`/`dealt`/`active` → `cancelled`.
+        `completed`, `expired`, `cancelled`, `refunded` bersifat akhir.
+    BidStatus:
+      type: string
+      enum: [pending, accepted, rejected, withdrawn, expired]
+    PaymentStatus:
+      type: string
+      enum: [pending, held, released, refunded, cancelled]
+      description: '`held` adalah gerbang pembuka activity.'
+    ActivityStatus:
+      type: string
+      enum: [open, in_progress, submitted, approved, rejected]
+    UserStatus:
+      type: string
+      enum: [pending_verification, active, suspended, banned]
+      description: Hanya `active` yang bisa bertransaksi dan menerima token.
+    UserActiveMode:
+      type: string
+      enum: [hiring, working]
+      description: |
+        Mode UI yang sedang dipakai. **Bukan** otorisasi — hak seseorang atas
+        sebuah task ditentukan oleh posisinya pada task itu.
+    VerificationType:
+      type: string
+      enum: [identity, bank_account]
+    VerificationStatus:
+      type: string
+      enum: [pending, in_review, verified, rejected, revoked]
+    ReviewerRole:
+      type: string
+      enum: [poster, worker]
+
+    # ── token ──
+    TokenPair:
+      type: object
+      required: [token_type, access_token, long_lived_token, user]
+      properties:
+        token_type: { type: string, const: Bearer }
+        access_token:
+          type: string
+          description: Untuk semua endpoint aplikasi. Umur 8 jam.
+        long_lived_token:
+          type: string
+          description: '**Hanya** untuk `POST /auth/refresh`. Umur 30 hari.'
+        access_expires_at: { type: [string, 'null'], format: date-time }
+        long_lived_expires_at: { type: [string, 'null'], format: date-time }
+        access_expires_in_seconds: { type: [integer, 'null'] }
+        user: { $ref: '#/components/schemas/Me' }
+    AccessToken:
+      type: object
+      required: [token_type, access_token]
+      properties:
+        token_type: { type: string, const: Bearer }
+        access_token: { type: string }
+        access_expires_at: { type: [string, 'null'], format: date-time }
+        access_expires_in_seconds: { type: [integer, 'null'] }
+      description: |
+        `long_lived_token` tidak dikembalikan karena tidak berubah — klien tetap
+        memakai yang sudah dipegang.
+
+    # ── pengguna ──
+    Me:
+      type: object
+      description: Profil sendiri. Tidak pernah memuat `password` atau `remember_token`.
+      required: [id, name, phone, status, as_worker, as_poster]
+      properties:
+        id: { type: string, description: ULID }
+        name: { type: string }
+        phone: { type: [string, 'null'] }
+        email: { type: [string, 'null'], format: email }
+        phone_verified: { type: boolean }
+        avatar_url:
+          type: [string, 'null']
+          format: uri
+          description: Foto **publik**. Bukan foto verifikasi.
+        bio: { type: [string, 'null'] }
+        skills:
+          type: array
+          items: { $ref: '#/components/schemas/Skill' }
+        active_mode: { $ref: '#/components/schemas/UserActiveMode' }
+        status: { $ref: '#/components/schemas/UserStatus' }
+        theme: { type: string, enum: [light, dark, system] }
+        domicile:
+          type: object
+          description: Alamat **orangnya**, bukan lokasi pekerjaan.
+          properties:
+            address_line: { type: [string, 'null'] }
+            city: { type: [string, 'null'] }
+            province: { type: [string, 'null'] }
+            postal_code: { type: [string, 'null'] }
+        as_worker: { $ref: '#/components/schemas/WorkerAggregates' }
+        as_poster: { $ref: '#/components/schemas/PosterAggregates' }
+        cancellations:
+          type: integer
+          description: Pembatalan setelah deal. Sinyal risiko.
+        created_at: { type: [string, 'null'], format: date-time }
+    PublicUser:
+      type: object
+      description: |
+        Orang lain, seperti dilihat pemberi kerja saat menimbang penawaran.
+
+        Batas pengungkapan: nomor HP, email, alamat, dan foto verifikasi
+        **tidak pernah** keluar dari sini.
+      required: [id, name, identity_verified, as_worker, as_poster]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        avatar_url: { type: [string, 'null'], format: uri }
+        bio: { type: [string, 'null'] }
+        skills:
+          type: array
+          items: { $ref: '#/components/schemas/Skill' }
+        city: { type: [string, 'null'] }
+        province: { type: [string, 'null'] }
+        identity_verified:
+          type: boolean
+          description: Ada verifikasi `identity` berstatus `verified`. Dihitung, tidak disimpan — status bisa dicabut.
+        as_worker: { $ref: '#/components/schemas/WorkerAggregates' }
+        as_poster: { $ref: '#/components/schemas/PosterAggregates' }
+        member_since: { type: [string, 'null'], format: date-time }
+    WorkerAggregates:
+      type: object
+      description: Reputasi sebagai penerima kerja.
+      required: [rating_avg, rating_count, tasks_completed]
+      properties:
+        rating_avg: { type: number, examples: [4.9] }
+        rating_count: { type: integer }
+        tasks_completed: { type: integer, examples: [214] }
+        bids_won: { type: integer }
+    PosterAggregates:
+      type: object
+      description: |
+        Reputasi sebagai pemberi kerja — dipisah dengan sengaja. Seseorang bisa
+        jago mengerjakan tapi buruk sebagai pemberi kerja, dan satu angka
+        gabungan menyembunyikan itu dari kedua pihak.
+      required: [rating_avg, rating_count, tasks_posted]
+      properties:
+        rating_avg: { type: number }
+        rating_count: { type: integer }
+        tasks_posted: { type: integer }
+    Verification:
+      type: object
+      description: |
+        Hanya status. Path foto, NIK, dan nomor rekening **tidak pernah** keluar
+        dari API — foto hanya boleh diakses lewat signed URL terpisah.
+      required: [id, type, status, is_verified]
+      properties:
+        id: { type: integer }
+        type: { $ref: '#/components/schemas/VerificationType' }
+        status: { $ref: '#/components/schemas/VerificationStatus' }
+        is_verified: { type: boolean }
+        has_id_card_photo: { type: boolean }
+        has_selfie_photo: { type: boolean }
+        name_on_document: { type: [string, 'null'] }
+        bank_code: { type: [string, 'null'] }
+        account_holder_name: { type: [string, 'null'] }
+        rejection_reason: { type: [string, 'null'] }
+        submitted_at: { type: [string, 'null'], format: date-time }
+        reviewed_at: { type: [string, 'null'], format: date-time }
+
+    # ── katalog ──
+    Category:
+      type: object
+      required: [id, slug, name, reference_price]
+      properties:
+        id: { type: integer }
+        slug: { type: string }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        icon: { type: [string, 'null'] }
+        reference_price:
+          type: object
+          required: [min, max, median, sample_size, from_real_data]
+          properties:
+            min: { type: [integer, 'null'] }
+            max: { type: [integer, 'null'] }
+            median:
+              type: [integer, 'null']
+              description: Angka yang ditampilkan ke pemberi kerja.
+            sample_size:
+              type: integer
+              description: Dari berapa task selesai. `0` berarti masih nilai awal manual.
+            from_real_data:
+              type: boolean
+              description: '**Wajib dipakai UI.** `false` = angka di atas masih perkiraan, bukan data nyata.'
+            computed_at: { type: [string, 'null'], format: date-time }
+    Skill:
+      type: object
+      required: [slug, name]
+      properties:
+        slug: { type: string }
+        name: { type: string }
+        category: { $ref: '#/components/schemas/Category' }
+
+    # ── task & lelang ──
+    Task:
+      type: object
+      required: [id, task_number, title, description, status, budget, location, bids_count, hiring]
+      properties:
+        id: { type: string, description: ULID — dipakai di semua URL. }
+        task_number: { type: string, examples: ['TK-260908-VHUJCF'] }
+        title: { type: string, maxLength: 180 }
+        description: { type: string }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        options:
+          type: array
+          description: Opsi/permintaan tambahan dari pemberi kerja. Bentuknya bebas.
+          items:
+            type: object
+            properties:
+              label: { type: string }
+              value: {}
+        photos:
+          type: array
+          items: { type: string }
+        budget:
+          type: object
+          required: [min, max]
+          properties:
+            min: { type: integer, description: Rupiah bulat. }
+            max:
+              type: [integer, 'null']
+              description: '`null` berarti **tanpa batas atas** — bukan 0, bukan belum diisi.'
+            reference_median:
+              type: [integer, 'null']
+              description: Salinan harga referensi kategori saat task dibuat.
+        location:
+          type: object
+          properties:
+            text: { type: [string, 'null'] }
+            city: { type: [string, 'null'] }
+            latitude: { type: [number, 'null'] }
+            longitude: { type: [number, 'null'] }
+            is_remote: { type: boolean }
+        distance_km:
+          type: number
+          description: Hanya muncul bila feed dipanggil dengan `lat`/`lng`.
+        bids_count: { type: integer, description: Lamaran yang masih menunggu keputusan. }
+        hiring:
+          type: object
+          description: |
+            Perekrutan task ini.
+
+            `workers_needed` adalah berapa orang yang akan **diterima** — bukan
+            batas jumlah pelamar. Lelangnya tetap terbuka: siapa pun boleh
+            menawar, dan pemberi kerja memilih pemenangnya berdasarkan harga
+            penawaran. Mengisi slot terakhir menutup lelang dan menolak pelamar
+            yang masih menunggu.
+          required: [workers_needed, workers_hired, slots_remaining]
+          properties:
+            workers_needed: { type: integer, minimum: 1, examples: [30] }
+            workers_hired: { type: integer, examples: [12] }
+            slots_remaining: { type: integer, examples: [18] }
+        agreed_amount:
+          type: [integer, 'null']
+          description: |
+            **Total** yang disepakati untuk SELURUH pekerja — bukan harga satu
+            orang. Harga per orang ada di `bids.amount` dan
+            `activities[].agreed_amount`.
+
+            Harga referensi kategori dihitung dari harga per orang itu, bukan
+            dari angka ini: satu task 30 orang akan menggeser median kategori
+            tiga puluh kali lipat.
+        needed_at: { type: [string, 'null'], format: date-time }
+        bidding_closes_at: { type: [string, 'null'], format: date-time }
+        dealt_at: { type: [string, 'null'], format: date-time }
+        completed_at: { type: [string, 'null'], format: date-time }
+        cancelled_at: { type: [string, 'null'], format: date-time }
+        cancelled_by: { type: [string, 'null'], enum: [poster, worker, system, admin, null] }
+        skills:
+          type: array
+          items: { $ref: '#/components/schemas/Skill' }
+        category: { $ref: '#/components/schemas/Category' }
+        poster: { $ref: '#/components/schemas/PublicUser' }
+        workers:
+          type: array
+          description: Pekerja yang diterima. Satu task bisa merekrut banyak orang.
+          items: { $ref: '#/components/schemas/PublicUser' }
+        my_bid:
+          description: Penawaran saya pada task ini. Hanya di feed; tidak ada berarti belum dilamar.
+          oneOf:
+            - $ref: '#/components/schemas/Bid'
+            - type: 'null'
+        payment:
+          description: Satu tagihan untuk seluruh task, sebesar `agreed_amount`.
+          $ref: '#/components/schemas/Payment'
+        activities:
+          type: array
+          description: Satu activity per pekerja yang diterima.
+          items: { $ref: '#/components/schemas/Activity' }
+        created_at: { type: [string, 'null'], format: date-time }
+        updated_at: { type: [string, 'null'], format: date-time }
+    Bid:
+      type: object
+      required: [id, amount, status]
+      properties:
+        id: { type: string, description: ULID }
+        amount:
+          type: integer
+          description: Budget dari penerima kerja sendiri. Rupiah bulat.
+        message: { type: [string, 'null'], maxLength: 1000 }
+        option_responses:
+          type: array
+          description: Jawaban atas `options` task.
+          items: { type: object }
+        estimated_hours: { type: [number, 'null'] }
+        can_start_at: { type: [string, 'null'], format: date-time }
+        status: { $ref: '#/components/schemas/BidStatus' }
+        responded_at: { type: [string, 'null'], format: date-time }
+        bidder: { $ref: '#/components/schemas/PublicUser' }
+        task: { $ref: '#/components/schemas/Task' }
+        created_at: { type: [string, 'null'], format: date-time }
+
+    # ── uang & activity ──
+    Payment:
+      type: object
+      description: |
+        **STUB** — hanya penanda status. Rincian gateway (kunci idempoten, metode,
+        komisi, pencairan) belum ada dan memang belum perlu.
+      required: [id, status, amount, is_held]
+      properties:
+        id: { type: string }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        amount: { type: integer }
+        is_held:
+          type: boolean
+          description: Kunci yang menggerakkan UI — dana sudah ditahan atau belum.
+        paid_at: { type: [string, 'null'], format: date-time }
+        held_at: { type: [string, 'null'], format: date-time }
+        released_at: { type: [string, 'null'], format: date-time }
+        refunded_at: { type: [string, 'null'], format: date-time }
+        cancelled_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: [string, 'null'], format: date-time }
+    Activity:
+      type: object
+      description: |
+        Eksekusi pekerjaan. Keberadaan barisnya sendiri menegakkan aturan:
+        activity tidak bisa ada tanpa dana yang sudah ditahan.
+      required: [id, status, agreed_amount, opened_at]
+      properties:
+        id: { type: string, description: ULID }
+        status: { $ref: '#/components/schemas/ActivityStatus' }
+        agreed_amount: { type: integer }
+        opened_at:
+          type: [string, 'null']
+          format: date-time
+          description: Saat transfer terkonfirmasi.
+        started_at: { type: [string, 'null'], format: date-time }
+        submitted_at: { type: [string, 'null'], format: date-time }
+        approved_at: { type: [string, 'null'], format: date-time }
+        rejected_at: { type: [string, 'null'], format: date-time }
+        worker_note: { type: [string, 'null'] }
+        proof_photos:
+          type: array
+          description: Bukti pekerjaan. Dasar penyelesaian sengketa.
+          items: { type: string }
+        poster_note: { type: [string, 'null'] }
+        task: { $ref: '#/components/schemas/Task' }
+        worker: { $ref: '#/components/schemas/PublicUser' }
+        payment: { $ref: '#/components/schemas/Payment' }
+        created_at: { type: [string, 'null'], format: date-time }
+    Review:
+      type: object
+      required: [id, rating, reviewer_role]
+      properties:
+        id: { type: integer }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: [string, 'null'] }
+        reviewer_role: { $ref: '#/components/schemas/ReviewerRole' }
+        reviewer: { $ref: '#/components/schemas/PublicUser' }
+        created_at: { type: [string, 'null'], format: date-time }
+
+    # ── request ──
+    RegisterRequest:
+      type: object
+      required: [name, email, phone, password, password_confirmation]
+      properties:
+        name: { type: string, maxLength: 120 }
+        email: { type: string, format: email, maxLength: 180 }
+        phone:
+          type: string
+          maxLength: 20
+          pattern: '^\+?[0-9]{9,19}$'
+          description: Angka, boleh diawali `+`. Unik.
+        password:
+          type: string
+          minLength: 8
+          description: |
+            Minimal 8 karakter, harus memuat huruf dan angka, dan **dicek
+            terhadap basis data kebocoran kata sandi publik**.
+        password_confirmation: { type: string }
+        city: { type: [string, 'null'], maxLength: 80 }
+        province: { type: [string, 'null'], maxLength: 80 }
+      additionalProperties: false
+    VerifyEmailRequest:
+      type: object
+      required: [email, code]
+      properties:
+        email: { type: string, format: email }
+        code:
+          type: string
+          description: 6 angka. Spasi dan tanda pisah dibuang otomatis, jadi "123 456" diterima.
+      additionalProperties: false
+    LoginRequest:
+      type: object
+      required: [password]
+      description: Kirim `email` **atau** `phone`, tidak boleh dua-duanya kosong.
+      properties:
+        email: { type: [string, 'null'], format: email }
+        phone: { type: [string, 'null'] }
+        password: { type: string }
+      additionalProperties: false
+    UpdateProfileRequest:
+      type: object
+      description: Semua opsional. Hanya field yang dikirim yang diubah.
+      properties:
+        name: { type: string, maxLength: 120 }
+        bio: { type: [string, 'null'], maxLength: 2000 }
+        skills:
+          type: array
+          maxItems: 20
+          items: { type: string, description: Slug keahlian yang sudah terdaftar. }
+        avatar_path: { type: [string, 'null'], maxLength: 255 }
+        address_line: { type: [string, 'null'], maxLength: 255 }
+        city: { type: [string, 'null'], maxLength: 80 }
+        province: { type: [string, 'null'], maxLength: 80 }
+        postal_code: { type: [string, 'null'], maxLength: 10 }
+        active_mode: { $ref: '#/components/schemas/UserActiveMode' }
+        theme: { type: string, enum: [light, dark, system] }
+      additionalProperties: false
+    SubmitVerificationRequest:
+      type: object
+      required: [type]
+      description: |
+        Field yang wajib bergantung pada `type`. Untuk `identity`: foto KTP,
+        selfie, NIK 16 digit, dan nama di dokumen. Untuk `bank_account`: bank,
+        nomor rekening, dan nama pemilik.
+      properties:
+        type: { $ref: '#/components/schemas/VerificationType' }
+        id_card_photo_path: { type: string, maxLength: 255 }
+        selfie_photo_path: { type: string, maxLength: 255 }
+        document_number: { type: string, minLength: 16, maxLength: 16 }
+        name_on_document: { type: string, maxLength: 120 }
+        birth_date_on_document: { type: [string, 'null'], format: date }
+        bank_code: { type: string, maxLength: 20 }
+        account_number: { type: string, maxLength: 40 }
+        account_holder_name: { type: string, maxLength: 120 }
+      additionalProperties: false
+    CreateTaskRequest:
+      type: object
+      required: [category_id, title, description, budget_min]
+      properties:
+        category_id: { type: integer }
+        title: { type: string, maxLength: 180 }
+        description: { type: string, maxLength: 5000 }
+        budget_min: { type: integer, minimum: 1 }
+        budget_max:
+          type: [integer, 'null']
+          description: '**Opsional.** Bila diisi, tidak boleh di bawah `budget_min`.'
+        options:
+          type: array
+          maxItems: 20
+          items:
+            type: object
+            required: [label, value]
+            properties:
+              label: { type: string, maxLength: 80 }
+              value: {}
+        photos: { type: array, maxItems: 10, items: { type: string } }
+        skills: { type: array, maxItems: 10, items: { type: string } }
+        location_text: { type: [string, 'null'], maxLength: 255 }
+        city: { type: [string, 'null'], maxLength: 80 }
+        latitude: { type: [number, 'null'], minimum: -90, maximum: 90 }
+        longitude: { type: [number, 'null'], minimum: -180, maximum: 180 }
+        is_remote: { type: boolean, default: false }
+        workers_needed:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 1
+          description: |
+            Berapa orang yang akan **diterima** untuk pekerjaan ini. Isi `30`
+            berarti task ini merekrut 30 orang.
+
+            Bukan batas pelamar: lelangnya tetap terbuka untuk siapa pun, dan
+            pemberi kerja memilih 30 pemenang dari seluruh penawaran yang masuk.
+            Mengisi slot ke-30 menutup lelang; sisa pelamar otomatis `rejected`.
+          examples: [30]
+        needed_at: { type: [string, 'null'], format: date-time }
+        bidding_closes_at: { type: [string, 'null'], format: date-time }
+        publish_now:
+          type: boolean
+          default: false
+          description: '`true` → langsung `open`. `false` → `draft`.'
+      additionalProperties: false
+    PlaceBidRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount: { type: integer, minimum: 1 }
+        message: { type: [string, 'null'], maxLength: 1000 }
+        option_responses: { type: array, maxItems: 20, items: { type: object } }
+        estimated_hours: { type: [number, 'null'], minimum: 0.25, maximum: 999 }
+        can_start_at: { type: [string, 'null'], format: date-time }
+      additionalProperties: false
+    SubmitActivityRequest:
+      type: object
+      properties:
+        worker_note: { type: [string, 'null'], maxLength: 2000 }
+        proof_photos: { type: array, maxItems: 10, items: { type: string } }
+      additionalProperties: false
+    CreateReviewRequest:
+      type: object
+      required: [rating]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: [string, 'null'], maxLength: 2000 }
+        worker_id:
+          type: [string, 'null']
+          minLength: 26
+          maxLength: 26
+          description: |
+            ULID pekerja yang dinilai — **hanya** dipakai ketika penilainya
+            pemberi kerja.
+
+            Boleh dikosongkan kalau task itu punya tepat satu pekerja. Kalau
+            lebih dari satu, wajib: menebak sasarannya berarti menaruh rating
+            pada orang yang salah, dan rating tidak bisa dicabut. Dikosongkan
+            pada task banyak pekerja menghasilkan `review_target_required`.
+
+            Pekerja yang menilai tidak perlu mengisinya — sasarannya selalu
+            pemberi kerja, dan nilai yang dikirim diabaikan.
+      additionalProperties: false
+
+    # ── pagination & galat ──
+    CursorLinks:
+      type: object
+      required: [first, last, prev, next]
+      properties:
+        first: { type: [string, 'null'], description: Selalu null — keyset tidak punya halaman pertama yang bisa dialamati. }
+        last: { type: [string, 'null'], description: Selalu null — total tidak pernah dihitung. }
+        prev: { type: [string, 'null'], format: uri }
+        next: { type: [string, 'null'], format: uri }
+    CursorMeta:
+      type: object
+      required: [path, per_page, next_cursor, prev_cursor]
+      additionalProperties: false
+      description: |
+        Sengaja **tidak** punya `current_page`, `total`, atau `last_page`.
+        Ketiadaannya adalah bukti ini keyset pagination, bukan offset.
+      properties:
+        path: { type: string, format: uri }
+        per_page: { type: integer }
+        next_cursor: { type: [string, 'null'], description: Kirim balik sebagai `?cursor=`. Null di halaman terakhir. }
+        prev_cursor: { type: [string, 'null'] }
+    ValidationError:
+      type: object
+      title: ValidationError
+      required: [message, errors]
+      description: Bentuk request tidak sah. Muncul sebelum Action mana pun berjalan.
+      properties:
+        message: { type: string }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+    DomainError:
+      type: object
+      title: DomainError
+      required: [message, code]
+      description: |
+        Aturan bisnis dilanggar. Dilempar Action sebagai domain exception lalu
+        dipetakan ke status code di satu tempat — Action tidak pernah tahu soal HTTP.
+
+        **Bercabanglah pada `code`, jangan pada `message`.**
+      properties:
+        message:
+          type: string
+          description: Bisa dibaca manusia. Jangan dipakai untuk bercabang.
+        code:
+          type: string
+          description: Kode mesin yang stabil.
+          enum:
+            - unauthenticated
+            - invalid_credentials
+            - email_not_verified
+            - account_not_active
+            - invalid_verification_code
+            - resend_too_soon
+            - task_not_found
+            - task_not_biddable
+            - cannot_bid_own_task
+            - bid_below_minimum
+            - task_already_dealt
+            - no_workers_hired
+            - review_target_required
+            - payment_not_held
+            - invalid_status_transition
+            - review_not_allowed
+        context:
+          type: object
+          additionalProperties: true
+          description: 'Rincian tambahan, mis. `{ "attempts_left": 4 }` atau `{ "budget_min": 150000 }`.'

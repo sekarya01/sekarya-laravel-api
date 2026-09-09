@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+        <exclude>
+            <!-- Berkas kerangka Laravel tanpa logika milik kita. -->
+            <file>app/Providers/AppServiceProvider.php</file>
+            <file>app/Http/Controllers/Controller.php</file>
+        </exclude>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="CACHE_STORE" value="array"/>
+
+        <!--
+            MySQL, BUKAN SQLite.
+
+            Aplikasi ini memakai sintaks khusus MySQL yang tidak sah di SQLite:
+            `MATCH(...) AGAINST (... IN BOOLEAN MODE)` untuk pencarian kata
+            kunci, dan `LEAST()/GREATEST()` di ekspresi jarak. Test di SQLite
+            bukan sekadar membuktikan lebih sedikit — test pencarian akan
+            GAGAL, dan yang lolos tidak membuktikan apa pun soal produksi.
+
+            Database terpisah dari dev supaya RefreshDatabase tidak menghapus
+            data yang sedang dipakai:
+              CREATE DATABASE sekarya_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        -->
+        <env name="DB_CONNECTION" value="mysql"/>
+        <env name="DB_DATABASE" value="sekarya_test"/>
+        <env name="DB_TIMEZONE" value="+00:00"/>
+        <env name="DB_URL" value=""/>
+
+        <!-- Notifikasi ditampung di memori supaya bisa di-assert. -->
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+
+        <!--
+            Domain uji seperti @sekarya.test tidak punya DNS, jadi cek DNS harus
+            mati di test. Lihat config/sekarya.php.
+        -->
+        <env name="SEKARYA_VALIDATE_EMAIL_DNS" value="false"/>
+
+        <!--
+            Axiom dimatikan keras di test.
+
+            Bukan sekadar kebersihan: suite ini menjalankan 400+ test dengan
+            payload berisi kata sandi dan kode verifikasi. Satu kali suite
+            berjalan dengan Axiom hidup akan mengirim semuanya ke pihak ketiga,
+            dan data yang sudah terkirim tidak bisa ditarik kembali. Test yang
+            memang menguji pengiriman menyalakannya sendiri per test.
+        -->
+        <env name="AXIOM_ENABLED" value="false"/>
+        <env name="AXIOM_TOKEN" value="test-token"/>
+        <env name="AXIOM_DATASET" value="sekarya-test"/>
+
+        <env name="PULSE_ENABLED" value="false"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NIGHTWATCH_ENABLED" value="false"/>
+    </php>
+</phpunit>
