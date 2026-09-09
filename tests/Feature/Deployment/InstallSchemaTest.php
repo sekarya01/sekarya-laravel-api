@@ -115,10 +115,33 @@ final class InstallSchemaTest extends TestCase
      */
     public function test_the_install_file_does_not_choose_a_database(): void
     {
+        // Baris komentar dibuang lebih dulu: berkas ini SENGAJA memuat contoh
+        // `CREATE DATABASE` yang dikomentari, untuk orang yang punya hak
+        // membuatnya sendiri. Yang tidak boleh ada adalah versi yang
+        // benar-benar dieksekusi.
+        $executable = implode("\n", array_filter(
+            explode("\n", $this->sql()),
+            static fn (string $line): bool => ! str_starts_with(trim($line), '--'),
+        ));
+
+        $this->assertStringNotContainsStringIgnoringCase('CREATE DATABASE', $executable);
+        $this->assertDoesNotMatchRegularExpression('/^USE /mi', $executable);
+    }
+
+    /**
+     * Contoh yang dikomentari itu harus tetap ada.
+     *
+     * Kegagalan impor yang benar-benar terjadi adalah #1046 "No database
+     * selected" — dan orang yang menemukannya membuka berkas SQL-nya, bukan
+     * dokumentasi. Penjelasan dan jalan keluarnya harus ada di sana.
+     */
+    public function test_the_install_file_explains_the_error_people_actually_hit(): void
+    {
         $sql = $this->sql();
 
-        $this->assertStringNotContainsStringIgnoringCase('CREATE DATABASE', $sql);
-        $this->assertDoesNotMatchRegularExpression('/^USE /mi', $sql);
+        $this->assertStringContainsString('#1046', $sql);
+        $this->assertStringContainsString('-- CREATE DATABASE IF NOT EXISTS', $sql);
+        $this->assertStringContainsString('--with-database=', $sql);
     }
 
     /**

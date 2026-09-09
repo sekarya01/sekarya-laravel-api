@@ -37,7 +37,8 @@ use Illuminate\Support\Facades\File;
 final class BuildInstallSqlCommand extends Command
 {
     protected $signature = 'sekarya:build-install-sql
-        {--path=database/schema/sekarya-install.sql : Tujuan penulisan}';
+        {--path=database/schema/sekarya-install.sql : Tujuan penulisan}
+        {--with-database= : Sertakan CREATE DATABASE + USE untuk nama ini}';
 
     protected $description = 'Bangun berkas pemasangan basis data untuk shared hosting';
 
@@ -52,6 +53,7 @@ final class BuildInstallSqlCommand extends Command
         $this->components->info(sprintf('Membaca %d tabel dari `%s`', count($tables), $database));
 
         $sql = $this->header()
+            .$this->databasePrelude()
             .$this->sessionPrelude()
             ."-- ---------- STRUKTUR TABEL ----------\n"
             ."-- Urut menurut ketergantungan: setiap foreign key menunjuk tabel\n"
@@ -63,7 +65,11 @@ final class BuildInstallSqlCommand extends Command
             .$this->referenceData($db)
             .$this->sessionEpilogue();
 
-        $path = base_path((string) $this->option('path'));
+        // Path absolut dihormati apa adanya; yang relatif dianggap relatif
+        // terhadap akar proyek. `base_path()` polos akan menempelkan akar
+        // proyek di depan path absolut dan menulis ke tempat yang salah.
+        $option = (string) $this->option('path');
+        $path = str_starts_with($option, '/') ? $option : base_path($option);
         File::ensureDirectoryExists(dirname($path));
         File::put($path, $sql);
 
@@ -244,6 +250,46 @@ final class BuildInstallSqlCommand extends Command
     }
 
     /**
+     * Blok pembuatan basis data.
+     *
+     * Secara bawaan ditulis sebagai KOMENTAR, bukan pernyataan aktif. Di shared
+     * hosting cPanel, basis data harus dibuat lewat panel supaya namanya
+     * mendapat awalan akun dan supaya penggunanya bisa diberi hak — membuatnya
+     * lewat SQL menghasilkan basis data yang aplikasinya sendiri tidak bisa
+     * masuki.
+     *
+     * `--with-database=NAMA` mengaktifkannya untuk yang punya SSH atau server
+     * sendiri.
+     */
+    private function databasePrelude(): string
+    {
+        $name = (string) $this->option('with-database');
+
+        if ($name !== '') {
+            return sprintf(
+                'CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `%s`;
+
+',
+                $name,
+                $name,
+            );
+        }
+
+        return <<<'SQL'
+            -- Kalau basis datanya BELUM ADA dan Anda punya hak membuatnya
+            -- (SSH, server sendiri), hapus dua tanda -- di bawah lalu ganti
+            -- namanya. Di cPanel JANGAN lakukan ini: buat lewat panel supaya
+            -- namanya mendapat awalan akun dan penggunanya bisa diberi hak.
+            --
+            -- CREATE DATABASE IF NOT EXISTS `nama_basis_data` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+            -- USE `nama_basis_data`;
+
+
+            SQL;
+    }
+
+    /**
      * Pengaturan sesi, ditulis POLOS.
      *
      * mysqldump membungkusnya dalam `/*!40014 ... *\/` — komentar bersyarat
@@ -278,21 +324,33 @@ final class BuildInstallSqlCommand extends Command
             --  Sekarya API — berkas pemasangan basis data
             -- =============================================================================
             --
-            --  CARA IMPOR DI cPanel / phpMyAdmin
+            --  BASIS DATANYA HARUS ADA LEBIH DULU
             --
-            --    1. cPanel > MySQL Databases > buat basis data. Namanya otomatis diberi
-            --       awalan nama akun, mis. `akunanda_sekarya`.
-            --    2. Buat pengguna basis data, tambahkan ke basis data itu dengan
-            --       ALL PRIVILEGES.
-            --    3. Buka phpMyAdmin. KLIK NAMA BASIS DATANYA DI PANEL KIRI LEBIH DULU,
+            --  Berkas ini TIDAK membuat dan TIDAK memilih basis data. Kalau diimpor
+            --  sebelum basis datanya ada — atau dari halaman utama phpMyAdmin, bukan dari
+            --  halaman basis datanya — MySQL menjawab:
+            --
+            --      #1046 - No database selected
+            --
+            --  dan yang gagal SELALU pernyataan pertama, apa pun isinya. Itu bukan
+            --  masalah pada berkas ini.
+            --
+            --  LANGKAHNYA DI cPanel, berurutan:
+            --
+            --    1. cPanel > MySQL Databases > "Create New Database".
+            --       Namanya otomatis diberi awalan akun, mis. `akunanda_sekarya`.
+            --       CATAT NAMA LENGKAPNYA — itu yang masuk ke DB_DATABASE di .env.
+            --    2. Di halaman yang sama, "Add New User". Catat nama dan sandinya.
+            --    3. "Add User To Database" > pilih keduanya > centang ALL PRIVILEGES.
+            --       Tanpa langkah ini aplikasinya tidak bisa masuk, walau tabelnya ada.
+            --    4. cPanel > phpMyAdmin. KLIK NAMA BASIS DATANYA DI PANEL KIRI,
             --       sampai judul halaman berbunyi "Database: akunanda_sekarya".
-            --       Baru kemudian tab Import > Choose File > Go.
+            --    5. Baru tab Import > Choose File > Go.
             --
-            --    Langkah 3 bukan formalitas. Berkas ini sengaja TIDAK memilih basis data
-            --    sendiri, karena namanya berbeda di tiap akun hosting. Kalau Import
-            --    dijalankan dari halaman utama phpMyAdmin, MySQL menjawab:
+            --  Kalau punya SSH atau server sendiri dan ingin berkas ini membuat basis
+            --  datanya sekalian:
             --
-            --        #1046 - No database selected
+            --      php artisan sekarya:build-install-sql --with-database=nama_basis_data
             --
             --  LEWAT SSH, kalau tersedia:
             --

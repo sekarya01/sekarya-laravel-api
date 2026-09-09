@@ -126,11 +126,37 @@ ikut di dalam zip — berkas itu diisi langsung di server.
 
 ## 3. Basis data
 
-1. cPanel > **MySQL Databases** > buat basis data. Namanya otomatis diberi awalan nama
-   akun, mis. `akunanda_sekarya`. **Catat nama lengkapnya.**
-2. Buat pengguna basis data, lalu tambahkan ke basis data itu dengan **ALL PRIVILEGES**.
-3. phpMyAdmin > pilih basis datanya > tab **Import** > unggah
-   [`database/schema/sekarya-install.sql`](../database/schema/sekarya-install.sql).
+Urutannya penting, dan langkah 1 tidak boleh dilewati.
+
+1. cPanel > **MySQL Databases** > **Create New Database**. Namanya otomatis diberi awalan
+   nama akun, mis. `akunanda_sekarya`. **Catat nama lengkapnya** — itu yang masuk ke
+   `DB_DATABASE` di `.env`.
+2. Di halaman yang sama, **Add New User**. Catat nama dan sandinya.
+3. **Add User To Database** > pilih keduanya > centang **ALL PRIVILEGES**. Tanpa ini
+   aplikasinya tidak bisa masuk, walaupun tabelnya nanti ada.
+4. cPanel > **phpMyAdmin** > **klik nama basis datanya di panel kiri**, sampai judul
+   halaman berbunyi `Database: akunanda_sekarya`.
+5. Tab **Import** > unggah
+   [`database/schema/sekarya-install.sql`](../database/schema/sekarya-install.sql) > **Go**.
+
+> **Kalau langkah 1 dan 4 dilewati, impornya gagal di pernyataan pertama** — apa pun
+> pernyataan itu — dengan `#1046 - No database selected`. Berkas ini sengaja tidak membuat
+> dan tidak memilih basis data, karena namanya berbeda di tiap akun hosting dan pengguna
+> yang dibuat lewat SQL tidak akan punya hak apa pun.
+>
+> Gejalanya menyesatkan: phpMyAdmin menampilkan `CREATE TABLE` yang gagal, sehingga
+> tampak seperti masalah pada isi berkasnya. Bukan.
+
+**Kalau punya SSH atau server sendiri**, berkasnya bisa dibuat sekalian membuat basis
+datanya:
+
+```bash
+php artisan sekarya:build-install-sql --with-database=nama_basis_data
+mysql -u root < database/schema/sekarya-install.sql     # tanpa menyebut basis data
+```
+
+Jangan pakai cara ini di cPanel: basis data yang dibuat lewat SQL tidak terdaftar di panel
+dan penggunanya tidak bisa diberi hak dari sana.
 
 Lewat SSH:
 
