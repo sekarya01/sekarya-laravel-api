@@ -322,68 +322,58 @@ mysqldump -u PENGGUNA -p NAMA_DB > backup-$(date +%F).sql
 
 ## Membuat ulang berkas pemasangan basis data
 
-Wajib setiap kali ada **migrasi baru**. Kalau tidak, pemasangan berikutnya akan kehilangan
-tabel — dan `php artisan migrate` mengira pekerjaannya sudah selesai karena riwayat
-migrasinya ikut di berkas itu.
-
-`tests/Feature/Deployment/InstallSchemaTest.php` menjaganya: menambah migrasi tanpa
-membuat ulang berkas ini membuat suite gagal dan menyebut migrasi mana yang tertinggal.
+Wajib setiap kali ada **migrasi baru**. Kalau tidak, pemasangan berikutnya kehilangan tabel
+— dan `php artisan migrate` mengira pekerjaannya sudah selesai, karena riwayat migrasinya
+ikut di berkas itu.
 
 ```bash
-# 1. Basis data lokal yang bersih, persis seperti hosting baru
-php artisan migrate:fresh --seed
-
-# 2. Struktur — tanpa penghapusan tabel, tanpa CREATE DATABASE, tanpa GTID
-mysqldump -u root --no-data --no-create-db --skip-add-drop-table --skip-comments \
-  --skip-set-charset --set-gtid-purged=OFF --single-transaction \
-  --default-character-set=utf8mb4 --routines=FALSE --triggers=FALSE \
-  sekarya > /tmp/structure.sql
-
-# lalu jadikan aman diulang
-sed -i '' 's/CREATE TABLE `/CREATE TABLE IF NOT EXISTS `/g' /tmp/structure.sql
-
-# 3. HANYA data acuan. Bukan pengguna, bukan task. --insert-ignore supaya
-#    impor kedua tidak gagal karena kunci ganda.
-mysqldump -u root --no-create-info --no-create-db --skip-comments --skip-set-charset \
-  --set-gtid-purged=OFF --single-transaction --default-character-set=utf8mb4 \
-  --complete-insert --skip-extended-insert --insert-ignore \
-  sekarya categories skills migrations > /tmp/data.sql
+php artisan migrate:fresh --seed          # basis data bersih, seperti hosting baru
+php artisan sekarya:build-install-sql     # tulis ulang berkasnya
 ```
 
-Gabungkan keduanya di bawah blok komentar yang sudah ada di berkas lama, pertahankan blok
-`/*!40103 SET ... */` pembuka dan penutupnya, lalu pastikan:
-
-```bash
-php artisan test tests/Feature/Deployment
-```
-
-Terakhir, **buktikan impornya** — berkas yang tidak pernah diuji impor tidak layak
-dikirim ke orang yang tidak punya SSH:
+Lalu **buktikan impornya** — berkas yang tidak pernah diuji impor tidak layak dikirim ke
+orang yang tidak punya SSH:
 
 ```bash
 php artisan db:wipe --force
-mysql -u root sekarya < database/schema/sekarya-install.sql
-php artisan migrate --pretend --force        # harus: "Nothing to migrate"
-php artisan migrate:status | tail -5         # semua harus [1] Ran
+mysql -u root sekarya < database/schema/sekarya-install.sql   # pertama
+mysql -u root sekarya < database/schema/sekarya-install.sql   # kedua, harus tetap berhasil
+php artisan migrate --pretend --force                         # harus: "Nothing to migrate"
+php artisan test tests/Feature/Deployment
 ```
 
-Uji juga impor **keduanya** — berkas ini harus aman dijalankan ulang, karena impor yang
-putus di tengah jalan (koneksi terputus, batas waktu phpMyAdmin) adalah kejadian biasa:
+### Kenapa perintah, bukan `mysqldump`
 
-```bash
-mysql -u root sekarya < database/schema/sekarya-install.sql   # harus berhasil lagi
-```
+`mysqldump` menghasilkan berkas yang **gagal diimpor lewat phpMyAdmin**, dan gagalnya tidak
+menjelaskan apa-apa: `CREATE TABLE` pertama berhenti tanpa keterangan. Sebabnya ia
+mengurutkan tabel secara **alfabetis**, sehingga `activities` dibuat lebih dulu daripada
+`tasks`, `users`, dan `payments` yang dirujuk foreign key-nya. Dump itu hanya selamat
+karena `FOREIGN_KEY_CHECKS=0` — dan mysqldump menaruh baris itu di dalam komentar
+bersyarat versi (`/*!40014 ... */`), yang boleh dilewati klien mana pun yang mengurai
+berkas SQL sendiri.
 
-Lima hal yang membuat berkas semacam ini gagal di shared hosting, dan sudah dihindari oleh
-opsi di atas:
+Perintah ini mengurutkan tabel menurut **ketergantungan**, jadi setiap foreign key menunjuk
+tabel yang sudah dibuat di atasnya — impornya berhasil bahkan kalau pemeriksaan foreign key
+tidak pernah dimatikan sama sekali.
+
+Diuji dengan cara yang paling keras yang bisa dilakukan: seluruh pernyataan dijalankan satu
+per satu, **masing-masing di koneksi baru**, dengan setiap `SET` sesi dibuang. 93 dari 93
+berhasil.
+
+Lima hal yang membuat berkas semacam ini gagal di shared hosting, dan semuanya sudah
+dihindari:
 
 | Penyebab | Kenapa gagal di sana |
 |---|---|
-| `DROP TABLE` | Sebagian hosting tidak memberi hak DROP. Juga menghancurkan data kalau salah basis data. |
+| Tabel urut abjad | Foreign key menunjuk tabel yang belum dibuat |
+| `FOREIGN_KEY_CHECKS` di dalam `/*! */` | Boleh dilewati klien; phpMyAdmin melewatinya |
+| `DROP TABLE` | Sebagian hosting menahan hak DROP. Juga menghancurkan data kalau salah basis data. |
 | `CREATE DATABASE` | Nama basis data ditentukan panel, berawalan nama akun |
-| `SET @@GLOBAL.GTID_PURGED` | Butuh hak SUPER yang tidak akan pernah diberikan |
-| `DEFINER=` | Menunjuk pengguna MySQL yang tidak ada di server itu |
 | `CREATE TABLE` tanpa `IF NOT EXISTS` | Impor ulang setelah gagal separuh langsung berhenti |
+
+`tests/Feature/Deployment/InstallSchemaTest.php` menjaga kelimanya, plus memastikan berkas
+ini tidak pernah memuat data selain kategori, keahlian, dan riwayat migrasi — ia ada di
+repositori publik.
 
 ---
 

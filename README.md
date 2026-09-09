@@ -297,7 +297,9 @@ ada setelan MySQL yang perlu diminta ke penyedia hosting.
 - Basis data dipasang sekali lewat
   [`database/schema/sekarya-install.sql`](database/schema/sekarya-install.sql): 23 tabel
   beserta indeks dan foreign key, data acuan, dan riwayat migrasi supaya
-  `php artisan migrate` tahu semuanya sudah dijalankan. Tanpa data pengguna.
+  `php artisan migrate` tahu semuanya sudah dijalankan. Tanpa data pengguna. Tabelnya urut
+  menurut ketergantungan dan tidak menghapus apa pun, jadi bisa diimpor lewat phpMyAdmin
+  dan aman diulang. Dibuat ulang dengan `php artisan sekarya:build-install-sql`.
 - Salin `.env.production.example` jadi `.env` di server; tiap nilainya berkomentar.
 - Aplikasi harus berada **di luar** `public_html`. Kalau `https://domain/.env` bisa
   diunduh, seluruh kredensial Anda sudah bocor.

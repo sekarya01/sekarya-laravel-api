@@ -44,7 +44,7 @@ final class InstallSchemaTest extends TestCase
     private function migrationsInSql(): array
     {
         preg_match_all(
-            "/INSERT (?:IGNORE )?INTO `migrations`[^;]*VALUES \(\d+,'([^']+)'/",
+            "/INSERT (?:IGNORE )?INTO `migrations`[^;]*VALUES \\(\\s*\\d+\\s*,\\s*'([^']+)'/",
             $this->sql(),
             $m,
         );
@@ -176,6 +176,74 @@ final class InstallSchemaTest extends TestCase
             count($ignoring[0]),
             'setiap INSERT harus IGNORE, kalau tidak impor kedua gagal karena kunci ganda',
         );
+    }
+
+    /**
+     * Tabel harus diurutkan menurut KETERGANTUNGAN, bukan abjad.
+     *
+     * Ini penyebab kegagalan impor yang sebenarnya. `mysqldump` mengurutkan
+     * alfabetis, sehingga `activities` dibuat lebih dulu daripada `tasks`,
+     * `users`, dan `payments` yang dirujuk foreign key-nya. Dump semacam itu
+     * hanya selamat karena `FOREIGN_KEY_CHECKS=0` — dan mysqldump menaruhnya di
+     * dalam komentar bersyarat versi, yang boleh dilewati klien mana pun yang
+     * mengurai berkas SQL sendiri. phpMyAdmin melewatinya.
+     */
+    public function test_tables_are_created_before_anything_references_them(): void
+    {
+        $sql = $this->sql();
+
+        preg_match_all('/CREATE TABLE IF NOT EXISTS `([a-z_]+)`/', $sql, $m);
+        $order = $m[1];
+
+        $this->assertNotEmpty($order);
+
+        $created = [];
+        $violations = [];
+
+        foreach ($order as $table) {
+            $start = strpos($sql, 'CREATE TABLE IF NOT EXISTS `'.$table.'`');
+            $end = strpos($sql, ';', (int) $start);
+            $block = substr($sql, (int) $start, (int) $end - (int) $start);
+
+            preg_match_all('/REFERENCES `([a-z_]+)`/', $block, $refs);
+
+            foreach (array_unique($refs[1]) as $referenced) {
+                // Rujukan ke diri sendiri sah — barisnya belum ada saat tabel dibuat.
+                if ($referenced !== $table && ! in_array($referenced, $created, true)) {
+                    $violations[] = $table.' -> '.$referenced;
+                }
+            }
+
+            $created[] = $table;
+        }
+
+        $this->assertSame([], $violations, sprintf(
+            'Foreign key berikut menunjuk tabel yang BELUM dibuat pada titik itu.
+'
+            .'Impor akan gagal di klien yang tidak mematikan pemeriksaan foreign key.
+'
+            .'Buat ulang dengan `php artisan sekarya:build-install-sql`:
+  %s',
+            implode('
+  ', $violations),
+        ));
+    }
+
+    /**
+     * Pengaturan sesi harus POLOS, bukan di dalam komentar bersyarat versi.
+     *
+     * `/*!40014 SET FOREIGN_KEY_CHECKS=0 *\/` dieksekusi MySQL, tapi klien yang
+     * mengurai berkasnya sendiri boleh melewatinya — dan hasilnya bukan galat
+     * yang jelas, melainkan `CREATE TABLE` pertama yang gagal tanpa keterangan.
+     */
+    public function test_session_settings_cannot_be_skipped_by_a_client(): void
+    {
+        $sql = $this->sql();
+
+        $this->assertMatchesRegularExpression('/^SET FOREIGN_KEY_CHECKS = 0;$/m', $sql);
+        $this->assertMatchesRegularExpression('/^SET NAMES utf8mb4;$/m', $sql);
+        $this->assertStringNotContainsString('/*!40014', $sql);
+        $this->assertStringNotContainsString('/*!40103', $sql);
     }
 
     /** Indeks FULLTEXT adalah inti pencarian nama; tanpanya feed tidak berfungsi. */

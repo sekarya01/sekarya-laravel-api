@@ -57,10 +57,15 @@ Panduan shared hosting: `docs/DEPLOYMENT.md`. Dua artefak yang harus tetap seiri
 keduanya dijaga test:
 
 - **`database/schema/sekarya-install.sql`** — pemasangan sekali jalan untuk hosting tanpa
-  SSH. Berisi struktur, data acuan, dan riwayat migrasi. Migrasi baru **wajib** ikut ke
-  sini; `tests/Feature/Deployment/InstallSchemaTest.php` menggagalkan suite kalau tidak.
-  Berkas ini ada di repo publik — test yang sama menolak data selain kategori, keahlian,
-  dan migrasi.
+  SSH. Dibuat oleh `php artisan sekarya:build-install-sql`, **jangan disunting tangan** dan
+  jangan dibuat dengan `mysqldump`: mysqldump mengurutkan tabel secara alfabetis, sehingga
+  `activities` dibuat sebelum `tasks`/`users`/`payments` yang dirujuknya. Dump itu hanya
+  selamat karena `FOREIGN_KEY_CHECKS=0` di dalam komentar bersyarat `/*!40014 ... */` —
+  dan phpMyAdmin melewati komentar itu, sehingga impornya berhenti di `CREATE TABLE`
+  pertama tanpa keterangan. Perintahnya mengurutkan menurut ketergantungan.
+  Migrasi baru **wajib** ikut ke sini; `tests/Feature/Deployment/InstallSchemaTest.php`
+  menggagalkan suite kalau tidak, dan menolak data selain kategori, keahlian, dan migrasi —
+  berkas ini ada di repo publik.
 - **`.env.production.example`** — template produksi, tiap nilai berkomentar.
 
 Yang mudah terlewat: **cache rute harus dibuat DI SERVER.** Rute `/docs` didaftarkan hanya
@@ -232,7 +237,7 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
 #   CREATE DATABASE sekarya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 php artisan migrate:fresh --seed  # 13 tabel + kategori & skills
 php artisan serve                 # http://localhost:8000
-php artisan test                  # 712 tests
+php artisan test                  # 716 tests
 composer test-report              # coverage/html + junit + testdox (lihat tests/README.md)
 php artisan sekarya:axiom --audit # buktikan penyaringan PII sebelum kirim apa pun
 php artisan test tests/Unit       # fast tier
