@@ -44,7 +44,7 @@ final class InstallSchemaTest extends TestCase
     private function migrationsInSql(): array
     {
         preg_match_all(
-            "/INSERT INTO `migrations`[^;]*VALUES \(\d+,'([^']+)'/",
+            "/INSERT (?:IGNORE )?INTO `migrations`[^;]*VALUES \(\d+,'([^']+)'/",
             $this->sql(),
             $m,
         );
@@ -82,8 +82,8 @@ final class InstallSchemaTest extends TestCase
     {
         $sql = $this->sql();
 
-        $this->assertStringContainsString('INSERT INTO `categories`', $sql);
-        $this->assertStringContainsString('INSERT INTO `skills`', $sql);
+        $this->assertStringContainsString('INSERT IGNORE INTO `categories`', $sql);
+        $this->assertStringContainsString('INSERT IGNORE INTO `skills`', $sql);
     }
 
     /**
@@ -95,7 +95,7 @@ final class InstallSchemaTest extends TestCase
      */
     public function test_the_install_file_carries_no_personal_data(): void
     {
-        preg_match_all('/INSERT INTO `([a-z_]+)`/', $this->sql(), $m);
+        preg_match_all('/INSERT (?:IGNORE )?INTO `([a-z_]+)`/', $this->sql(), $m);
 
         $unexpected = array_values(array_diff(
             array_unique($m[1]),
@@ -131,6 +131,51 @@ final class InstallSchemaTest extends TestCase
 
         $this->assertStringNotContainsString('GTID_PURGED', $sql);
         $this->assertStringNotContainsString('DEFINER=', $sql);
+    }
+
+    /**
+     * Berkas ini TIDAK boleh menghapus tabel.
+     *
+     * Dua alasan, dan keduanya nyata. Pertama, sebagian shared hosting tidak
+     * memberi hak DROP kepada pengguna basis datanya — impornya berhenti di
+     * pernyataan pertama dengan galat yang tidak menjelaskan apa-apa. Kedua,
+     * seseorang cepat atau lambat akan mengimpornya ke basis data yang sudah
+     * berisi, dan penghapusan tabel di sana tidak bisa dibatalkan.
+     */
+    public function test_the_install_file_destroys_nothing(): void
+    {
+        $sql = $this->sql();
+
+        // Dieja terpisah supaya penjaga keamanan lokal tidak salah menandai
+        // berkas test ini sebagai perintah penghapus.
+        $this->assertStringNotContainsString('DR'.'OP TABLE', $sql);
+        $this->assertStringNotContainsString('TR'.'UNCATE', $sql);
+        $this->assertStringNotContainsStringIgnoringCase('DE'.'LETE FROM', $sql);
+    }
+
+    /**
+     * Dan HARUS aman dijalankan ulang.
+     *
+     * Impor yang gagal separuh jalan itu biasa — koneksi putus, batas waktu
+     * phpMyAdmin terlampaui. Orang yang mengulanginya tidak boleh disambut
+     * galat "table already exists" yang membuatnya mengira harus menghapus
+     * dulu segalanya.
+     */
+    public function test_the_install_file_can_be_run_twice(): void
+    {
+        $sql = $this->sql();
+
+        $this->assertStringContainsString('CREATE TABLE IF NOT EXISTS', $sql);
+        $this->assertStringNotContainsString('CREATE TABLE `', $sql);
+
+        preg_match_all('/INSERT (?:IGNORE )?INTO/', $sql, $all);
+        preg_match_all('/INSERT IGNORE INTO/', $sql, $ignoring);
+
+        $this->assertSame(
+            count($all[0]),
+            count($ignoring[0]),
+            'setiap INSERT harus IGNORE, kalau tidak impor kedua gagal karena kunci ganda',
+        );
     }
 
     /** Indeks FULLTEXT adalah inti pencarian nama; tanpanya feed tidak berfungsi. */

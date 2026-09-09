@@ -2,38 +2,51 @@
 --  Sekarya API — berkas pemasangan basis data
 -- =============================================================================
 --
---  Impor SEKALI saat pemasangan pertama. Sesudah ini, perubahan skema memakai
---  `php artisan migrate`, bukan berkas ini.
+--  CARA IMPOR DI cPanel / phpMyAdmin
 --
---  CARA IMPOR (cPanel / phpMyAdmin):
+--    1. cPanel > MySQL Databases > buat basis data. Namanya otomatis diberi
+--       awalan nama akun, mis. `akunanda_sekarya`.
+--    2. Buat pengguna basis data, tambahkan ke basis data itu dengan
+--       ALL PRIVILEGES.
+--    3. Buka phpMyAdmin. **KLIK NAMA BASIS DATANYA di panel kiri lebih dulu**,
+--       sampai judul halaman berbunyi "Database: akunanda_sekarya".
+--       Baru kemudian tab Import > Choose File > Go.
 --
---    1. Buat basis data lewat cPanel > MySQL Databases. Namanya akan diberi
---       awalan otomatis, mis. `akunanda_sekarya`. Catat nama lengkapnya —
---       itu yang masuk ke DB_DATABASE di .env.
---    2. Buat pengguna basis data, beri SELURUH hak (ALL PRIVILEGES) atas
---       basis data itu.
---    3. phpMyAdmin > pilih basis datanya > tab Import > unggah berkas ini.
+--    Langkah 3 bukan formalitas. Berkas ini sengaja TIDAK memilih basis data
+--    sendiri, karena namanya berbeda di tiap akun hosting. Kalau Import
+--    dijalankan dari halaman utama phpMyAdmin (yang judulnya nama server,
+--    bukan nama basis data), MySQL menjawab:
 --
---  Lewat SSH, kalau tersedia:
+--        #1046 - No database selected
+--
+--    Solusinya bukan menyunting berkas ini, melainkan memilih basis datanya
+--    dulu di panel kiri.
+--
+--  LEWAT SSH, kalau tersedia:
 --
 --    mysql -u PENGGUNA -p NAMA_DATABASE < sekarya-install.sql
 --
---  ISINYA:
+--  ISINYA
 --    - 23 tabel beserta seluruh indeks, foreign key, dan indeks FULLTEXT
 --    - 9 kategori dan 42 keahlian (data acuan; aplikasi tidak berjalan tanpanya)
---    - 19 baris di tabel `migrations`, supaya `php artisan migrate` tahu
---      seluruh migrasi sudah dijalankan dan tidak mencoba mengulanginya
+--    - 19 baris riwayat migrasi, supaya `php artisan migrate` tahu seluruh
+--      migrasi sudah dijalankan dan tidak mengulanginya di atas tabel yang ada
 --
---  TIDAK BERISI: pengguna, task, penawaran, pembayaran, atau data pribadi apa
---  pun. Berkas ini aman disimpan di repositori.
+--    TIDAK berisi pengguna, task, penawaran, pembayaran, atau data pribadi apa
+--    pun. Berkas ini aman disimpan di repositori publik.
 --
---  CATATAN PENTING:
---    - Berkas ini TIDAK membuat basis data dan tidak memilih basis data.
---      Di shared hosting nama basis data ditentukan panel, bukan oleh berkas.
+--  SIFAT BERKAS INI
+--    - TIDAK menghapus tabel apa pun. Memakai CREATE TABLE IF NOT EXISTS dan
+--      INSERT IGNORE, jadi aman dijalankan ulang dan tidak menuntut hak DROP —
+--      sebagian shared hosting memang tidak memberikannya.
+--    - TIDAK membuat dan tidak memilih basis data.
 --    - Butuh MySQL 8.0+ dengan InnoDB. Tabel `task_search` memakai indeks
 --      FULLTEXT; MyISAM atau MySQL lama akan menolaknya.
---    - Setelah impor, JANGAN menjalankan `migrate:fresh` di produksi — itu
---      menghapus seluruh isi basis data.
+--
+--  SESUDAH IMPOR
+--    Perubahan skema berikutnya memakai `php artisan migrate`, bukan berkas
+--    ini. Dan jangan pernah menjalankan `migrate:fresh` di produksi — itu
+--    menghapus seluruh isi basis data tanpa bertanya.
 --
 --  Dibuat dari: php artisan migrate:fresh --seed
 -- =============================================================================
@@ -49,25 +62,22 @@
 
 -- ---------- STRUKTUR TABEL ----------
 
-DROP TABLE IF EXISTS `activities`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `activities` (
+CREATE TABLE IF NOT EXISTS `activities` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `ulid` varchar(26) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ulid` varchar(26) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `task_id` bigint unsigned NOT NULL,
   `worker_id` bigint unsigned NOT NULL,
   `payment_id` bigint unsigned NOT NULL,
-  `status` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
+  `status` varchar(24) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
   `agreed_amount` bigint unsigned NOT NULL,
   `opened_at` timestamp NOT NULL,
   `started_at` timestamp NULL DEFAULT NULL,
   `submitted_at` timestamp NULL DEFAULT NULL,
   `approved_at` timestamp NULL DEFAULT NULL,
   `rejected_at` timestamp NULL DEFAULT NULL,
-  `worker_note` text COLLATE utf8mb4_unicode_ci,
+  `worker_note` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `proof_photos` json DEFAULT NULL,
-  `poster_note` text COLLATE utf8mb4_unicode_ci,
+  `poster_note` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -82,20 +92,19 @@ CREATE TABLE `activities` (
   CONSTRAINT `activities_worker_id_foreign` FOREIGN KEY (`worker_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `bids`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `bids` (
+CREATE TABLE IF NOT EXISTS `bids` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `ulid` varchar(26) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ulid` varchar(26) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `task_id` bigint unsigned NOT NULL,
   `bidder_id` bigint unsigned NOT NULL,
   `amount` bigint unsigned NOT NULL,
-  `message` varchar(1000) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `message` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `option_responses` json DEFAULT NULL,
   `estimated_hours` decimal(5,2) DEFAULT NULL,
   `can_start_at` timestamp NULL DEFAULT NULL,
-  `status` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `status` varchar(24) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
   `responded_at` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
@@ -110,37 +119,34 @@ CREATE TABLE `bids` (
   CONSTRAINT `bids_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `cache`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `cache` (
-  `key` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `value` mediumtext COLLATE utf8mb4_unicode_ci NOT NULL,
+CREATE TABLE IF NOT EXISTS `cache` (
+  `key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `value` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `expiration` bigint NOT NULL,
   PRIMARY KEY (`key`),
   KEY `cache_expiration_index` (`expiration`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `cache_locks`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `cache_locks` (
-  `key` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `owner` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+CREATE TABLE IF NOT EXISTS `cache_locks` (
+  `key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `owner` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `expiration` bigint NOT NULL,
   PRIMARY KEY (`key`),
   KEY `cache_locks_expiration_index` (`expiration`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `categories`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `categories` (
+CREATE TABLE IF NOT EXISTS `categories` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `slug` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `name` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `icon` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `slug` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `icon` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `ref_price_min` bigint unsigned DEFAULT NULL,
   `ref_price_max` bigint unsigned DEFAULT NULL,
   `ref_price_median` bigint unsigned DEFAULT NULL,
@@ -155,18 +161,17 @@ CREATE TABLE `categories` (
   KEY `categories_is_active_sort_order_index` (`is_active`,`sort_order`)
 ) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `email_verification_codes`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `email_verification_codes` (
+CREATE TABLE IF NOT EXISTS `email_verification_codes` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `user_id` bigint unsigned NOT NULL,
-  `code_hash` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `code_hash` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `attempts` tinyint unsigned NOT NULL DEFAULT '0',
   `expires_at` timestamp NOT NULL,
   `consumed_at` timestamp NULL DEFAULT NULL,
   `last_sent_at` timestamp NULL DEFAULT NULL,
-  `request_ip` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `request_ip` varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -175,46 +180,43 @@ CREATE TABLE `email_verification_codes` (
   CONSTRAINT `email_verification_codes_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `failed_jobs`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `failed_jobs` (
+CREATE TABLE IF NOT EXISTS `failed_jobs` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `uuid` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `connection` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `queue` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `payload` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
-  `exception` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `uuid` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `connection` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `queue` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `exception` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `failed_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `failed_jobs_uuid_unique` (`uuid`),
   KEY `failed_jobs_connection_queue_failed_at_index` (`connection`,`queue`,`failed_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `job_batches`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `job_batches` (
-  `id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+CREATE TABLE IF NOT EXISTS `job_batches` (
+  `id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `total_jobs` int NOT NULL,
   `pending_jobs` int NOT NULL,
   `failed_jobs` int NOT NULL,
-  `failed_job_ids` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
-  `options` mediumtext COLLATE utf8mb4_unicode_ci,
+  `failed_job_ids` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `options` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `cancelled_at` int DEFAULT NULL,
   `created_at` int NOT NULL,
   `finished_at` int DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `jobs`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `jobs` (
+CREATE TABLE IF NOT EXISTS `jobs` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `queue` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `payload` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `queue` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `attempts` smallint unsigned NOT NULL,
   `reserved_at` int unsigned DEFAULT NULL,
   `available_at` int unsigned NOT NULL,
@@ -223,35 +225,32 @@ CREATE TABLE `jobs` (
   KEY `jobs_queue_index` (`queue`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `migrations`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `migrations` (
+CREATE TABLE IF NOT EXISTS `migrations` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
-  `migration` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `migration` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `batch` int NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `password_reset_tokens`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `password_reset_tokens` (
-  `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `token` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+CREATE TABLE IF NOT EXISTS `password_reset_tokens` (
+  `email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `payments`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `payments` (
+CREATE TABLE IF NOT EXISTS `payments` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `ulid` varchar(26) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ulid` varchar(26) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `task_id` bigint unsigned NOT NULL,
   `payer_id` bigint unsigned NOT NULL,
-  `status` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `status` varchar(24) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
   `amount` bigint unsigned NOT NULL,
   `paid_at` timestamp NULL DEFAULT NULL,
   `held_at` timestamp NULL DEFAULT NULL,
@@ -271,16 +270,15 @@ CREATE TABLE `payments` (
   CONSTRAINT `payments_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `personal_access_tokens`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `personal_access_tokens` (
+CREATE TABLE IF NOT EXISTS `personal_access_tokens` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `tokenable_type` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tokenable_type` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `tokenable_id` bigint unsigned NOT NULL,
-  `name` text COLLATE utf8mb4_unicode_ci NOT NULL,
-  `token` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `abilities` text COLLATE utf8mb4_unicode_ci,
+  `name` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `token` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `abilities` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `last_used_at` timestamp NULL DEFAULT NULL,
   `expires_at` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
@@ -291,17 +289,16 @@ CREATE TABLE `personal_access_tokens` (
   KEY `personal_access_tokens_expires_at_index` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `reviews`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `reviews` (
+CREATE TABLE IF NOT EXISTS `reviews` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `task_id` bigint unsigned NOT NULL,
   `reviewer_id` bigint unsigned NOT NULL,
   `reviewee_id` bigint unsigned NOT NULL,
-  `reviewer_role` varchar(12) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reviewer_role` varchar(12) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `rating` tinyint unsigned NOT NULL,
-  `comment` text COLLATE utf8mb4_unicode_ci,
+  `comment` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `is_visible` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
@@ -315,25 +312,23 @@ CREATE TABLE `reviews` (
   CONSTRAINT `reviews_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `sessions`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `sessions` (
-  `id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+CREATE TABLE IF NOT EXISTS `sessions` (
+  `id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` bigint unsigned DEFAULT NULL,
-  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `user_agent` text COLLATE utf8mb4_unicode_ci,
-  `payload` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ip_address` varchar(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `payload` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `last_activity` int NOT NULL,
   PRIMARY KEY (`id`),
   KEY `sessions_user_id_index` (`user_id`),
   KEY `sessions_last_activity_index` (`last_activity`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `skill_task`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `skill_task` (
+CREATE TABLE IF NOT EXISTS `skill_task` (
   `task_id` bigint unsigned NOT NULL,
   `skill_id` bigint unsigned NOT NULL,
   PRIMARY KEY (`task_id`,`skill_id`),
@@ -342,10 +337,9 @@ CREATE TABLE `skill_task` (
   CONSTRAINT `skill_task_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `skill_user`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `skill_user` (
+CREATE TABLE IF NOT EXISTS `skill_user` (
   `user_id` bigint unsigned NOT NULL,
   `skill_id` bigint unsigned NOT NULL,
   PRIMARY KEY (`user_id`,`skill_id`),
@@ -354,13 +348,12 @@ CREATE TABLE `skill_user` (
   CONSTRAINT `skill_user_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `skills`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `skills` (
+CREATE TABLE IF NOT EXISTS `skills` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `slug` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `name` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `slug` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `category_id` bigint unsigned DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `sort_order` smallint NOT NULL DEFAULT '0',
@@ -373,28 +366,26 @@ CREATE TABLE `skills` (
   CONSTRAINT `skills_category_id_foreign` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB AUTO_INCREMENT=43 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `task_search`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `task_search` (
+CREATE TABLE IF NOT EXISTS `task_search` (
   `task_id` bigint unsigned NOT NULL,
-  `terms` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `terms` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   PRIMARY KEY (`task_id`),
   FULLTEXT KEY `task_search_terms_fulltext` (`terms`),
   CONSTRAINT `task_search_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `task_status_logs`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `task_status_logs` (
+CREATE TABLE IF NOT EXISTS `task_status_logs` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `task_id` bigint unsigned NOT NULL,
-  `from_status` varchar(24) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `to_status` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `actor_type` varchar(12) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `from_status` varchar(24) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `to_status` varchar(24) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `actor_type` varchar(12) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `actor_id` bigint unsigned DEFAULT NULL,
-  `reason` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `reason` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `metadata` json DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -403,30 +394,29 @@ CREATE TABLE `task_status_logs` (
   CONSTRAINT `task_status_logs_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `tasks`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `tasks` (
+CREATE TABLE IF NOT EXISTS `tasks` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `ulid` varchar(26) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `task_number` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ulid` varchar(26) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `task_number` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `poster_id` bigint unsigned NOT NULL,
   `category_id` bigint unsigned NOT NULL,
-  `title` varchar(180) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `title` varchar(180) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `options` json DEFAULT NULL,
   `photos` json DEFAULT NULL,
   `budget_min` bigint unsigned NOT NULL,
   `budget_max` bigint unsigned DEFAULT NULL,
   `ref_price_median` bigint unsigned DEFAULT NULL,
-  `location_text` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `city` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `location_text` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `city` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `latitude` decimal(10,7) DEFAULT NULL,
   `longitude` decimal(10,7) DEFAULT NULL,
   `is_remote` tinyint(1) NOT NULL DEFAULT '0',
   `needed_at` timestamp NULL DEFAULT NULL,
   `bidding_closes_at` timestamp NULL DEFAULT NULL,
-  `status` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft',
+  `status` varchar(24) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft',
   `workers_needed` int unsigned NOT NULL DEFAULT '1',
   `workers_hired` int unsigned NOT NULL DEFAULT '0',
   `bids_count` int unsigned NOT NULL DEFAULT '0',
@@ -434,8 +424,8 @@ CREATE TABLE `tasks` (
   `dealt_at` timestamp NULL DEFAULT NULL,
   `completed_at` timestamp NULL DEFAULT NULL,
   `cancelled_at` timestamp NULL DEFAULT NULL,
-  `cancelled_by` varchar(12) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `cancellation_reason` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `cancelled_by` varchar(12) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `cancellation_reason` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL,
@@ -454,30 +444,29 @@ CREATE TABLE `tasks` (
   CONSTRAINT `tasks_poster_id_foreign` FOREIGN KEY (`poster_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `user_verifications`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `user_verifications` (
+CREATE TABLE IF NOT EXISTS `user_verifications` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `user_id` bigint unsigned NOT NULL,
-  `type` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `status` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
-  `id_card_photo_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `selfie_photo_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `type` varchar(24) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` varchar(24) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `id_card_photo_path` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `selfie_photo_path` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `face_match_score` decimal(5,2) DEFAULT NULL,
-  `document_number_hash` char(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `document_number_hash` char(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `document_number_enc` blob,
-  `name_on_document` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `name_on_document` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `birth_date_on_document` date DEFAULT NULL,
-  `bank_code` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `bank_code` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `account_number_enc` blob,
-  `account_holder_name` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `account_holder_name` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `submitted_at` timestamp NOT NULL,
   `reviewed_at` timestamp NULL DEFAULT NULL,
   `reviewed_by` bigint unsigned DEFAULT NULL,
-  `rejection_reason` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `rejection_reason` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `revoked_at` timestamp NULL DEFAULT NULL,
-  `revoked_reason` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `revoked_reason` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -488,29 +477,28 @@ CREATE TABLE `user_verifications` (
   CONSTRAINT `user_verifications_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-DROP TABLE IF EXISTS `users`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `users` (
+CREATE TABLE IF NOT EXISTS `users` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `ulid` varchar(26) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `avatar_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `bio` text COLLATE utf8mb4_unicode_ci,
-  `active_mode` varchar(12) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'hiring',
-  `status` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending_verification',
-  `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `phone` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ulid` varchar(26) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `avatar_path` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `bio` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `active_mode` varchar(12) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'hiring',
+  `status` varchar(24) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending_verification',
+  `email` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `phone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `phone_verified_at` timestamp NULL DEFAULT NULL,
   `email_verified_at` timestamp NULL DEFAULT NULL,
-  `password` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `remember_token` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `remember_token` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
-  `address_line` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `city` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `province` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `postal_code` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `address_line` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `city` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `province` varchar(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `postal_code` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `worker_rating_avg` decimal(3,2) NOT NULL DEFAULT '0.00',
   `worker_rating_count` int unsigned NOT NULL DEFAULT '0',
   `tasks_completed` int unsigned NOT NULL DEFAULT '0',
@@ -519,7 +507,7 @@ CREATE TABLE `users` (
   `poster_rating_count` int unsigned NOT NULL DEFAULT '0',
   `tasks_posted` int unsigned NOT NULL DEFAULT '0',
   `cancellations` int unsigned NOT NULL DEFAULT '0',
-  `theme` varchar(12) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'system',
+  `theme` varchar(12) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'system',
   `last_active_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -536,86 +524,86 @@ CREATE TABLE `users` (
 
 LOCK TABLES `categories` WRITE;
 /*!40000 ALTER TABLE `categories` DISABLE KEYS */;
-INSERT INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (1,'mencuci','Mencuci','Cuci pakaian, setrika, cuci kering','washing-machine',50000,150000,80000,0,NULL,1,0,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (2,'bersih-rumah','Membersihkan Rumah','Bersih-bersih rumah, kamar, dapur, kamar mandi','broom',75000,300000,150000,0,NULL,1,1,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (3,'jaga-hewan','Menjaga Hewan','Titip hewan, jalan-jalan, beri makan','paw',50000,200000,100000,0,NULL,1,2,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (4,'antar-barang','Mengantarkan Barang','Antar dokumen, paket, barang dalam kota','package',15000,100000,35000,0,NULL,1,3,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (5,'tukang','Tukang & Perbaikan','Perbaikan kecil, pasang, servis rumah','wrench',100000,1000000,250000,0,NULL,1,4,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (6,'jaga-anak','Menjaga Anak','Menemani dan menjaga anak','baby',75000,300000,150000,0,NULL,1,5,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (7,'berkebun','Berkebun','Rawat tanaman, potong rumput, bersihkan halaman','sprout',75000,250000,125000,0,NULL,1,6,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (8,'pindahan','Bantu Pindahan','Angkat, kemas, bantu pindah barang','truck',150000,1000000,350000,0,NULL,1,7,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (9,'lainnya','Lainnya','Pekerjaan yang belum masuk kategori di atas','ellipsis',NULL,NULL,NULL,0,NULL,1,8,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (1,'mencuci','Mencuci','Cuci pakaian, setrika, cuci kering','washing-machine',50000,150000,80000,0,NULL,1,0,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (2,'bersih-rumah','Membersihkan Rumah','Bersih-bersih rumah, kamar, dapur, kamar mandi','broom',75000,300000,150000,0,NULL,1,1,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (3,'jaga-hewan','Menjaga Hewan','Titip hewan, jalan-jalan, beri makan','paw',50000,200000,100000,0,NULL,1,2,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (4,'antar-barang','Mengantarkan Barang','Antar dokumen, paket, barang dalam kota','package',15000,100000,35000,0,NULL,1,3,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (5,'tukang','Tukang & Perbaikan','Perbaikan kecil, pasang, servis rumah','wrench',100000,1000000,250000,0,NULL,1,4,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (6,'jaga-anak','Menjaga Anak','Menemani dan menjaga anak','baby',75000,300000,150000,0,NULL,1,5,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (7,'berkebun','Berkebun','Rawat tanaman, potong rumput, bersihkan halaman','sprout',75000,250000,125000,0,NULL,1,6,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (8,'pindahan','Bantu Pindahan','Angkat, kemas, bantu pindah barang','truck',150000,1000000,350000,0,NULL,1,7,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (9,'lainnya','Lainnya','Pekerjaan yang belum masuk kategori di atas','ellipsis',NULL,NULL,NULL,0,NULL,1,8,'2026-09-09 04:07:16','2026-09-09 04:07:16');
 /*!40000 ALTER TABLE `categories` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `skills` WRITE;
 /*!40000 ALTER TABLE `skills` DISABLE KEYS */;
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (1,'setrika','Setrika',1,1,0,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (2,'cuci-tangan','Cuci tangan',1,1,1,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (3,'cuci-mesin','Cuci mesin',1,1,2,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (4,'lipat-pakaian','Lipat pakaian',1,1,3,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (5,'cuci-sepatu','Cuci sepatu',1,1,4,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (6,'bersih-umum','Bersih umum',2,1,5,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (7,'cuci-ac','Cuci ac',2,1,6,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (8,'bersih-kamar-mandi','Bersih kamar mandi',2,1,7,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (9,'poles-lantai','Poles lantai',2,1,8,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (10,'bersih-dapur','Bersih dapur',2,1,9,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (11,'cuci-jendela','Cuci jendela',2,1,10,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (12,'jaga-kucing','Jaga kucing',3,1,11,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (13,'jaga-anjing','Jaga anjing',3,1,12,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (14,'grooming','Grooming',3,1,13,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (15,'jalan-anjing','Jalan anjing',3,1,14,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (16,'beri-makan-hewan','Beri makan hewan',3,1,15,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (17,'antar-dokumen','Antar dokumen',4,1,16,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (18,'antar-paket','Antar paket',4,1,17,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (19,'antar-makanan','Antar makanan',4,1,18,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (20,'kurir-motor','Kurir motor',4,1,19,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (21,'kurir-mobil','Kurir mobil',4,1,20,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (22,'listrik','Listrik',5,1,21,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (23,'pipa-air','Pipa air',5,1,22,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (24,'kayu','Kayu',5,1,23,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (25,'cat-dinding','Cat dinding',5,1,24,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (26,'pasang-keramik','Pasang keramik',5,1,25,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (27,'servis-atap','Servis atap',5,1,26,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (28,'jaga-bayi','Jaga bayi',6,1,27,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (29,'jaga-anak-balita','Jaga anak balita',6,1,28,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (30,'antar-jemput-sekolah','Antar jemput sekolah',6,1,29,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (31,'temani-belajar','Temani belajar',6,1,30,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (32,'potong-rumput','Potong rumput',7,1,31,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (33,'rawat-tanaman','Rawat tanaman',7,1,32,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (34,'tebang-dahan','Tebang dahan',7,1,33,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (35,'bersih-halaman','Bersih halaman',7,1,34,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (36,'angkat-barang','Angkat barang',8,1,35,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (37,'kemas-barang','Kemas barang',8,1,36,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (38,'bongkar-pasang-mebel','Bongkar pasang mebel',8,1,37,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (39,'antre','Antre',9,1,38,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (40,'belanja-titipan','Belanja titipan',9,1,39,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (41,'input-data','Input data',9,1,40,'2026-09-09 04:07:16','2026-09-09 04:07:16');
-INSERT INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (42,'fotografi','Fotografi',9,1,41,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (1,'setrika','Setrika',1,1,0,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (2,'cuci-tangan','Cuci tangan',1,1,1,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (3,'cuci-mesin','Cuci mesin',1,1,2,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (4,'lipat-pakaian','Lipat pakaian',1,1,3,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (5,'cuci-sepatu','Cuci sepatu',1,1,4,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (6,'bersih-umum','Bersih umum',2,1,5,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (7,'cuci-ac','Cuci ac',2,1,6,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (8,'bersih-kamar-mandi','Bersih kamar mandi',2,1,7,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (9,'poles-lantai','Poles lantai',2,1,8,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (10,'bersih-dapur','Bersih dapur',2,1,9,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (11,'cuci-jendela','Cuci jendela',2,1,10,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (12,'jaga-kucing','Jaga kucing',3,1,11,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (13,'jaga-anjing','Jaga anjing',3,1,12,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (14,'grooming','Grooming',3,1,13,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (15,'jalan-anjing','Jalan anjing',3,1,14,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (16,'beri-makan-hewan','Beri makan hewan',3,1,15,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (17,'antar-dokumen','Antar dokumen',4,1,16,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (18,'antar-paket','Antar paket',4,1,17,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (19,'antar-makanan','Antar makanan',4,1,18,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (20,'kurir-motor','Kurir motor',4,1,19,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (21,'kurir-mobil','Kurir mobil',4,1,20,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (22,'listrik','Listrik',5,1,21,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (23,'pipa-air','Pipa air',5,1,22,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (24,'kayu','Kayu',5,1,23,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (25,'cat-dinding','Cat dinding',5,1,24,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (26,'pasang-keramik','Pasang keramik',5,1,25,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (27,'servis-atap','Servis atap',5,1,26,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (28,'jaga-bayi','Jaga bayi',6,1,27,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (29,'jaga-anak-balita','Jaga anak balita',6,1,28,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (30,'antar-jemput-sekolah','Antar jemput sekolah',6,1,29,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (31,'temani-belajar','Temani belajar',6,1,30,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (32,'potong-rumput','Potong rumput',7,1,31,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (33,'rawat-tanaman','Rawat tanaman',7,1,32,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (34,'tebang-dahan','Tebang dahan',7,1,33,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (35,'bersih-halaman','Bersih halaman',7,1,34,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (36,'angkat-barang','Angkat barang',8,1,35,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (37,'kemas-barang','Kemas barang',8,1,36,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (38,'bongkar-pasang-mebel','Bongkar pasang mebel',8,1,37,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (39,'antre','Antre',9,1,38,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (40,'belanja-titipan','Belanja titipan',9,1,39,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (41,'input-data','Input data',9,1,40,'2026-09-09 04:07:16','2026-09-09 04:07:16');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (42,'fotografi','Fotografi',9,1,41,'2026-09-09 04:07:16','2026-09-09 04:07:16');
 /*!40000 ALTER TABLE `skills` ENABLE KEYS */;
 UNLOCK TABLES;
 
 LOCK TABLES `migrations` WRITE;
 /*!40000 ALTER TABLE `migrations` DISABLE KEYS */;
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (1,'0001_01_01_000000_create_users_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (2,'0001_01_01_000001_create_cache_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (3,'0001_01_01_000002_create_jobs_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (4,'2026_09_08_015359_create_personal_access_tokens_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (5,'2026_09_08_134626_add_sekarya_fields_to_users_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (6,'2026_09_08_134627_create_user_verifications_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (7,'2026_09_08_134628_create_categories_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (8,'2026_09_08_134709_create_tasks_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (9,'2026_09_08_134710_create_bids_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (10,'2026_09_08_134711_create_payments_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (11,'2026_09_08_134712_create_activities_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (12,'2026_09_08_134713_create_reviews_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (13,'2026_09_08_134714_create_task_status_logs_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (14,'2026_09_08_150001_create_skills_tables',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (15,'2026_09_08_150002_add_fulltext_index_to_tasks_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (16,'2026_09_08_160001_create_email_verification_codes_table',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (17,'2026_09_08_160002_change_users_status_default_to_pending',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (18,'2026_09_09_100000_add_multi_worker_hiring_to_tasks',1);
-INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES (19,'2026_09_09_120000_create_task_search_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (1,'0001_01_01_000000_create_users_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (2,'0001_01_01_000001_create_cache_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (3,'0001_01_01_000002_create_jobs_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (4,'2026_09_08_015359_create_personal_access_tokens_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (5,'2026_09_08_134626_add_sekarya_fields_to_users_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (6,'2026_09_08_134627_create_user_verifications_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (7,'2026_09_08_134628_create_categories_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (8,'2026_09_08_134709_create_tasks_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (9,'2026_09_08_134710_create_bids_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (10,'2026_09_08_134711_create_payments_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (11,'2026_09_08_134712_create_activities_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (12,'2026_09_08_134713_create_reviews_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (13,'2026_09_08_134714_create_task_status_logs_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (14,'2026_09_08_150001_create_skills_tables',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (15,'2026_09_08_150002_add_fulltext_index_to_tasks_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (16,'2026_09_08_160001_create_email_verification_codes_table',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (17,'2026_09_08_160002_change_users_status_default_to_pending',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (18,'2026_09_09_100000_add_multi_worker_hiring_to_tasks',1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (19,'2026_09_09_120000_create_task_search_table',1);
 /*!40000 ALTER TABLE `migrations` ENABLE KEYS */;
 UNLOCK TABLES;
 

@@ -333,15 +333,20 @@ membuat ulang berkas ini membuat suite gagal dan menyebut migrasi mana yang tert
 # 1. Basis data lokal yang bersih, persis seperti hosting baru
 php artisan migrate:fresh --seed
 
-# 2. Struktur seluruh tabel — tanpa CREATE DATABASE, tanpa GTID
-mysqldump -u root --no-data --no-create-db --skip-comments --skip-set-charset \
-  --set-gtid-purged=OFF --single-transaction --default-character-set=utf8mb4 \
-  --routines=FALSE --triggers=FALSE sekarya > /tmp/structure.sql
+# 2. Struktur — tanpa penghapusan tabel, tanpa CREATE DATABASE, tanpa GTID
+mysqldump -u root --no-data --no-create-db --skip-add-drop-table --skip-comments \
+  --skip-set-charset --set-gtid-purged=OFF --single-transaction \
+  --default-character-set=utf8mb4 --routines=FALSE --triggers=FALSE \
+  sekarya > /tmp/structure.sql
 
-# 3. HANYA data acuan. Bukan pengguna, bukan task.
+# lalu jadikan aman diulang
+sed -i '' 's/CREATE TABLE `/CREATE TABLE IF NOT EXISTS `/g' /tmp/structure.sql
+
+# 3. HANYA data acuan. Bukan pengguna, bukan task. --insert-ignore supaya
+#    impor kedua tidak gagal karena kunci ganda.
 mysqldump -u root --no-create-info --no-create-db --skip-comments --skip-set-charset \
   --set-gtid-purged=OFF --single-transaction --default-character-set=utf8mb4 \
-  --complete-insert --skip-extended-insert \
+  --complete-insert --skip-extended-insert --insert-ignore \
   sekarya categories skills migrations > /tmp/data.sql
 ```
 
@@ -362,9 +367,23 @@ php artisan migrate --pretend --force        # harus: "Nothing to migrate"
 php artisan migrate:status | tail -5         # semua harus [1] Ran
 ```
 
-Tiga hal yang membuat berkas ini gagal diimpor di shared hosting, dan sudah dihindari oleh
-opsi di atas: `CREATE DATABASE` (nama basis data ditentukan panel), `SET @@GLOBAL.GTID_PURGED`
-(butuh hak SUPER), dan klausa `DEFINER=` (menunjuk pengguna yang tidak ada di sana).
+Uji juga impor **keduanya** — berkas ini harus aman dijalankan ulang, karena impor yang
+putus di tengah jalan (koneksi terputus, batas waktu phpMyAdmin) adalah kejadian biasa:
+
+```bash
+mysql -u root sekarya < database/schema/sekarya-install.sql   # harus berhasil lagi
+```
+
+Lima hal yang membuat berkas semacam ini gagal di shared hosting, dan sudah dihindari oleh
+opsi di atas:
+
+| Penyebab | Kenapa gagal di sana |
+|---|---|
+| `DROP TABLE` | Sebagian hosting tidak memberi hak DROP. Juga menghancurkan data kalau salah basis data. |
+| `CREATE DATABASE` | Nama basis data ditentukan panel, berawalan nama akun |
+| `SET @@GLOBAL.GTID_PURGED` | Butuh hak SUPER yang tidak akan pernah diberikan |
+| `DEFINER=` | Menunjuk pengguna MySQL yang tidak ada di server itu |
+| `CREATE TABLE` tanpa `IF NOT EXISTS` | Impor ulang setelah gagal separuh langsung berhenti |
 
 ---
 
@@ -377,6 +396,9 @@ opsi di atas: `CREATE DATABASE` (nama basis data ditentukan panel), `SET @@GLOBA
 | `SQLSTATE[HY000] [1045]` | Kredensial basis data salah, atau pengguna belum ditambahkan ke basis datanya di cPanel. |
 | Email tidak terkirim | Sebagian besar shared hosting memblokir port 25. Pakai 465 (`smtps`) atau 587 (`tls`). |
 | `419` atau sesi aneh | Tidak berlaku untuk API ini — ia memakai Bearer token, bukan cookie. Kalau muncul, permintaannya salah alamat. |
+| `#1046 - No database selected` saat Import | Import dijalankan dari halaman utama phpMyAdmin. **Klik nama basis datanya di panel kiri lebih dulu**, sampai judul halaman berbunyi "Database: ...", baru buka tab Import. Berkasnya sengaja tidak memilih basis data sendiri karena namanya berbeda di tiap akun. |
+| `#1142 - command denied` | Pengguna basis data belum ditambahkan ke basis datanya, atau tanpa ALL PRIVILEGES. cPanel > MySQL Databases > Add User To Database. |
+| Impor berhenti di tengah | Ulangi saja — berkasnya aman dijalankan ulang. Kalau berhenti lagi di titik yang sama, naikkan `max_execution_time` di cPanel > Select PHP Version > Options, atau impor lewat SSH. |
 | Pencarian tidak menemukan apa pun | Tabel `task_search` kosong. Terisi otomatis saat task dibuat; untuk data lama, jalankan ulang impor atau perbarui judulnya. |
 | `/docs` terbuka di produksi | Cache rute dibuat saat `APP_ENV` bukan `production`. Ulangi di server. |
 | Batas laju terlalu cepat kena | Shared hosting sering berbagi IP keluar. Naikkan `SEKARYA_RL_*`, tapi jangan `SEKARYA_RL_LOGIN` — di situlah tebakan kata sandi terjadi. |
