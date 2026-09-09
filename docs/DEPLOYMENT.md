@@ -18,6 +18,7 @@ Periksa **sebelum** membeli atau mengunggah apa pun.
 |---|---|---|
 | PHP | **8.3** | cPanel > MultiPHP Manager, atau `php -v` lewat SSH |
 | MySQL | **8.0+**, InnoDB | phpMyAdmin > tab SQL: `SELECT VERSION();` |
+| Format baris InnoDB | `DYNAMIC` | Sudah ditulis eksplisit di berkas pemasangan; tidak perlu diminta ke penyedia |
 | Ekstensi PHP | `pdo_mysql` `mbstring` `openssl` `tokenizer` `xml` `ctype` `json` `bcmath` `fileinfo` `curl` | cPanel > Select PHP Version > Extensions |
 | Cron | ada | cPanel > Cron Jobs |
 | Email keluar | berfungsi | Wajib — pendaftaran tidak selesai tanpa kode verifikasi |
@@ -386,6 +387,7 @@ repositori publik.
 | `SQLSTATE[HY000] [1045]` | Kredensial basis data salah, atau pengguna belum ditambahkan ke basis datanya di cPanel. |
 | Email tidak terkirim | Sebagian besar shared hosting memblokir port 25. Pakai 465 (`smtps`) atau 587 (`tls`). |
 | `419` atau sesi aneh | Tidak berlaku untuk API ini — ia memakai Bearer token, bukan cookie. Kalau muncul, permintaannya salah alamat. |
+| `#1071 - Specified key was too long; max key length is 767 bytes` | MySQL/MariaDB lawas dengan format baris InnoDB lama. Berkas pemasangan sudah menyebut `ROW_FORMAT=DYNAMIC` di setiap tabel, yang menaikkan batasnya ke 3072 byte. Kalau masih muncul, versi MySQL-nya terlalu tua — kirimkan hasil `SELECT VERSION();`. |
 | `#1046 - No database selected` saat Import | Import dijalankan dari halaman utama phpMyAdmin. **Klik nama basis datanya di panel kiri lebih dulu**, sampai judul halaman berbunyi "Database: ...", baru buka tab Import. Berkasnya sengaja tidak memilih basis data sendiri karena namanya berbeda di tiap akun. |
 | `#1142 - command denied` | Pengguna basis data belum ditambahkan ke basis datanya, atau tanpa ALL PRIVILEGES. cPanel > MySQL Databases > Add User To Database. |
 | Impor berhenti di tengah | Ulangi saja — berkasnya aman dijalankan ulang. Kalau berhenti lagi di titik yang sama, naikkan `max_execution_time` di cPanel > Select PHP Version > Options, atau impor lewat SSH. |

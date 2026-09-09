@@ -246,6 +246,44 @@ final class InstallSchemaTest extends TestCase
         $this->assertStringNotContainsString('/*!40103', $sql);
     }
 
+    /**
+     * Setiap tabel harus menyebut `ROW_FORMAT=DYNAMIC` secara eksplisit.
+     *
+     * Sebagian kolom string di skema Laravel adalah `varchar(255)` dan ikut
+     * jadi kunci indeks — pada utf8mb4 itu 1020 byte. Batas panjang kunci
+     * InnoDB dengan format baris lama adalah 767 byte, sehingga `CREATE TABLE`
+     * ditolak dengan #1071 sebelum satu tabel pun terbentuk.
+     *
+     * Di MySQL 8 DYNAMIC sudah bawaan dan baris ini tidak mengubah apa pun. Ia
+     * ada untuk server yang bawaannya bukan itu — dan bawaan server tidak bisa
+     * diubah dari shared hosting.
+     */
+    public function test_every_table_states_its_row_format(): void
+    {
+        $sql = $this->sql();
+
+        preg_match_all('/CREATE TABLE IF NOT EXISTS `([a-z_]+)`/', $sql, $m);
+        $missing = [];
+
+        foreach ($m[1] as $table) {
+            $start = (int) strpos($sql, 'CREATE TABLE IF NOT EXISTS `'.$table.'`');
+            $block = substr($sql, $start, (int) strpos($sql, ';', $start) - $start);
+
+            if (! str_contains($block, 'ROW_FORMAT=DYNAMIC')) {
+                $missing[] = $table;
+            }
+        }
+
+        $this->assertSame([], $missing, sprintf(
+            'Tabel berikut tidak menyebut ROW_FORMAT=DYNAMIC. Di server dengan format
+'
+            .'baris lama, indeks varchar(255) utf8mb4 ditolak #1071:
+  %s',
+            implode('
+  ', $missing),
+        ));
+    }
+
     /** Indeks FULLTEXT adalah inti pencarian nama; tanpanya feed tidak berfungsi. */
     public function test_the_fulltext_index_survives_the_dump(): void
     {

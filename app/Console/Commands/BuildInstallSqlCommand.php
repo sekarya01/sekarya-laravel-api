@@ -169,6 +169,28 @@ final class BuildInstallSqlCommand extends Command
             // dan membuat diff berkas ini berubah tanpa alasan.
             $create = (string) preg_replace('/ AUTO_INCREMENT=\d+/', '', (string) $create);
 
+            // ROW_FORMAT=DYNAMIC ditulis eksplisit.
+            //
+            // Beberapa kolom string di skema Laravel adalah `varchar(255)` dan
+            // ikut menjadi kunci indeks — pada utf8mb4 itu 1020 byte. Batas
+            // panjang kunci InnoDB dengan format baris lama (COMPACT/REDUNDANT)
+            // adalah 767 byte, sehingga `CREATE TABLE` ditolak:
+            //
+            //     #1071 - Specified key was too long; max key length is 767 bytes
+            //
+            // DYNAMIC menaikkan batas itu ke 3072 byte. Di MySQL 8 ia sudah
+            // bawaan dan baris ini tidak mengubah apa pun; di MySQL 5.7 dan
+            // sebagian MariaDB, ia yang membuat impor berhasil. Ditulis
+            // eksplisit karena bawaan server tidak bisa diandalkan, dan tidak
+            // ada cara mengubahnya dari shared hosting.
+            if (! str_contains((string) $create, 'ROW_FORMAT=')) {
+                $create = (string) preg_replace(
+                    '/\)\s*ENGINE=InnoDB/',
+                    ') ENGINE=InnoDB ROW_FORMAT=DYNAMIC',
+                    (string) $create,
+                );
+            }
+
             $out .= $create.";\n\n";
         }
 
