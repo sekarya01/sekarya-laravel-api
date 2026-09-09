@@ -38,7 +38,8 @@ final class BuildInstallSqlCommand extends Command
 {
     protected $signature = 'sekarya:build-install-sql
         {--path=database/schema/sekarya-install.sql : Tujuan penulisan}
-        {--with-database= : Sertakan CREATE DATABASE + USE untuk nama ini}';
+        {--with-database= : Sertakan CREATE DATABASE + USE (butuh hak CREATE)}
+        {--use-database= : Sertakan USE saja, untuk basis data yang sudah dibuat panel}';
 
     protected $description = 'Bangun berkas pemasangan basis data untuk shared hosting';
 
@@ -263,6 +264,20 @@ final class BuildInstallSqlCommand extends Command
      */
     private function databasePrelude(): string
     {
+        // `USE` saja — pilihan yang benar untuk cPanel.
+        //
+        // Basis datanya sudah dibuat lewat panel (harus, supaya penggunanya
+        // bisa diberi hak), jadi yang kurang cuma menyebut tujuannya.
+        // `CREATE DATABASE IF NOT EXISTS` di sini justru berbahaya: MySQL
+        // memeriksa hak akses SEBELUM memeriksa keberadaan basis data, jadi
+        // pada akun yang tidak punya hak CREATE ia gagal #1044 walaupun basis
+        // datanya sudah ada — menukar satu kegagalan dengan kegagalan lain.
+        $useOnly = (string) $this->option('use-database');
+
+        if ($useOnly !== '') {
+            return sprintf("USE `%s`;\n\n", $useOnly);
+        }
+
         $name = (string) $this->option('with-database');
 
         if ($name !== '') {
@@ -277,13 +292,25 @@ USE `%s`;
         }
 
         return <<<'SQL'
-            -- Kalau basis datanya BELUM ADA dan Anda punya hak membuatnya
-            -- (SSH, server sendiri), hapus dua tanda -- di bawah lalu ganti
-            -- namanya. Di cPanel JANGAN lakukan ini: buat lewat panel supaya
-            -- namanya mendapat awalan akun dan penggunanya bisa diberi hak.
+            -- BERKAS INI TIDAK MENYEBUT BASIS DATA TUJUAN.
             --
-            -- CREATE DATABASE IF NOT EXISTS `nama_basis_data` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-            -- USE `nama_basis_data`;
+            -- Kalau diimpor tanpa basis data terpilih, MySQL menjawab
+            -- #1046 - No database selected, dan yang gagal SELALU pernyataan
+            -- pertama — apa pun isinya. Itu bukan masalah pada berkas ini.
+            --
+            -- Cara termudah menghilangkan kemungkinan itu: buat ulang berkasnya
+            -- dengan tujuan tertulis di dalamnya.
+            --
+            --   php artisan sekarya:build-install-sql --use-database=namaakun_sekarya
+            --
+            -- `USE` saja, bukan CREATE DATABASE: basis datanya dibuat lewat cPanel
+            -- (harus, supaya penggunanya bisa diberi hak), dan CREATE DATABASE di
+            -- sini justru gagal #1044 pada akun tanpa hak CREATE — walaupun basis
+            -- datanya sudah ada, karena hak akses diperiksa lebih dulu.
+            --
+            -- Punya SSH atau server sendiri, dan basis datanya belum ada?
+            --
+            --   php artisan sekarya:build-install-sql --with-database=nama_basis_data
 
 
             SQL;

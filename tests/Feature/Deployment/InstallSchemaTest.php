@@ -139,8 +139,15 @@ final class InstallSchemaTest extends TestCase
     {
         $sql = $this->sql();
 
+        // Galat yang benar-benar dialami, plus jalan keluarnya. Keduanya harus
+        // ada di berkas ini, bukan hanya di panduan — orang yang kena galat ini
+        // membuka berkas SQL-nya.
         $this->assertStringContainsString('#1046', $sql);
-        $this->assertStringContainsString('-- CREATE DATABASE IF NOT EXISTS', $sql);
+
+        // Untuk basis data yang sudah dibuat panel (kasus cPanel).
+        $this->assertStringContainsString('--use-database=', $sql);
+
+        // Untuk yang punya hak membuat basis data sendiri.
         $this->assertStringContainsString('--with-database=', $sql);
     }
 
