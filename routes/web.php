@@ -2,11 +2,60 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Web\SuperAdmin\AdminAccountController;
+use App\Http\Controllers\Web\SuperAdmin\AuditLogController;
+use App\Http\Controllers\Web\SuperAdmin\AuthController;
+use App\Http\Controllers\Web\SuperAdmin\DashboardController;
+use App\Http\Controllers\Web\SuperAdmin\PaymentController;
+use App\Http\Controllers\Web\SuperAdmin\UserController;
+use App\Http\Controllers\Web\SuperAdmin\VerificationController;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
+});
+
+/*
+ * Dasbor pengelola super_admin (server-rendered, sesi `admin_web`).
+ *
+ * URL publik: sekarya.com/access/super_admin
+ * Hanya peran super_admin (lihat EnsureSuperAdminWeb). Seluruh keputusan
+ * bisnis tetap di Action yang sama dengan API — controller web hanya
+ * memanggilnya, tidak menulis aturan sendiri.
+ */
+Route::prefix('access/super_admin')->name('super_admin.')->group(function (): void {
+    Route::get('login', [AuthController::class, 'showLogin'])->name('login');
+    Route::post('login', [AuthController::class, 'login'])
+        ->middleware('throttle:login')->name('login.attempt');
+    Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+
+    Route::middleware(['super_admin.web'])->group(function (): void {
+        Route::get('/', DashboardController::class)->name('dashboard');
+
+        Route::get('verifications', [VerificationController::class, 'index'])->name('verifications.index');
+        Route::get('verifications/{verification}', [VerificationController::class, 'show'])->name('verifications.show');
+        Route::post('verifications/{verification}/approve', [VerificationController::class, 'approve'])->name('verifications.approve');
+        Route::post('verifications/{verification}/reject', [VerificationController::class, 'reject'])->name('verifications.reject');
+        Route::post('verifications/{verification}/revoke', [VerificationController::class, 'revoke'])->name('verifications.revoke');
+
+        Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
+        Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
+        Route::post('payments/{payment}/confirm', [PaymentController::class, 'confirm'])->name('payments.confirm');
+        Route::post('payments/{payment}/reject', [PaymentController::class, 'reject'])->name('payments.reject');
+
+        Route::get('users', [UserController::class, 'index'])->name('users.index');
+        Route::get('users/{user}', [UserController::class, 'show'])->name('users.show');
+        Route::post('users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
+        Route::post('users/{user}/ban', [UserController::class, 'ban'])->name('users.ban');
+        Route::post('users/{user}/reinstate', [UserController::class, 'reinstate'])->name('users.reinstate');
+
+        Route::get('admins', [AdminAccountController::class, 'index'])->name('admins.index');
+        Route::post('admins', [AdminAccountController::class, 'store'])->name('admins.store');
+        Route::delete('admins/{admin}', [AdminAccountController::class, 'destroy'])->name('admins.destroy');
+
+        Route::get('audit-logs', AuditLogController::class)->name('audit.index');
+    });
 });
 
 /*

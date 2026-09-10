@@ -74,9 +74,16 @@ keduanya dijaga test:
   berkas ini dilacak git, dan riwayat git tidak bisa ditarik kembali.
 - **`.env.production.example`** — template produksi, tiap nilai berkomentar.
 
-Yang mudah terlewat: **cache rute harus dibuat DI SERVER.** Rute `/docs` didaftarkan hanya
-saat `APP_ENV` bukan production; cache yang dibuat di laptop akan membawa spesifikasi API
-lengkap ke produksi.
+Dua hal yang mudah terlewat:
+
+- **Cache rute harus dibuat DI SERVER.** Rute `/docs` didaftarkan hanya saat `APP_ENV`
+  bukan production; cache yang dibuat di laptop akan membawa spesifikasi API lengkap ke
+  produksi.
+- **`php artisan sekarya:admin create` adalah langkah pemasangan, bukan opsional.** Tanpa
+  akun pengelola tidak ada yang bisa menyetujui verifikasi identitas atau mengonfirmasi
+  transfer, dan alur pembayaran berhenti di antrean — padahal API-nya terlihat sehat.
+  Akun itu sengaja tidak ada di berkas pemasangan SQL maupun seeder, karena keduanya
+  dilacak git.
 
 ## Feed & pencarian nama
 

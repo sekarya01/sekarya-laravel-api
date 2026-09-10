@@ -928,6 +928,10 @@ php artisan sekarya:admin create \
 Tanpa `--password`, sandinya ditanyakan tanpa ditampilkan. Tanpa opsi sama sekali,
 nilainya diambil dari `SEKARYA_SUPER_ADMIN_*` di `.env`.
 
+Di shared hosting tanpa SSH, perintah ini dijalankan lewat cron — dan di sana ia **wajib**
+memakai `--no-interaction` serta menulis log, karena cron tidak punya keyboard dan tidak
+menampilkan apa pun. Bentuk lengkapnya di [`DEPLOYMENT.md` bagian 7](DEPLOYMENT.md).
+
 ```bash
 php artisan sekarya:admin list                              # siapa saja yang ada
 php artisan sekarya:admin suspend --email=verif@sekarya.test # nonaktifkan + cabut token
