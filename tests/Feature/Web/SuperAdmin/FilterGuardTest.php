@@ -40,6 +40,9 @@ final class FilterGuardTest extends TestCase
             $response = $this->get(route($route))->assertOk();
             $response->assertSee('<form method="GET" data-guard', false);
             $response->assertSee('type="submit"', false);
+            // Select-select tinggal di drawer kanan; input teks tetap inline.
+            $response->assertSee('data-open-drawer="filterDrawer"', false);
+            $response->assertSee('id="filterDrawer"', false);
         }
     }
 
