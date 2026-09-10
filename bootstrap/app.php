@@ -6,6 +6,7 @@ use App\Exceptions\Domain\DomainException;
 use App\Http\Middleware\AxiomRequestLogger;
 use App\Http\Middleware\EnsureActiveAdmin;
 use App\Http\Middleware\EnsureAdminManagesAdmins;
+use App\Http\Middleware\EnsureSuperAdminWeb;
 use App\Logging\Axiom\ExceptionRecorder;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -44,6 +45,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // Gerbang kelompok `/admin/admins`: hanya super_admin. Aturannya
             // dibaca dari AdminRole::canManageAdmins(), bukan ditulis ulang.
             'admin.manages-admins' => EnsureAdminManagesAdmins::class,
+
+            // Gerbang dasbor web /access/super_admin: sesi + super_admin.
+            'super_admin.web' => EnsureSuperAdminWeb::class,
         ]);
 
         // Observability (Axiom) dipasang PALING LUAR pada grup api, sebelum

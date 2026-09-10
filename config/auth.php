@@ -81,6 +81,15 @@ return [
             'driver' => 'sanctum',
             'provider' => 'admins',
         ],
+
+        // Dasbor web super_admin (server-rendered, /access/super_admin).
+        // Sesi, bukan token: browser memegang cookie HttpOnly, bukan Bearer
+        // di localStorage. Provider sama dengan guard `admin` (tabel admins),
+        // sehingga populasinya tetap terpisah dari `users`.
+        'admin_web' => [
+            'driver' => 'session',
+            'provider' => 'admins',
+        ],
     ],
 
     /*
