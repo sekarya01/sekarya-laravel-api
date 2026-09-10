@@ -9,7 +9,7 @@
     <p class="mt-1 text-sm text-slate-500">Semua pencocokan <strong>persis dan terindeks</strong> — bukan pencarian sebagian. Tidak ada LIKE di proyek ini. Untuk ULID, langsung lompat ke detailnya.</p>
 </div>
 
-<form method="GET" class="anim-rise ad-1 mt-4 card p-4 flex flex-wrap items-end gap-3 text-sm">
+<form method="GET" data-guard class="anim-rise ad-1 mt-4 card p-4 flex flex-wrap items-end gap-3 text-sm">
     <div class="flex-1 min-w-[14rem]">
         <label class="label" for="u-email">Email persis</label>
         <input id="u-email" name="email" value="{{ $filterEmail }}" placeholder="cth. budi@sekarya.test" class="field">
@@ -43,7 +43,7 @@
             <option value="no" @selected($filterReady === 'no')>Belum siap</option>
         </select>
     </div>
-    <button class="btn btn-accent">Cari</button>
+    <button type="submit" class="btn btn-accent">Cari</button>
 </form>
 
 <div class="anim-rise ad-2 mt-4 card overflow-hidden">

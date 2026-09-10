@@ -29,11 +29,11 @@ final class WorkerController
     public function index(Request $request): View
     {
         $request->validate([
-            'ready_to_work' => ['sometimes', 'boolean'],
-            'gender' => ['sometimes', 'string', 'max:20'],
-            'city' => ['sometimes', 'string', 'max:80'],
-            'province' => ['sometimes', 'string', 'max:80'],
-            'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'ready_to_work' => ['sometimes', 'nullable', 'boolean'],
+            'gender' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'city' => ['sometimes', 'nullable', 'string', 'max:80'],
+            'province' => ['sometimes', 'nullable', 'string', 'max:80'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50'],
         ]);
 
         // Select HTML selalu mengirim kuncinya (termasuk ''), jadi '' berarti

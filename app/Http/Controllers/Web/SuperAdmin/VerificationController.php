@@ -33,10 +33,13 @@ final class VerificationController
 {
     public function index(Request $request): View
     {
+        // `nullable` wajib di semua filter opsional: browser selalu mengirim
+        // seluruh field (yang kosong sebagai ''), dan Laravel mengubahnya
+        // jadi null — tanpa nullable, submit kosong gagal `string`/`in`.
         $request->validate([
-            'status' => ['sometimes', 'string', 'max:30'],
-            'type' => ['sometimes', 'string', 'max:30'],
-            'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'status' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'type' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50'],
         ]);
 
         $rawStatus = $request->string('status')->value() ?: '__pending__';

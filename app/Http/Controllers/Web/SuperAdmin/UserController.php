@@ -37,12 +37,12 @@ final class UserController
     public function index(Request $request): View|RedirectResponse
     {
         $request->validate([
-            'status' => ['sometimes', 'string', 'max:30'],
-            'email' => ['sometimes', 'string', 'max:255'],
-            'gender' => ['sometimes', 'string', 'max:20'],
-            'ready' => ['sometimes', 'in:yes,no'],
-            'ulid' => ['sometimes', 'string', 'size:26'],
-            'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'status' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'email' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'gender' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'ready' => ['sometimes', 'nullable', 'in:yes,no'],
+            'ulid' => ['sometimes', 'nullable', 'string', 'size:26'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50'],
         ]);
 
         // Lompat langsung ke detail lewat ULID — kunci publik yang terindeks,

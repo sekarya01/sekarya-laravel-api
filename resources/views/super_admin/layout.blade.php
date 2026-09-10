@@ -63,6 +63,7 @@
         .btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; font-weight: 600;
             font-size: .875rem; border-radius: .75rem; padding: .625rem 1rem; transition: all .2s ease; cursor: pointer; }
         .btn:active { transform: scale(.97); }
+        .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
         .btn-accent { background: var(--accent); color: #fff; box-shadow: 0 6px 16px -6px rgba(249,115,22,.6); }
         .btn-accent:hover { background: var(--accent-hover); box-shadow: 0 8px 20px -6px rgba(249,115,22,.7); transform: translateY(-2px); }
         .btn-navy { background: var(--brand); color: #fff; box-shadow: 0 6px 16px -8px rgba(22,60,104,.7); }
@@ -265,6 +266,23 @@
     document.addEventListener('mouseout', e => {
         const m = e.target.closest('.marq');
         if (m && !m.contains(e.relatedTarget)) m.classList.remove('marq-go');
+    });
+    // Guard filter: tombol cari mati selama form masih sama persis dengan
+    // keadaan awal (bawaan). Baru hidup setelah ≥1 field diubah/diisi.
+    // Server tetap menerima submit kosong (tanpa-JS / URL langsung) dengan
+    // aturan "null dilewati, daftar bawaan tampil" — guard ini murni UX.
+    document.querySelectorAll('form[data-guard]').forEach(form => {
+        const btn = form.querySelector('[type="submit"]');
+        if (!btn) return;
+        const snapshot = () => [...new FormData(form).entries()].map(([k, v]) => k + '=' + v).join('&');
+        const initial = snapshot();
+        const check = () => { btn.disabled = snapshot() === initial; };
+        form.addEventListener('input', check);
+        form.addEventListener('change', check);
+        // Enter di kolom teks men-submit form langsung tanpa lewat tombol
+        // yang sedang disabled — cegah di sini juga.
+        form.addEventListener('submit', e => { if (btn.disabled) e.preventDefault(); });
+        check();
     });
 </script>
 </body>

@@ -31,8 +31,8 @@ final class PaymentController
     public function index(Request $request): View
     {
         $request->validate([
-            'status' => ['sometimes', 'string', 'max:30'],
-            'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'status' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50'],
         ]);
 
         $rawStatus = $request->string('status')->value() ?: PaymentStatus::AwaitingConfirmation->value;

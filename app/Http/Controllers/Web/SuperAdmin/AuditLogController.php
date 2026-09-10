@@ -20,8 +20,8 @@ final class AuditLogController
     public function __invoke(Request $request): View
     {
         $request->validate([
-            'action' => ['sometimes', 'string', 'max:60'],
-            'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'action' => ['sometimes', 'nullable', 'string', 'max:60'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50'],
         ]);
 
         $perPage = max(1, min($request->integer('per_page', 20), 50));

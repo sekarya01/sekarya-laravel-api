@@ -9,7 +9,7 @@
     <p class="mt-1 text-sm text-slate-500">Append-only — tidak ada <span class="font-mono font-bold">updated_at</span>. API belum punya endpoint baca; dasbor ini membaca langsung dari basis data.</p>
 </div>
 
-<form method="GET" class="anim-rise ad-1 mt-4 card p-4 flex flex-wrap items-end gap-3 text-sm">
+<form method="GET" data-guard class="anim-rise ad-1 mt-4 card p-4 flex flex-wrap items-end gap-3 text-sm">
     <div class="flex-1 min-w-[12rem]">
         <label class="label">Tindakan</label>
         <select name="action" class="field">
@@ -19,7 +19,7 @@
             @endforeach
         </select>
     </div>
-    <button class="btn btn-accent">Saring</button>
+    <button type="submit" class="btn btn-accent">Saring</button>
 </form>
 
 <div class="anim-rise ad-2 mt-4 card overflow-hidden">

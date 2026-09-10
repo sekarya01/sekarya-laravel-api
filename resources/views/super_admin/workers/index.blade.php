@@ -9,7 +9,7 @@
     <p class="mt-1 text-sm text-slate-500">Sisi <span class="font-mono font-bold">user_workers</span> — hanya akun <strong>aktif</strong>, terbaru siap bekerja dulu. <span class="font-mono font-bold">ready_to_work</span> adalah penanda per baris, disaring hanya kalau diminta.</p>
 </div>
 
-<form method="GET" class="anim-rise ad-1 mt-4 card p-4 flex flex-wrap items-end gap-3 text-sm">
+<form method="GET" data-guard class="anim-rise ad-1 mt-4 card p-4 flex flex-wrap items-end gap-3 text-sm">
     <div>
         <label class="label" for="w-ready">Kesiapan</label>
         <select id="w-ready" name="ready_to_work" class="field w-auto! min-w-[10rem]">
@@ -34,7 +34,7 @@
         <label class="label" for="w-province">Provinsi</label>
         <input id="w-province" name="province" value="{{ $filterProvince }}" placeholder="cth. DKI Jakarta" maxlength="80" class="field w-auto! min-w-[11rem]">
     </div>
-    <button class="btn btn-accent">Saring</button>
+    <button type="submit" class="btn btn-accent">Saring</button>
 </form>
 
 <div class="anim-rise ad-2 mt-4 card overflow-hidden">
