@@ -18,6 +18,7 @@ use App\Models\EmailVerificationCode;
 use App\Models\Skill;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\UserVerification;
 use App\Models\UserWorker;
 use App\Notifications\VerificationCodeNotification;
 use App\Support\TokenIssuer;
@@ -86,6 +87,25 @@ abstract class TestCase extends BaseTestCase
         $user->save();
 
         return $user->refresh();
+    }
+
+    /**
+     * Identitas terverifikasi — gerbang `ready_to_work`.
+     *
+     * Lewat factory dengan status `verified` langsung, bukan lewat alur
+     * pengajuan + persetujuan pengelola: yang diuji di sini bukan alur
+     * verifikasinya (itu punya kelas test sendiri), melainkan apa yang terjadi
+     * SESUDAH identitas terverifikasi.
+     */
+    protected function verifyIdentity(User $user): UserVerification
+    {
+        $verification = UserVerification::factory()->verified()->create([
+            'user_id' => $user->getKey(),
+        ]);
+
+        $user->unsetRelation('verifications');
+
+        return $verification;
     }
 
     /**

@@ -30,9 +30,11 @@ use Illuminate\Database\Eloquent\Relations\Relation;
  *    `created_at` dan `id` — jadi tidak ada galat, hanya nilai cursor yang
  *    salah, dan halaman berikutnya melompati orang.
  *
- * Hanya akun `active` yang muncul. Akun yang ditangguhkan atau diblokir masih
- * punya baris profil, dan daftar ini adalah tempat pemberi kerja memilih orang
- * untuk dihubungi.
+ * Yang muncul hanya yang `ready_to_work`: akun `active`, punya baris profil,
+ * DAN identitasnya sudah diverifikasi pengelola. Akun yang ditangguhkan atau
+ * yang verifikasinya dicabut masih punya baris profil — daftar ini tempat
+ * pemberi kerja memilih orang untuk dihubungi, jadi penyaring yang tidak
+ * terbaca di sini adalah penyaring yang tidak berlaku.
  */
 final class ListWorkersAction
 {
@@ -42,6 +44,13 @@ final class ListWorkersAction
         return UserWorker::query()
             ->whereHas('user', fn (Builder $q) => $q
                 ->where('status', UserStatus::Active)
+                // Identitas terverifikasi adalah GERBANGNYA, bukan hiasan.
+                // `ready_to_work` didefinisikan sebagai profil + verifikasi
+                // ini, jadi daftar yang memuat orang tanpa verifikasi akan
+                // membantah penandanya sendiri di baris yang sama.
+                ->whereHas('verifications', fn (Builder $v) => $v
+                    ->where('type', VerificationType::Identity)
+                    ->where('status', VerificationStatus::Verified))
                 ->when($data->gender !== null, fn (Builder $g) => $g->where('gender', $data->gender)))
             ->when($data->city !== null, fn (Builder $q) => $q->whereResolvedAddress('city', $data->city))
             ->when($data->province !== null, fn (Builder $q) => $q->whereResolvedAddress('province', $data->province))

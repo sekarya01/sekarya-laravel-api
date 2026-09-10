@@ -48,7 +48,7 @@ final class PublicUserResource extends BaseResource
             'city' => $this->city,
             'province' => $this->province,
             // Badge terverifikasi: dari withCount di Action, atau dihitung.
-            'identity_verified' => $this->identityVerified(),
+            'identity_verified' => $this->resource->isIdentityVerified(),
             // Terdaftar sebagai pekerja. Dihitung dari ada-tidaknya profil
             // pekerja, bukan kolom — lihat User::readyToWork().
             'ready_to_work' => $this->resource->readyToWork(),
@@ -71,14 +71,5 @@ final class PublicUserResource extends BaseResource
             ],
             'member_since' => $this->iso($this->created_at),
         ];
-    }
-
-    private function identityVerified(): bool
-    {
-        // identity_verified_count datang dari withCount() kalau di-eager load;
-        // kalau tidak, jatuh ke query. Menghindari N+1 tanpa memaksa.
-        return isset($this->identity_verified_count)
-            ? $this->identity_verified_count > 0
-            : $this->resource->isIdentityVerified();
     }
 }

@@ -47,6 +47,9 @@ final class WorkerProfileResource extends BaseResource
             'avatar_url' => $this->publicUrl($this->resource->resolvedAvatarPath()),
             // Identitas: selalu dari akun, tidak bisa berbeda di sini.
             // Ubahnya lewat PATCH /me.
+            // Dijamin terisi untuk profil yang dibuat sejak identitas
+            // diwajibkan. Baris lama bisa masih null — dan baris itu tidak
+            // akan pernah `ready_to_work`.
             'gender' => $this->resource->gender()?->value,
             'age' => $this->resource->age(),
             'address' => $address,
@@ -66,6 +69,13 @@ final class WorkerProfileResource extends BaseResource
                 'province' => $this->province,
                 'postal_code' => $this->postal_code,
             ],
+
+            // Siap menerima pekerjaan: barisnya ada DAN identitasnya sudah
+            // diverifikasi pengelola. `configured` di atas menjawab
+            // pertanyaan yang berbeda — profilnya sudah pernah diisi — dan
+            // pemiliknya perlu melihat keduanya untuk tahu ia sedang menunggu
+            // apa.
+            'ready_to_work' => $this->resource->user?->readyToWork() ?? false,
 
             // ── Reputasi. Hanya Action yang menulisnya. ─────────────────────
             'as_worker' => [

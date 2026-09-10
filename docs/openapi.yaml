@@ -525,8 +525,12 @@ paths:
       summary: Daftar pekerja siap kerja
       description: |
         Sisi sebaliknya dari feed task: pemberi kerja mencari ORANG, bukan
-        pekerjaan. Hanya akun `active` yang punya baris `user_workers` yang
-        muncul — sama persis dengan `ready_to_work: true`.
+        pekerjaan.
+
+        Yang muncul hanya yang **`ready_to_work: true`** — akun `active`, punya
+        baris `user_workers`, DAN identitasnya sudah diverifikasi pengelola.
+        Pekerja yang baru membuka profilnya tidak muncul di sini sampai
+        verifikasinya disetujui, dan langsung hilang lagi kalau dicabut.
 
         **Urutannya "yang baru SIAP BEKERJA", bukan "yang baru mendaftar".**
         Kuncinya `user_workers.created_at` + `id`, karena seseorang bisa punya
@@ -626,6 +630,13 @@ paths:
         **`null` di sini berarti "kembali ikut akun"**, bukan "kosongkan".
         Mengirim `display_name: null` mengembalikan namanya mengikuti nama akun.
         Field yang **tidak disebut** tidak tersentuh.
+
+        **Identitas akun harus lengkap lebih dulu.** Tanpa `gender` DAN
+        `birth_date` di akun, panggilan ini dijawab `422` dengan
+        `code: profile_incomplete` dan `context.missing` menyebut field mana
+        yang kurang — lengkapi lewat `PATCH /me`, lalu ulangi. Kartu pekerja
+        yang dibaca pemberi kerja menampilkan jenis kelamin dan umur; kartu
+        berisi dua tanda hubung bukan kartu yang bisa dipakai memilih orang.
 
         Yang **tidak** diterima di sini, dan ditolak diam-diam kalau dikirim:
 
@@ -3036,13 +3047,25 @@ components:
     ReadyToWork:
       type: boolean
       description: |
-        Terdaftar sebagai pekerja — ada baris di `user_workers`.
+        Siap menerima pekerjaan. Menuntut **dua** hal sekaligus:
+
+        1. ada baris di `user_workers` (profil pekerja sudah dibuka), dan
+        2. ada verifikasi `identity` berstatus `verified`.
+
+        Punya profil saja tidak cukup — siapa pun bisa membuatnya sendiri lewat
+        satu panggilan. Yang membuatnya berarti adalah persetujuan pengelola
+        atas identitasnya, dan itu tidak bisa diberikan sendiri. Verifikasi
+        yang dicabut langsung mematikan penanda ini.
+
+        Rekening bank **tidak** ikut jadi syarat: ia syarat untuk DIBAYAR,
+        bukan untuk boleh bekerja. Menggabungkannya berarti pekerja tidak bisa
+        melamar apa pun sampai dua antrean manual selesai.
 
         **Dihitung, tidak disimpan**, persis seperti `identity_verified`.
         Sebuah kolom boolean akan menjawab dari tempat yang bukan sumbernya dan
-        bisa melenceng lewat jalur mana pun yang membuat atau menghapus profil;
-        yang tertinggal bukan angka salah, melainkan pekerja yang muncul di
-        `GET /workers` padahal profilnya sudah tidak ada.
+        bisa melenceng lewat jalur mana pun yang membuat, menghapus, atau
+        mencabut; yang tertinggal bukan angka salah, melainkan pekerja yang
+        muncul di `GET /workers` padahal haknya sudah dicabut.
     Gender:
       type: [string, 'null']
       enum: [male, female, null]
@@ -3679,7 +3702,10 @@ components:
         avatar_url: { type: [string, 'null'], format: uri }
         gender:
           allOf: [{ $ref: '#/components/schemas/Gender' }]
-          description: Selalu dari akun. Ubah lewat `PATCH /me`.
+          description: |
+            Selalu dari akun; ubah lewat `PATCH /me`. Terjamin terisi untuk
+            profil yang dibuat sejak identitas diwajibkan — baris lama bisa
+            masih `null`, dan baris itu tidak akan pernah `ready_to_work`.
         age:
           type: [integer, 'null']
           description: Selalu dari akun, dihitung dari `birth_date`.
@@ -3716,6 +3742,12 @@ components:
             city: { type: [string, 'null'] }
             province: { type: [string, 'null'] }
             postal_code: { type: [string, 'null'] }
+        ready_to_work:
+          allOf: [{ $ref: '#/components/schemas/ReadyToWork' }]
+          description: |
+            Berbeda dari `configured`: yang itu menjawab "profilnya sudah
+            pernah diisi", yang ini "sudah boleh muncul sebagai pekerja".
+            Pemiliknya perlu melihat keduanya untuk tahu ia sedang menunggu apa.
         as_worker: { $ref: '#/components/schemas/WorkerAggregates' }
         created_at: { type: [string, 'null'], format: date-time }
         updated_at: { type: [string, 'null'], format: date-time }
@@ -3891,6 +3923,7 @@ components:
             - review_not_allowed
             - admin_access_denied
             - super_admin_protected
+            - profile_incomplete
         context:
           type: object
           additionalProperties: true

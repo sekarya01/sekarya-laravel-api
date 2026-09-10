@@ -14,6 +14,21 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final class UserVerification extends Model
 {
+    /**
+     * Tabelnya `user_worker_verifications`, kelasnya masih `UserVerification`.
+     *
+     * Nama tabel diubah karena `ready_to_work` kini bergantung padanya — ia
+     * gerbang pekerja, bukan lagi catatan di samping akun. Nama kelas belum
+     * ikut karena penggantiannya menyentuh berkas yang sedang disunting orang
+     * lain (`Web/SuperAdmin/VerificationController`, `DashboardController`);
+     * menyeretnya sekarang berarti menyunting pekerjaan yang belum selesai.
+     *
+     * Ini utang yang disengaja dan berumur pendek. Kalau tidak ada baris ini,
+     * Eloquent menyimpulkan tabelnya dari nama kelas dan seluruh kueri
+     * verifikasi gagal dengan "table not found".
+     */
+    protected $table = 'user_worker_verifications';
+
     /** @use HasFactory<UserVerificationFactory> */
     use HasFactory;
 

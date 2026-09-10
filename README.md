@@ -12,7 +12,7 @@ badan usaha. Semua pihak perseorangan.
 | Bahasa & framework | PHP `^8.3` (**pakai 8.4 di produksi**, lihat catatan di bawah) · Laravel `11.55.1` (dipin persis) |
 | Basis data | MySQL 8+ / InnoDB — **bukan** SQLite, lihat [Kenapa MySQL](#kenapa-mysql-bukan-sqlite) |
 | Autentikasi | Laravel Sanctum `^4.0`, sepasang token |
-| Test | PHPUnit `^11.5` — 950 test, 3.473 asersi, 61 berkas (ukur coverage: `composer test-report`) |
+| Test | PHPUnit `^11.5` — 956 test, 3.501 asersi, 61 berkas (ukur coverage: `composer test-report`) |
 | Kontrak API | OpenAPI 3.1 di `docs/openapi.yaml` — 57 endpoint (35 pengguna + 22 pengelola) |
 | Observability | Axiom (opsional, mati secara bawaan) |
 
@@ -170,10 +170,10 @@ php artisan route:list --path=api
 ## Test
 
 ```bash
-php artisan test                  # 950 test, 3.473 asersi
+php artisan test                  # 956 test, 3.501 asersi
 php artisan test tests/Unit       # lapis cepat
 composer test-report              # + coverage/html, junit, testdox
-bash docs/smoke.sh                # 155 pemeriksaan HTTP sungguhan, server sendiri
+bash docs/smoke.sh                # 160 pemeriksaan HTTP sungguhan, server sendiri
 ./vendor/bin/pint                 # format — jalankan sebelum commit
 npx --yes -p @redocly/cli redocly lint docs/openapi.yaml
 ```

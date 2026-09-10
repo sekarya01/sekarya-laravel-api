@@ -427,12 +427,51 @@ check "identitas TIDAK bisa diubah lewat profil pekerja" 200 "d['data']['gender'
 check "profil pekerja butuh token" 401 "d['code']" '"unauthenticated"' \
     -H "$ACC" "$BASE/me/worker"
 
-check "ready_to_work menyala begitu profil pekerja ada" 200 "d['data']['ready_to_work']" 'true' \
+ME_ID="$(json "$(curl -s "${AUTH[@]}" "$BASE/me")" "d['data']['id']")"
+
+# Akun yang sengaja TIDAK dilengkapi identitasnya — dipakai membuktikan pintu
+# profil pekerja benar-benar tertutup.
+reset_rate_limits
+INCOMPLETE_TOKEN="$(json "$(signup 'Tanpa Identitas' 'tanpa.identitas@sekarya.test' '+628999000111')" "d['data']['access_token']")"
+W_INCOMPLETE=(-H "Authorization: Bearer ${INCOMPLETE_TOKEN}" -H "$ACC")
+
+# Profil pekerja saja BELUM siap kerja: gerbangnya persetujuan pengelola atas
+# identitas, dan itu tidak bisa diberikan sendiri.
+check "profil pekerja ada tapi belum siap kerja" 200 "d['data']['ready_to_work']" 'false' \
     "${AUTH[@]}" "$BASE/me"
 
-check "daftar pekerja memuat yang siap kerja" 200 \
-    "any(w['ready_to_work'] for w in d['data'])" 'true' \
+check "belum terverifikasi berarti belum masuk daftar pekerja" 200 \
+    "[w['id'] for w in d['data'] if w['id'] == '${ME_ID}']" '[]' \
     "${AUTH[@]}" "$BASE/workers"
+
+# Gerbangnya dibuka lewat ALUR SUNGGUHAN: pengguna mengajukan, pengelola
+# menyetujui. Bukan baris yang disuntikkan ke basis data — yang diuji justru
+# bahwa persetujuan itu tidak bisa diberikan sendiri.
+curl -s -X POST "$BASE/me/verifications" "${AUTH[@]}" -H "$CT" -d '{
+  "type":"identity",
+  "id_card_photo_path":"verifications/ktp-pemilik.jpg",
+  "selfie_photo_path":"verifications/selfie-pemilik.jpg",
+  "document_number":"3174099988877766",
+  "name_on_document":"Pemilik Akun"
+}' -o /dev/null
+
+check "mengajukan saja belum membuka siap kerja" 200 "d['data']['ready_to_work']" 'false' \
+    "${AUTH[@]}" "$BASE/me"
+
+MY_VER="$(json "$(curl -s "$BASE/admin/verifications" "${ADMIN[@]}")" "d['data'][0]['id']")"
+check "pengelola menyetujui identitas pemilik akun" 200 "d['data']['status']" '"verified"' \
+    -X POST "$BASE/admin/verifications/$MY_VER/approve" "${ADMIN[@]}"
+
+check "siap kerja menyala SESUDAH pengelola menyetujui" 200 "d['data']['ready_to_work']" 'true' \
+    "${AUTH[@]}" "$BASE/me"
+
+check "dan barulah ia muncul di daftar pekerja" 200 \
+    "[w['ready_to_work'] for w in d['data'] if w['id'] == '${ME_ID}']" '[true]' \
+    "${AUTH[@]}" "$BASE/workers"
+
+check "identitas belum lengkap = profil pekerja ditolak" 422 \
+    "[d['code'], d['context']['missing']]" '["profile_incomplete", ["gender", "birth_date"]]' \
+    -X PUT "${W_INCOMPLETE[@]}" -H "$CT" -d '{"radius_km":10}' "$BASE/me/worker"
 
 check "daftar pekerja memakai cursor, bukan offset" 200 \
     "['next_cursor' in d['meta'], 'total' in d['meta'], 'current_page' in d['meta']]" \

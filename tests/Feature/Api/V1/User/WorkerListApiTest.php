@@ -26,13 +26,23 @@ final class WorkerListApiTest extends TestCase
         parent::tearDown();
     }
 
-    /** Pekerja dengan profil, dibuat pada waktu tertentu. */
+    /**
+     * Pekerja yang benar-benar siap kerja, dibuat pada waktu tertentu.
+     *
+     * Tiga syaratnya dipenuhi sekaligus — identitas lengkap, baris profil,
+     * dan verifikasi identitas — karena itulah definisi `ready_to_work`, dan
+     * daftar ini hanya memuat yang memenuhi ketiganya.
+     */
     private function workerAt(string $at, array $user = [], array $profile = []): User
     {
         Carbon::setTestNow($at);
 
-        $account = $this->activeUser($user);
+        $account = $this->activeUser($user + [
+            'gender' => Gender::Male,
+            'birth_date' => '1995-03-02',
+        ]);
         UserWorker::factory()->create(['user_id' => $account->getKey()] + $profile);
+        $this->verifyIdentity($account);
 
         Carbon::setTestNow();
 
@@ -108,11 +118,19 @@ final class WorkerListApiTest extends TestCase
      */
     public function test_the_newest_worker_profile_comes_first(): void
     {
-        $akunLamaPekerjaBaru = $this->activeUser();
+        // Akunnya lahir DULUAN, profil pekerjanya BELAKANGAN.
+        Carbon::setTestNow('2026-08-01 10:00:00');
+        $akunLamaPekerjaBaru = $this->activeUser([
+            'gender' => Gender::Female,
+            'birth_date' => '1990-01-01',
+        ]);
+        Carbon::setTestNow();
+
         $akunBaruPekerjaLama = $this->workerAt('2026-09-01 10:00:00');
 
         Carbon::setTestNow('2026-09-05 10:00:00');
         UserWorker::factory()->create(['user_id' => $akunLamaPekerjaBaru->getKey()]);
+        $this->verifyIdentity($akunLamaPekerjaBaru);
         Carbon::setTestNow();
 
         $ids = $this->ids(
@@ -280,21 +298,61 @@ final class WorkerListApiTest extends TestCase
         $this->assertArrayNotHasKey('latitude', $row['as_worker']['work_area']);
     }
 
-    /** `ready_to_work` diturunkan dari ada-tidaknya profil, bukan kolom. */
-    public function test_ready_to_work_follows_the_worker_profile(): void
+    /**
+     * `ready_to_work` menuntut DUA hal, dan keduanya diturunkan — bukan kolom.
+     *
+     * Punya profil pekerja saja tidak cukup: siapa pun bisa membuatnya
+     * sendiri lewat satu panggilan. Yang membuatnya berarti adalah persetujuan
+     * pengelola atas identitasnya, dan itu tidak bisa diberikan sendiri.
+     */
+    public function test_ready_to_work_needs_both_a_profile_and_a_verified_identity(): void
     {
-        $user = $this->activeUser();
+        $user = $this->activeUser(['gender' => Gender::Male, 'birth_date' => '1995-03-02']);
 
         $this->asUser($user)->getJson(route('v1.me.show'))
-            ->assertOk()
-            ->assertJsonPath('data.ready_to_work', false);
+            ->assertOk()->assertJsonPath('data.ready_to_work', false);
 
         $this->asUser($user)->putJson(route('v1.me.worker.update'), ['radius_km' => 10])
-            ->assertCreated();
+            ->assertCreated()
+            // Profilnya sudah ada, tapi belum siap kerja.
+            ->assertJsonPath('data.configured', true)
+            ->assertJsonPath('data.ready_to_work', false);
 
         $this->asUser($user)->getJson(route('v1.me.show'))
-            ->assertOk()
-            ->assertJsonPath('data.ready_to_work', true);
+            ->assertOk()->assertJsonPath('data.ready_to_work', false);
+
+        $this->verifyIdentity($user);
+
+        $this->asUser($user)->getJson(route('v1.me.show'))
+            ->assertOk()->assertJsonPath('data.ready_to_work', true);
+        $this->asUser($user)->getJson(route('v1.me.worker.show'))
+            ->assertOk()->assertJsonPath('data.ready_to_work', true);
+    }
+
+    /** Verifikasi tanpa profil pekerja juga belum siap kerja. */
+    public function test_a_verified_identity_alone_is_not_enough(): void
+    {
+        $user = $this->activeUser(['gender' => Gender::Male, 'birth_date' => '1995-03-02']);
+        $this->verifyIdentity($user);
+
+        $this->asUser($user)->getJson(route('v1.me.show'))
+            ->assertOk()->assertJsonPath('data.ready_to_work', false);
+    }
+
+    /** Yang belum diverifikasi tidak muncul di daftar sama sekali. */
+    public function test_an_unverified_worker_is_not_listed(): void
+    {
+        $terverifikasi = $this->workerAt('2026-09-01 10:00:00');
+
+        $belum = $this->activeUser(['gender' => Gender::Female, 'birth_date' => '1996-04-05']);
+        UserWorker::factory()->create(['user_id' => $belum->getKey()]);
+
+        $ids = $this->ids(
+            $this->asUser($terverifikasi)->getJson(route('v1.workers.index'))->assertOk()->json(),
+        );
+
+        $this->assertContains($terverifikasi->ulid, $ids);
+        $this->assertNotContains($belum->ulid, $ids);
     }
 
     /**

@@ -275,6 +275,90 @@ final class WorkerProfileApiTest extends TestCase
         $this->assertSame('1995-03-02', $user->birth_date->toDateString());
     }
 
+    // ── identitas wajib lengkap ─────────────────────────────────────────────
+
+    /**
+     * Profil pekerja tidak bisa dibuka sebelum identitas akunnya lengkap.
+     *
+     * Kartu pekerja yang dibaca pemberi kerja menampilkan jenis kelamin dan
+     * umur; kartu berisi dua tanda hubung bukan kartu yang bisa dipakai
+     * memilih orang.
+     */
+    public function test_a_worker_profile_needs_gender_and_birth_date_first(): void
+    {
+        $belumLengkap = $this->activeUser(['gender' => null, 'birth_date' => null]);
+
+        $this->asUser($belumLengkap)
+            ->putJson(route('v1.me.worker.update'), ['radius_km' => 10])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'profile_incomplete')
+            ->assertJsonPath('context.missing', ['gender', 'birth_date']);
+
+        $this->assertSame(0, UserWorker::query()
+            ->where('user_id', $belumLengkap->getKey())->count());
+    }
+
+    /** Galatnya menyebut PERSIS apa yang kurang, bukan "lengkapi profil Anda". */
+    public function test_the_error_names_only_the_field_that_is_missing(): void
+    {
+        $tanpaTanggalLahir = $this->activeUser([
+            'gender' => Gender::Male,
+            'birth_date' => null,
+        ]);
+
+        $this->asUser($tanpaTanggalLahir)
+            ->putJson(route('v1.me.worker.update'), ['radius_km' => 10])
+            ->assertUnprocessable()
+            ->assertJsonPath('context.missing', ['birth_date']);
+    }
+
+    /** Dilengkapi lewat PATCH /me, lalu profilnya bisa dibuka. */
+    public function test_completing_the_identity_opens_the_worker_profile(): void
+    {
+        $user = $this->activeUser(['gender' => null, 'birth_date' => null]);
+
+        $this->asUser($user)
+            ->putJson(route('v1.me.worker.update'), [])
+            ->assertUnprocessable();
+
+        $this->asUser($user)
+            ->patchJson(route('v1.me.update'), [
+                'gender' => 'female',
+                'birth_date' => '1995-03-02',
+            ])->assertOk();
+
+        $this->asUser($user)
+            ->putJson(route('v1.me.worker.update'), [])
+            ->assertCreated()
+            ->assertJsonPath('data.gender', 'female')
+            ->assertJsonPath('data.age', 31);
+    }
+
+    /**
+     * Identitas yang dikosongkan sesudah profil pekerja ada TIDAK mencabut
+     * profilnya — tapi juga tidak bisa disimpan ulang tanpa dilengkapi lagi.
+     *
+     * Baris yang sudah ada dibiarkan dengan sengaja: reputasi menempel
+     * padanya, dan reputasi tidak bisa dibangun ulang. Yang menjaga daftar
+     * tetap bersih adalah `ready_to_work`, bukan penghapusan baris.
+     */
+    public function test_clearing_the_identity_later_does_not_delete_the_profile(): void
+    {
+        $user = $this->worker();
+
+        $this->asUser($user)->putJson(route('v1.me.worker.update'), ['radius_km' => 10])
+            ->assertCreated();
+
+        $this->asUser($user)->patchJson(route('v1.me.update'), ['birth_date' => null])
+            ->assertOk();
+
+        $this->assertSame(1, UserWorker::query()->where('user_id', $user->getKey())->count());
+
+        $this->asUser($user)->putJson(route('v1.me.worker.update'), ['radius_km' => 20])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'profile_incomplete');
+    }
+
     /** Profil orang lain tidak bisa disentuh: endpoint-nya hanya mengenal "saya". */
     public function test_one_user_never_touches_another_users_profile(): void
     {

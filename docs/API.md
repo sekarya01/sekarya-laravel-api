@@ -6,7 +6,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
 | **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 57 operation cocok dengan 57 rute nyata |
-| **Uji otomatis** | `bash docs/smoke.sh` — 155 pemeriksaan |
+| **Uji otomatis** | `bash docs/smoke.sh` — 160 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
 
@@ -21,10 +21,10 @@ bash docs/smoke.sh
 ```
 
 Menjalankan server sendiri, mereset database, mendaftar akun lewat alur auth yang
-sebenarnya, menjalankan 155 pemeriksaan, lalu membereskan diri. Keluaran akhir:
+sebenarnya, menjalankan 160 pemeriksaan, lalu membereskan diri. Keluaran akhir:
 
 ```
-SEMUA LULUS  132/155 pemeriksaan
+SEMUA LULUS  132/160 pemeriksaan
 ```
 
 Kalau mau memakai server yang sudah jalan: `bash docs/smoke.sh 8000`.
@@ -810,6 +810,32 @@ mencocokkan dengan KTP — orang yang belum bisa punya KTP tidak akan pernah lol
 Formatnya persis `YYYY-MM-DD`; tanpa itu `01/02/2003` diterima, dan artinya berbeda di
 dua benua.
 
+### Identitas harus lengkap sebelum profil pekerja bisa dibuka
+
+```bash
+curl -s -X PUT "$BASE/me/worker" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"radius_km":15}' | jq '{code, missing: .context.missing}'
+```
+
+Kalau akunnya belum punya jenis kelamin dan tanggal lahir:
+
+```json
+{ "code": "profile_incomplete", "missing": ["gender", "birth_date"] }
+```
+
+`422`, dan `context.missing` menyebut **persis** field mana yang kurang — klien menyorot
+isian yang tepat tanpa perlu mengurai `message`. Lengkapi lewat `PATCH /me`, lalu ulangi.
+
+Endpoint ini sengaja **tidak** menerima `gender`/`birth_date` sendiri walau satu panggilan
+akan lebih enak: identitas hanya boleh punya satu jalur tulis. Dua jalur berarti dua
+tempat yang harus sama-sama benar setiap kali aturannya berubah.
+
+Yang sudah terlanjur ada dibiarkan. Mengosongkan tanggal lahir sesudah profil pekerja
+dibuat **tidak** menghapus profilnya — reputasi menempel pada baris itu dan tidak bisa
+dibangun ulang. Yang menjaga daftar tetap bersih adalah `ready_to_work`, bukan
+penghapusan baris.
+
 ### Membaca profil pekerja tidak membuat baris
 
 ```bash
@@ -915,17 +941,27 @@ curl -s -X PUT "$BASE/me/worker" \
 { "rating_avg": 0, "rating_count": 0, "tasks_completed": 0, "bids_won": 0 }
 ```
 
-### `ready_to_work` — dihitung, bukan kolom
+### `ready_to_work` — dua syarat, dan dihitung
 
-Setiap profil (`/me`, profil publik, dan sisi pengelola) membawa `ready_to_work`:
-`true` begitu ada baris di `user_workers`.
+Setiap profil (`/me`, profil publik, dan sisi pengelola) membawa `ready_to_work`. Ia
+`true` hanya kalau **dua-duanya** terpenuhi:
 
-Ia **diturunkan dari ada-tidaknya profil**, sejajar dengan `identity_verified`, dan bukan
-kolom boolean di `users`. Kolom akan menjawab pertanyaan ini dari tempat yang bukan
-sumbernya, dan bisa melenceng lewat jalur mana pun yang membuat atau menghapus profil —
-Action perekrutan, penghapusan akun beruntun, satu `DELETE` di phpMyAdmin. Yang tertinggal
-bukan sekadar angka salah: ia pekerja yang muncul di `GET /workers` padahal profilnya
-sudah tidak ada.
+1. ada baris di `user_workers` — profil pekerjanya sudah dibuka, dan
+2. ada verifikasi `identity` berstatus `verified`.
+
+Punya profil saja tidak cukup, dan itu disengaja: siapa pun bisa membuat profil sendiri
+lewat satu panggilan. Yang membuatnya berarti adalah persetujuan pengelola atas
+identitasnya — dan itu tidak bisa diberikan sendiri. Verifikasi yang **dicabut** langsung
+mematikan penanda ini, tanpa ada yang perlu menyentuh baris profilnya.
+
+Rekening bank tidak ikut jadi syarat: ia syarat untuk **dibayar**, bukan untuk boleh
+bekerja. Menggabungkannya berarti pekerja tidak bisa melamar apa pun sampai dua antrean
+manual selesai.
+
+Ia **diturunkan**, bukan kolom boolean di `users`. Kolom akan menjawab dari tempat yang
+bukan sumbernya dan bisa melenceng lewat jalur mana pun yang membuat, menghapus, atau
+mencabut. Yang tertinggal bukan sekadar angka salah: ia pekerja yang muncul di
+`GET /workers` padahal haknya sudah dicabut.
 
 ```bash
 curl -s "$BASE/me" -H "Authorization: Bearer $AT" -H 'Accept: application/json' \
@@ -940,10 +976,12 @@ curl -s "$BASE/workers?per_page=2&city=Jakarta&gender=female" \
   | jq '{orang: [.data[].name], next: .meta.next_cursor}'
 ```
 
-Yang muncul hanya akun **`active`** yang punya profil pekerja — persis
-`ready_to_work: true`. Akun yang ditangguhkan tetap punya barisnya, dan daftar ini adalah
-tempat pemberi kerja memilih orang untuk dihubungi; moderasi yang tidak terbaca di sini
-adalah moderasi yang tidak berlaku.
+Yang muncul hanya yang **`ready_to_work: true`** — akun `active`, punya profil pekerja,
+dan identitasnya sudah diverifikasi pengelola. Pekerja yang baru membuka profilnya belum
+muncul di sini sampai verifikasinya disetujui, dan langsung hilang lagi kalau dicabut.
+Akun yang ditangguhkan tetap punya barisnya; daftar ini tempat pemberi kerja memilih orang
+untuk dihubungi, jadi penyaring yang tidak terbaca di sini adalah penyaring yang tidak
+berlaku.
 
 Tiga hal yang menentukan bentuk endpoint ini:
 
@@ -1507,7 +1545,7 @@ jadi sumber kebenaran.
 php artisan route:list --path=api    # rute + middleware
 php artisan about --only=environment
 tail -f storage/logs/laravel.log     # termasuk kode verifikasi saat MAIL_MAILER=log
-bash docs/smoke.sh                   # 155 pemeriksaan
+bash docs/smoke.sh                   # 160 pemeriksaan
 ```
 
 Audit lapisan pengamanan — daftar yang keluar harus kosong atau bisa dijelaskan:

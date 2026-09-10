@@ -189,6 +189,19 @@ Yang tidak boleh "dirapikan":
   sendiri-sendiri ke akun, pekerja yang menulis alamat kerjanya di kota lain mendapat
   gabungan dua alamat — jalannya dari profil pekerja, kotanya dari domisili akun. Itu
   alamat yang tidak pernah ada, dan pemberi kerja akan mendatanginya.
+- **`ready_to_work` menuntut DUA hal: baris profil DAN verifikasi `identity`
+  berstatus `verified`.** Profil saja tidak cukup — siapa pun bisa membuatnya sendiri
+  lewat satu panggilan; yang membuatnya berarti adalah persetujuan pengelola, dan itu
+  tidak bisa diberikan sendiri. Rekening bank sengaja TIDAK ikut: ia syarat untuk
+  dibayar, bukan untuk boleh bekerja. `GET /workers` memakai gerbang yang sama persis —
+  daftar yang memuat orang tanpa verifikasi akan membantah penandanya sendiri di baris
+  yang sama.
+- **`PUT /me/worker` menolak akun tanpa `gender` dan `birth_date`** (`profile_incomplete`,
+  422, `context.missing` menyebut field mana). Endpoint itu TIDAK menerima kedua field
+  tersebut walau satu panggilan akan lebih enak: identitas hanya boleh punya satu jalur
+  tulis. Baris profil yang terlanjur ada tanpa identitas dibiarkan — reputasi menempel
+  padanya — dan yang menjaga daftar tetap bersih adalah `ready_to_work`, bukan
+  penghapusan baris.
 - **UMUR DIHITUNG, TIDAK DISIMPAN.** `User::age()` menurunkannya dari `birth_date` setiap
   kali dibaca. Kolom `age` akan salah pada hari ulang tahun setiap penggunanya dan tidak
   ada kejadian di aplikasi ini yang bisa memicu pembaruannya — tidak ada permintaan HTTP
@@ -213,6 +226,14 @@ Yang tidak boleh "dirapikan":
   relasi — `after('skills')` membuat SELURUH rollback gagal dengan "Unknown column".
   Sudah pernah terjadi; `tests/Feature/Deployment/WorkerAggregateMigrationTest.php`
   menjalankan siklus maju-mundur-maju dengan data sungguhan di basis data sekali-pakai.
+
+Tabelnya bernama **`user_worker_verifications`** (dulu `user_verifications`) sejak
+`ready_to_work` bergantung padanya: ia gerbang pekerja, bukan catatan di samping akun.
+**FK-nya tetap `user_id` ke `users`, bukan ke `user_workers`** — pemberi kerja juga
+mengajukan verifikasi identitas, dan badge itu dibaca pekerja saat menimbang siapa yang
+mempekerjakannya. Harganya: nama tabel menyebut "worker" padahal sebagian isinya milik
+pemberi kerja. Nama KELAS modelnya masih `UserVerification` dengan `$table` eksplisit —
+utang yang disengaja, lihat komentar di modelnya.
 
 Batas pengungkapan yang menyertainya: **orang lain melihat `age`, tidak pernah
 `birth_date`** (tanggal lahir persis dipakai bank dan layanan publik sebagai verifikasi),
@@ -427,14 +448,14 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
 php artisan migrate:fresh --seed  # 26 tabel + kategori & skills
 php artisan sekarya:admin create  # akun super_admin — SATU-SATUNYA cara membuatnya
 php artisan serve                 # http://localhost:8000
-php artisan test                  # 950 test, 3.473 asersi
+php artisan test                  # 956 test, 3.501 asersi
 composer test-report              # coverage/html + junit + testdox (lihat tests/README.md)
 php artisan sekarya:axiom --audit # buktikan penyaringan PII sebelum kirim apa pun
 php artisan test tests/Unit       # fast tier
 ./vendor/bin/pint                 # format (run before committing)
 php artisan route:list --path=api
 php artisan sekarya:demo --fresh     # seed fixtures + print dev tokens
-bash docs/smoke.sh                # 155 live HTTP assertions, self-hosting server
+bash docs/smoke.sh                # 160 live HTTP assertions, self-hosting server
 ```
 
 ## API contract

@@ -243,9 +243,27 @@ class User extends Authenticatable
      */
     public function readyToWork(): bool
     {
+        return $this->hasWorkerProfile() && $this->isIdentityVerified();
+    }
+
+    /** Baris `user_workers`-nya ada. Sendirian ini BUKAN "siap kerja". */
+    public function hasWorkerProfile(): bool
+    {
         return $this->relationLoaded('workerProfile')
             ? $this->getRelation('workerProfile') !== null
             : $this->workerProfile()->exists();
+    }
+
+    /**
+     * Punya jenis kelamin DAN tanggal lahir.
+     *
+     * Syarat masuk profil pekerja: keduanya muncul di kartu pekerja yang
+     * dibaca pemberi kerja, dan profil yang menampilkan dua tanda hubung
+     * bukan profil yang bisa dipakai memilih orang.
+     */
+    public function hasCompleteIdentity(): bool
+    {
+        return $this->gender !== null && $this->birth_date !== null;
     }
 
     /**
@@ -254,6 +272,14 @@ class User extends Authenticatable
      */
     public function isIdentityVerified(): bool
     {
+        // `identity_verified_count` datang dari withCount() kalau di-eager
+        // load. Sejak `readyToWork()` ikut memanggil ini, jalur kueri-nya
+        // dipanggil dua kali per baris di setiap daftar — dan daftar pekerja
+        // mengembalikan sampai 50 orang sekaligus.
+        if (isset($this->identity_verified_count)) {
+            return $this->identity_verified_count > 0;
+        }
+
         return $this->verifications()
             ->where('type', VerificationType::Identity)
             ->where('status', VerificationStatus::Verified)
