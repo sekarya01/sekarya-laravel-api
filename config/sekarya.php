@@ -80,6 +80,42 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Pengelola (super_admin & admin)
+    |--------------------------------------------------------------------------
+    |
+    | Akun super_admin TIDAK ada di seeder maupun di berkas pemasangan SQL.
+    | Keduanya dilacak git, jadi kredensial di dalamnya bukan kredensial —
+    | ia sandi bawaan yang bisa dibaca siapa pun yang membuka repositori, di
+    | akun yang paling berhak di seluruh aplikasi.
+    |
+    | Karena itu nilainya diambil dari environment dan akunnya dibuat sekali
+    | dengan `php artisan sekarya:admin create`. Di produksi perintah itu
+    | MENOLAK sandi yang sama dengan contoh di `.env.example`.
+    |
+    */
+
+    'admin' => [
+        'super_admin' => [
+            'name' => env('SEKARYA_SUPER_ADMIN_NAME', 'Super Admin'),
+            'email' => env('SEKARYA_SUPER_ADMIN_EMAIL'),
+            'password' => env('SEKARYA_SUPER_ADMIN_PASSWORD'),
+        ],
+
+        // Sandi pengelola dipisahkan dari sandi pengguna: yang dijaga bukan
+        // satu akun, tapi kewenangan menyetujui uang.
+        'min_password_length' => 12,
+
+        // Sandi contoh yang ikut terlacak git. Ditolak di produksi — daftar
+        // ini yang membuat penolakannya bisa diuji, bukan diingat.
+        'forbidden_passwords' => [
+            'SuperAdminSekarya2026',
+            'password',
+            'admin',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Rate limit
     |--------------------------------------------------------------------------
     |
@@ -113,6 +149,17 @@ return [
 
         // Membuat task & penawaran — mencegah spam yang membanjiri feed.
         'write' => (int) env('SEKARYA_RL_WRITE', 30),
+
+        // Endpoint pengelola, per pengelola. Lebih longgar dari `api`:
+        // menilai antrean verifikasi berarti membuka banyak halaman
+        // berturut-turut, dan yang memakainya cuma beberapa akun internal.
+        'admin' => (int) env('SEKARYA_RL_ADMIN', 240),
+
+        // Login pengelola. JAUH lebih ketat daripada login pengguna: yang
+        // dijaga di sini bukan satu akun belanja, tapi akun yang bisa
+        // menyetujui pembayaran. Kuncinya email + IP, sama alasannya seperti
+        // login pengguna.
+        'admin_login' => (int) env('SEKARYA_RL_ADMIN_LOGIN', 5),
     ],
 
 ];

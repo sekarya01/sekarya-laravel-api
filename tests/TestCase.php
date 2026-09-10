@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use App\Actions\Admin\Payment\ConfirmPaymentAction;
 use App\Actions\Auth\IssueVerificationCodeAction;
+use App\Actions\Payment\ReportTransferAction;
+use App\Enums\AdminRole;
 use App\Enums\BidStatus;
 use App\Enums\UserStatus;
+use App\Models\Activity;
+use App\Models\Admin;
 use App\Models\Bid;
 use App\Models\Category;
 use App\Models\EmailVerificationCode;
@@ -18,6 +23,7 @@ use App\Support\TokenIssuer;
 use Database\Seeders\CategorySeeder;
 use Database\Seeders\SkillSeeder;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Testing\TestResponse;
 
@@ -110,6 +116,77 @@ abstract class TestCase extends BaseTestCase
         ])->save();
 
         return $bid;
+    }
+
+    /**
+     * Pengelola biasa (peran `admin`).
+     *
+     * Dipakai untuk hampir semua test pengelola. `superAdmin()` hanya dipakai
+     * ketika yang diuji memang kewenangan super_admin — perannya boleh
+     * segalanya, jadi test izin yang memakainya akan lulus untuk alasan yang
+     * salah.
+     */
+    protected function activeAdmin(array $attributes = []): Admin
+    {
+        return Admin::factory()->create($attributes);
+    }
+
+    /**
+     * super_admin — dan yang sudah ada dipakai ulang kalau ada.
+     *
+     * Basis data hanya menerima SATU baris super_admin (indeks unique atas
+     * kolom turunan `super_admin_lock`). Suite ini mencampur RefreshDatabase
+     * dengan DatabaseTruncation, jadi baris ter-commit dari kelas truncation
+     * bisa masih ada saat kelas lain berjalan — dan `create()` polos akan
+     * gagal #1062 dengan pesan yang tidak menjelaskan apa pun.
+     */
+    protected function superAdmin(array $attributes = []): Admin
+    {
+        $existing = Admin::query()->where('role', AdminRole::SuperAdmin)->first();
+
+        if ($existing instanceof Admin) {
+            return $existing;
+        }
+
+        return Admin::factory()->superAdmin()->create($attributes);
+    }
+
+    /** Bertindak sebagai pengelola memakai access token pengelola sungguhan. */
+    protected function asAdmin(Admin $admin): static
+    {
+        $token = app(TokenIssuer::class)->issuePair($admin)['access']->plainTextToken;
+
+        return $this->authenticateWith($token);
+    }
+
+    /** Header long_lived pengelola — hanya boleh untuk /admin/auth/refresh. */
+    protected function asAdminWithLongLived(Admin $admin): static
+    {
+        $token = app(TokenIssuer::class)->issuePair($admin)['long_lived']->plainTextToken;
+
+        return $this->authenticateWith($token);
+    }
+
+    /**
+     * Buka activity lewat JALUR NYATA: pemberi kerja melapor, pengelola
+     * mengonfirmasi.
+     *
+     * Dulu satu pemanggilan HoldPaymentAction. Sekarang dua langkah dengan dua
+     * aktor berbeda, dan fixture yang melompati salah satunya akan menguji
+     * keadaan yang tidak bisa dicapai aplikasi — persis kelas bug yang
+     * membuat aturan "tidak ada activity tanpa dana ditahan" pernah bisa
+     * dilewati.
+     *
+     * @return Collection<int, Activity>
+     */
+    protected function openActivities(Task $task, User $poster, ?Admin $admin = null): Collection
+    {
+        app(ReportTransferAction::class)->handle($task, $poster);
+
+        return app(ConfirmPaymentAction::class)->handle(
+            $task->payment()->firstOrFail(),
+            $admin ?? $this->activeAdmin(),
+        );
     }
 
     /**

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Exceptions\Domain\DomainException;
 use App\Http\Middleware\AxiomRequestLogger;
+use App\Http\Middleware\EnsureActiveAdmin;
+use App\Http\Middleware\EnsureAdminManagesAdmins;
 use App\Logging\Axiom\ExceptionRecorder;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -32,6 +34,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'abilities' => CheckAbilities::class,
             'ability' => CheckForAnyAbility::class,
+
+            // Gerbang `/admin` lapis ketiga: status akun pengelola diperiksa
+            // ulang di setiap permintaan. Guard memeriksa keaslian token,
+            // ability memeriksa jenisnya — keduanya tidak tahu akunnya sudah
+            // dinonaktifkan atau belum, dan token itu hidup delapan jam.
+            'admin.active' => EnsureActiveAdmin::class,
+
+            // Gerbang kelompok `/admin/admins`: hanya super_admin. Aturannya
+            // dibaca dari AdminRole::canManageAdmins(), bukan ditulis ulang.
+            'admin.manages-admins' => EnsureAdminManagesAdmins::class,
         ]);
 
         // Observability (Axiom) dipasang PALING LUAR pada grup api, sebelum

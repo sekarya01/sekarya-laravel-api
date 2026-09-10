@@ -271,7 +271,61 @@ paling umum dari "sudah saya ubah tapi tidak ngefek".
 
 ---
 
-## 7. Cron
+## 7. Akun pengelola
+
+Tanpa langkah ini, **tidak ada satu pun orang yang bisa menyetujui verifikasi identitas
+atau mengonfirmasi transfer** — dan alur pembayarannya berhenti di antrean.
+
+Akun ini tidak ada di `database/schema/sekarya-install.sql` dan tidak ada seeder-nya.
+Keduanya berkas yang dilacak git, jadi kredensial di dalamnya bisa dibaca siapa pun yang
+membuka repositori — pada akun paling berhak di seluruh aplikasi. Karena itu ia dibuat
+di server, sekali.
+
+Isi dulu di `.env` (lihat `.env.production.example`):
+
+```
+SEKARYA_SUPER_ADMIN_NAME="Nama Anda"
+SEKARYA_SUPER_ADMIN_EMAIL=admin@domainanda.id
+SEKARYA_SUPER_ADMIN_PASSWORD=<sandi kuat, minimal 12 karakter>
+```
+
+Lalu:
+
+```bash
+php artisan sekarya:admin create
+```
+
+Sandinya **tidak** ditampilkan dan tidak bisa dibaca lagi — yang tersimpan hanya
+hash-nya. Perintah ini **menolak** sandi contoh dari `.env.example` saat
+`APP_ENV=production`, dan menolak sandi di bawah 12 karakter di lingkungan mana pun.
+
+> **Tanpa SSH?** Sama seperti `config:cache`: jalankan lewat cPanel > Cron Jobs sekali
+> (jadwalkan, tunggu menyala, lalu hapus jadwalnya), atau lewat Terminal cPanel bila
+> tersedia. Setelah akunnya jadi, **hapus `SEKARYA_SUPER_ADMIN_PASSWORD` dari `.env`**
+> lalu buat ulang `config:cache` — nilainya tidak dipakai lagi setelah akunnya ada.
+
+Akun ini:
+
+- **tidak bisa dihapus** dan **tidak bisa dinonaktifkan** — ia satu-satunya yang bisa
+  membuat pengelola lain, jadi kehilangan dia berarti kehilangan jalan memulihkan akses
+  pengelola dari dalam aplikasi;
+- **hanya boleh ada satu** — dijamin indeks unique di basis data, bukan disiplin kode.
+
+Pengelola berikutnya dibuat oleh super_admin lewat `POST /admin/admins`, atau dari baris
+perintah:
+
+```bash
+php artisan sekarya:admin create --role=admin --name="Verifikator" --email=verif@domainanda.id
+php artisan sekarya:admin list
+php artisan sekarya:admin suspend --email=verif@domainanda.id   # + cabut tokennya
+```
+
+Masuknya lewat `POST /api/v1/admin/auth/login`. Panduan lengkap konsolnya di
+[`API.md` bagian 14](API.md#14-konsol-pengelola).
+
+---
+
+## 8. Cron
 
 cPanel > **Cron Jobs**. Sesuaikan path PHP-nya — cPanel biasanya menyediakan versi khusus
 seperti `/opt/cpanel/ea-php83/root/usr/bin/php`.
@@ -298,7 +352,7 @@ Saat ini belum ada tugas terjadwal maupun job yang wajib. Antrean baru terpakai 
 
 ---
 
-## 8. Verifikasi setelah pasang
+## 9. Verifikasi setelah pasang
 
 Jalankan dari komputer sendiri, ganti domainnya:
 
@@ -342,7 +396,7 @@ akun yang bisa diaktifkan, dan seluruh API praktis tidak bisa dipakai.
 
 ---
 
-## 9. Pembaruan berikutnya
+## 10. Pembaruan berikutnya
 
 ```bash
 cd ~/sekarya

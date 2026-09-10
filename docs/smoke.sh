@@ -116,6 +116,17 @@ fi
 grep -q '^MAIL_MAILER=log' .env || \
     echo "${Y}CATATAN${N} MAIL_MAILER bukan 'log' — kode verifikasi tidak terbaca dari log."
 
+# Akun pengelola TIDAK bisa dibuat lewat API — tidak ada endpoint pendaftaran
+# pengelola, dan seeder-nya sengaja tidak ada (berkas seeder dan berkas
+# pemasangan SQL sama-sama dilacak git). Satu-satunya jalannya perintah ini.
+ADMIN_PASS='RahasiaKuatSekali99!'
+php artisan sekarya:admin create --name="Super Admin" --email=super@sekarya.test \
+    --password="$ADMIN_PASS" --no-interaction >/dev/null 2>&1 \
+    || { echo "${R}FATAL${N} tidak bisa membuat super_admin"; exit 1; }
+php artisan sekarya:admin create --role=admin --name="Verifikator" --email=verif@sekarya.test \
+    --password="$ADMIN_PASS" --no-interaction >/dev/null 2>&1 \
+    || { echo "${R}FATAL${N} tidak bisa membuat admin"; exit 1; }
+
 # ── 2. server ────────────────────────────────────────────────────────────────
 if curl -sf -o /dev/null "http://127.0.0.1:${PORT}/up" 2>/dev/null; then
     echo "${Y}==>${N} Memakai server yang sudah jalan di port ${PORT}"
@@ -216,6 +227,53 @@ check "access token BARU berlaku" 200 - - \
 
 ACCESS="$NEW_ACCESS"
 AUTH=(-H "Authorization: Bearer ${ACCESS}" -H "$ACC")
+
+# ── 4b. sesi pengelola ───────────────────────────────────────────────────────
+#
+# Populasi token yang BERBEDA. Akun pengelola ada di tabelnya sendiri dengan
+# guard-nya sendiri, jadi kedua arah harus ditolak — dan itu bergantung pada
+# satu baris config (`provider` pada guard) yang kalau hilang membuat Sanctum
+# meloloskan pemilik token jenis apa pun TANPA galat apa pun.
+echo
+echo "${Y}==>${N} Sesi pengelola"
+
+ADMIN_PAIR="$(curl -s -X POST "$BASE/admin/auth/login" -H "$ACC" -H "$CT" \
+    -d "{\"email\":\"super@sekarya.test\",\"password\":\"${ADMIN_PASS}\"}")"
+ADMIN_TOKEN="$(json "$ADMIN_PAIR" "d['data']['access_token']")"
+ADMIN_LONG_TOKEN="$(json "$ADMIN_PAIR" "d['data']['long_lived_token']")"
+ADMIN_ROLE="$(json "$ADMIN_PAIR" "d['data']['admin']['role']")"
+
+if [[ "$ADMIN_ROLE" == "super_admin" && -n "$ADMIN_TOKEN" ]]; then
+    ok "super_admin masuk + menerima 2 token"
+else
+    bad "login pengelola gagal (role=${ADMIN_ROLE})"
+    echo "${R}Tidak bisa lanjut tanpa token pengelola.${N}"
+    exit 1
+fi
+
+ADMIN=(-H "Authorization: Bearer ${ADMIN_TOKEN}" -H "$ACC")
+ADMIN_LONG=(-H "Authorization: Bearer ${ADMIN_LONG_TOKEN}" -H "$ACC")
+
+VERIF_PAIR="$(curl -s -X POST "$BASE/admin/auth/login" -H "$ACC" -H "$CT" \
+    -d "{\"email\":\"verif@sekarya.test\",\"password\":\"${ADMIN_PASS}\"}")"
+VERIF_TOKEN="$(json "$VERIF_PAIR" "d['data']['access_token']")"
+VERIF_ADMIN=(-H "Authorization: Bearer ${VERIF_TOKEN}" -H "$ACC")
+
+check "sandi pengelola salah = alamat tak dikenal" 401 "d['code']" '"invalid_credentials"' \
+    -X POST "$BASE/admin/auth/login" -H "$ACC" -H "$CT" \
+    -d '{"email":"super@sekarya.test","password":"salah"}'
+check "alamat pengelola tak dikenal, jawaban sama" 401 "d['code']" '"invalid_credentials"' \
+    -X POST "$BASE/admin/auth/login" -H "$ACC" -H "$CT" \
+    -d '{"email":"tidakada@sekarya.test","password":"RahasiaKuatSekali99!"}'
+
+check "token PENGGUNA ditolak di /admin" 401 "d['code']" '"unauthenticated"' \
+    "${AUTH[@]}" "$BASE/admin/me"
+check "token PENGELOLA ditolak di endpoint pengguna" 401 "d['code']" '"unauthenticated"' \
+    "${ADMIN[@]}" "$BASE/me"
+check "long_lived pengelola ditolak di /admin" 403 - - \
+    "${ADMIN_LONG[@]}" "$BASE/admin/me"
+check "pengelola melihat dirinya sendiri" 200 "d['data']['is_super_admin']" 'true' \
+    "${ADMIN[@]}" "$BASE/admin/me"
 
 # ── 5. rate limit & CORS ─────────────────────────────────────────────────────
 echo
@@ -324,12 +382,30 @@ check "activity belum ada sebelum dana ditahan" 200 \
     "d['data'].get('activities') in (None, [])" 'true' \
     "${AUTH[@]}" "$BASE/tasks/$TASK"
 
-# Satu transfer membuka satu activity PER pekerja, jadi responsnya daftar.
-ACT="$(json "$(curl -s -X POST "$BASE/tasks/$TASK/payment/hold" "${AUTH[@]}")" "d['data'][0]['id']")"
-[[ -n "$ACT" ]] && ok "transfer -> dana ditahan -> activity dibuka ${DIM}${ACT}${N}" \
-                || bad "activity tidak terbuka setelah transfer"
+# Pemberi kerja MELAPOR; yang menahan dana pengelola. Dua langkah, dua aktor.
+PAY="$(json "$(curl -s "$BASE/tasks/$TASK/payment" "${AUTH[@]}")" "d['data']['id']")"
+check "lapor transfer TIDAK membuka apa pun" 200 \
+    "[d['data']['status'], d['data']['is_held'], d['data']['awaits_confirmation']]" \
+    '["awaiting_confirmation", false, true]' \
+    -X POST "$BASE/tasks/$TASK/payment/hold" "${AUTH[@]}"
+check "activity masih belum ada setelah laporan" 200 \
+    "d['data'].get('activities') in (None, [])" 'true' \
+    "${AUTH[@]}" "$BASE/tasks/$TASK"
+check "pemberi kerja tidak bisa mengonfirmasi transfernya sendiri" 401 "d['code']" '"unauthenticated"' \
+    -X POST "$BASE/admin/payments/$PAY/confirm" "${AUTH[@]}"
 
-check "transfer dua kali ditolak" 422 "d['code']" '"invalid_status_transition"' \
+check "pengelola konfirmasi -> dana ditahan -> task aktif" 200 \
+    "[d['data']['status'], d['data']['is_held'], d['data']['task']['status']]" \
+    '["held", true, "active"]' \
+    -X POST "$BASE/admin/payments/$PAY/confirm" "${ADMIN[@]}"
+
+ACT="$(json "$(curl -s "$BASE/activities/mine" "${W[@]}")" "d['data'][0]['id']")"
+[[ -n "$ACT" ]] && ok "activity terbuka setelah konfirmasi ${DIM}${ACT}${N}" \
+                || bad "activity tidak terbuka setelah konfirmasi"
+
+check "konfirmasi dua kali ditolak" 422 "d['code']" '"invalid_status_transition"' \
+    -X POST "$BASE/admin/payments/$PAY/confirm" "${ADMIN[@]}"
+check "lapor lagi setelah dana ditahan ditolak" 422 "d['code']" '"invalid_status_transition"' \
     -X POST "$BASE/tasks/$TASK/payment/hold" "${AUTH[@]}"
 check "penerima kerja mulai bekerja" 200 "d['data']['status']" '"in_progress"' \
     -X POST "$BASE/activities/$ACT/start" "${W[@]}"
@@ -390,9 +466,12 @@ check "pelamar yang tidak terpilih ikut ditutup" 200 "d['data'][0]['status']" '"
 check "merekrut melebihi slot ditolak" 409 "d['code']" '"task_already_dealt"' \
     -X POST "$BASE/bids/$B3/accept" "${AUTH[@]}"
 
-check "satu transfer membuka satu activity per pekerja" 201 \
-    "[len(d['data']), sorted(a['agreed_amount'] for a in d['data'])]" '[2, [120000, 150000]]' \
-    -X POST "$BASE/tasks/$CREW/payment/hold" "${AUTH[@]}"
+curl -s -o /dev/null -X POST "$BASE/tasks/$CREW/payment/hold" "${AUTH[@]}"
+CREW_PAY="$(json "$(curl -s "$BASE/tasks/$CREW/payment" "${AUTH[@]}")" "d['data']['id']")"
+check "satu konfirmasi menahan tagihan gabungan" 200 \
+    "[d['data']['status'], d['data']['amount'], d['data']['task']['workers_hired']]" \
+    '["held", 270000, 2]' \
+    -X POST "$BASE/admin/payments/$CREW_PAY/confirm" "${ADMIN[@]}"
 check "task menampilkan seluruh pekerjanya" 200 "len(d['data']['workers'])" '2' \
     "${AUTH[@]}" "$BASE/tasks/$CREW"
 
@@ -487,6 +566,87 @@ check "NIK TIDAK bocor" 200 "'3174012345678901' in json.dumps(d)" 'false' \
     "${W[@]}" "$BASE/me/verifications"
 check "hash kata sandi TIDAK bocor" 200 "'password' in d['data']" 'false' \
     "${W[@]}" "$BASE/me"
+
+# ── 9b. antrean pengelola ────────────────────────────────────────────────────
+echo
+echo "${Y}==>${N} Verifikasi & moderasi oleh pengelola"
+
+VER_ID="$(json "$(curl -s "$BASE/admin/verifications" "${ADMIN[@]}")" "d['data'][0]['id']")"
+check "pengajuan muncul di antrean pengelola" 200 \
+    "[d['data'][0]['status'], d['data'][0]['awaits_review']]" '["pending", true]' \
+    "${ADMIN[@]}" "$BASE/admin/verifications"
+check "DAFTAR antrean tidak membawa NIK" 200 "'3174012345678901' in json.dumps(d)" 'false' \
+    "${ADMIN[@]}" "$BASE/admin/verifications"
+check "DETAIL membuka NIK untuk penilainya" 200 "d['data']['document_number']" '"3174012345678901"' \
+    "${ADMIN[@]}" "$BASE/admin/verifications/$VER_ID"
+check "detail tetap menyembunyikan path foto" 200 "'ktp-rahasia' in json.dumps(d)" 'false' \
+    "${ADMIN[@]}" "$BASE/admin/verifications/$VER_ID"
+check "menolak tanpa alasan ditolak validasi" 422 "'reason' in d['errors']" 'true' \
+    -X POST "$BASE/admin/verifications/$VER_ID/reject" "${ADMIN[@]}" -H "$CT" -d '{}'
+check "pengelola menyetujui identitas" 200 "d['data']['status']" '"verified"' \
+    -X POST "$BASE/admin/verifications/$VER_ID/approve" "${ADMIN[@]}"
+check "badge terverifikasi menyala untuk pemiliknya" 200 "d['data'][0]['is_verified']" 'true' \
+    "${W[@]}" "$BASE/me/verifications"
+check "menyetujui dua kali ditolak" 422 "d['code']" '"invalid_status_transition"' \
+    -X POST "$BASE/admin/verifications/$VER_ID/approve" "${ADMIN[@]}"
+check "pengguna tidak bisa menyentuh antrean verifikasi" 401 "d['code']" '"unauthenticated"' \
+    -X POST "$BASE/admin/verifications/$VER_ID/approve" "${W[@]}"
+
+# Moderasi: yang benar-benar menghentikan orangnya adalah pencabutan token,
+# bukan kolom status — token akses hidup delapan jam dan tidak menyimpannya.
+#
+# Sasarannya akun baru yang SUDAH memverifikasi email. Memakai akun yang belum
+# verifikasi akan menguji hal lain: login-nya ditolak `email_not_verified`
+# lebih dulu, jadi penangguhannya tidak pernah terbukti berpengaruh.
+MOD_PAIR="$(signup "Akun Moderasi" "moderasi@sekarya.test" "+628777000111")"
+MOD="$(json "$MOD_PAIR" "d['data']['user']['id']")"
+MOD_TOKEN="$(json "$MOD_PAIR" "d['data']['access_token']")"
+
+check "cari pengguna lewat email persis" 200 "len(d['data'])" '1' \
+    "${ADMIN[@]}" "$BASE/admin/users?email=moderasi@sekarya.test"
+check "email tak terdaftar = daftar kosong, bukan 422" 200 "len(d['data'])" '0' \
+    "${ADMIN[@]}" "$BASE/admin/users?email=hantu@sekarya.test"
+check "token akun itu masih berlaku sebelum moderasi" 200 "d['data']['status']" '"active"' \
+    -H "Authorization: Bearer ${MOD_TOKEN}" -H "$ACC" "$BASE/me"
+check "menangguhkan butuh alasan" 422 "'reason' in d['errors']" 'true' \
+    -X POST "$BASE/admin/users/$MOD/suspend" "${ADMIN[@]}" -H "$CT" -d '{}'
+check "pengguna ditangguhkan" 200 "d['data']['status']" '"suspended"' \
+    -X POST "$BASE/admin/users/$MOD/suspend" "${ADMIN[@]}" -H "$CT" \
+    -d '{"reason":"Melaporkan transfer palsu dua kali berturut-turut."}'
+check "token yang SUDAH DIPEGANG langsung mati" 401 "d['code']" '"unauthenticated"' \
+    -H "Authorization: Bearer ${MOD_TOKEN}" -H "$ACC" "$BASE/me"
+check "akun yang ditangguhkan tidak bisa masuk lagi" 403 "d['code']" '"account_not_active"' \
+    -X POST "$BASE/auth/login" -H "$ACC" -H "$CT" \
+    -d '{"email":"moderasi@sekarya.test","password":"RahasiaKuat2026"}'
+check "pengguna dipulihkan ke active (emailnya sudah terverifikasi)" 200 "d['data']['status']" '"active"' \
+    -X POST "$BASE/admin/users/$MOD/reinstate" "${ADMIN[@]}"
+check "dan bisa masuk lagi" 200 "d['data']['user']['status']" '"active"' \
+    -X POST "$BASE/auth/login" -H "$ACC" -H "$CT" \
+    -d '{"email":"moderasi@sekarya.test","password":"RahasiaKuat2026"}'
+
+# Akun pengelola: hanya super_admin.
+check "peran admin TIDAK boleh melihat daftar pengelola" 403 "d['context']['reason']" '"insufficient_role"' \
+    "${VERIF_ADMIN[@]}" "$BASE/admin/admins"
+check "peran admin TIDAK boleh membuat pengelola" 403 "d['context']['reason']" '"insufficient_role"' \
+    -X POST "$BASE/admin/admins" "${VERIF_ADMIN[@]}" -H "$CT" \
+    -d '{"name":"Curang","email":"curang@sekarya.test","password":"RahasiaKuatSekali99!","password_confirmation":"RahasiaKuatSekali99!"}'
+check "super_admin membuat pengelola baru" 201 "[d['data']['role'], d['data']['status']]" '["admin", "active"]' \
+    -X POST "$BASE/admin/admins" "${ADMIN[@]}" -H "$CT" \
+    -d '{"name":"Verifikator Tiga","email":"verif3@sekarya.test","password":"RahasiaKuatSekali99!","password_confirmation":"RahasiaKuatSekali99!"}'
+check "peran TIDAK bisa diselundupkan lewat payload" 201 "d['data']['role']" '"admin"' \
+    -X POST "$BASE/admin/admins" "${ADMIN[@]}" -H "$CT" \
+    -d '{"name":"Penyusup","email":"penyusup@sekarya.test","password":"RahasiaKuatSekali99!","password_confirmation":"RahasiaKuatSekali99!","role":"super_admin"}'
+
+SUPER_ID="$(json "$(curl -s "$BASE/admin/me" "${ADMIN[@]}")" "d['data']['id']")"
+NEW_ADMIN_ID="$(json "$(curl -s "$BASE/admin/admins" "${ADMIN[@]}")" \
+    "[a['id'] for a in d['data'] if a['email'] == 'verif3@sekarya.test'][0]")"
+check "super_admin TIDAK bisa dihapus" 403 "d['code']" '"super_admin_protected"' \
+    -X DELETE "$BASE/admin/admins/$SUPER_ID" "${ADMIN[@]}"
+check "pengelola biasa bisa dihapus" 200 - - \
+    -X DELETE "$BASE/admin/admins/$NEW_ADMIN_ID" "${ADMIN[@]}"
+check "yang dihapus tidak muncul lagi di daftar" 200 \
+    "[a['email'] for a in d['data'] if a['email'] == 'verif3@sekarya.test']" '[]' \
+    "${ADMIN[@]}" "$BASE/admin/admins"
 
 # ── 10. feed & filter ────────────────────────────────────────────────────────
 echo

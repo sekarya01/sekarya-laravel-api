@@ -9,6 +9,28 @@ use App\Http\Controllers\Api\V1\Activity\RejectActivityController;
 use App\Http\Controllers\Api\V1\Activity\ShowActivityController;
 use App\Http\Controllers\Api\V1\Activity\StartActivityController;
 use App\Http\Controllers\Api\V1\Activity\SubmitActivityController;
+use App\Http\Controllers\Api\V1\Admin\Access\CreateAdminController;
+use App\Http\Controllers\Api\V1\Admin\Access\DeleteAdminController;
+use App\Http\Controllers\Api\V1\Admin\Access\ListAdminsController;
+use App\Http\Controllers\Api\V1\Admin\Access\ShowAdminController;
+use App\Http\Controllers\Api\V1\Admin\Auth\AdminLoginController;
+use App\Http\Controllers\Api\V1\Admin\Auth\AdminLogoutController;
+use App\Http\Controllers\Api\V1\Admin\Auth\AdminRefreshTokenController;
+use App\Http\Controllers\Api\V1\Admin\Auth\ShowAdminMeController;
+use App\Http\Controllers\Api\V1\Admin\Payment\ConfirmPaymentController;
+use App\Http\Controllers\Api\V1\Admin\Payment\ListPaymentQueueController;
+use App\Http\Controllers\Api\V1\Admin\Payment\RejectPaymentController;
+use App\Http\Controllers\Api\V1\Admin\Payment\ShowPaymentController;
+use App\Http\Controllers\Api\V1\Admin\User\BanUserController;
+use App\Http\Controllers\Api\V1\Admin\User\ListUsersController;
+use App\Http\Controllers\Api\V1\Admin\User\ReinstateUserController;
+use App\Http\Controllers\Api\V1\Admin\User\ShowUserController;
+use App\Http\Controllers\Api\V1\Admin\User\SuspendUserController;
+use App\Http\Controllers\Api\V1\Admin\Verification\ApproveVerificationController;
+use App\Http\Controllers\Api\V1\Admin\Verification\ListVerificationQueueController;
+use App\Http\Controllers\Api\V1\Admin\Verification\RejectVerificationController;
+use App\Http\Controllers\Api\V1\Admin\Verification\RevokeVerificationController;
+use App\Http\Controllers\Api\V1\Admin\Verification\ShowVerificationController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\RefreshTokenController;
@@ -133,9 +155,13 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         Route::post('bids/{bid}/accept', AcceptBidController::class)
             ->can('accept', 'bid')->name('bids.accept');
 
-        // Uang (STUB — nanti dipicu webhook gateway, bukan endpoint ini)
+        // Uang. Pemberi kerja MELAPOR sudah transfer; yang menahan dana
+        // (dan dengan itu membuka activity) hanya pengelola, lewat
+        // POST /admin/payments/{payment}/confirm.
         Route::get('tasks/{task}/payment', ShowTaskPaymentController::class)
             ->can('view', 'task')->name('tasks.payment.show');
+        // Path dan nama rutenya TETAP `payment/hold` demi klien yang sudah ada,
+        // tapi panggilan ini tidak lagi menahan dana — ia hanya melapor.
         Route::post('tasks/{task}/payment/hold', HoldPaymentController::class)
             ->can('pay', 'task')->name('tasks.payment.hold');
 
@@ -156,5 +182,114 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         Route::post('tasks/{task}/reviews', CreateReviewController::class)
             ->can('review', 'task')->name('tasks.reviews.store');
         Route::get('users/{user}/reviews', ListUserReviewsController::class)->name('users.reviews.index');
+    });
+    /*
+    |--------------------------------------------------------------------------
+    | PENGELOLA — populasi token yang BERBEDA
+    |--------------------------------------------------------------------------
+    |
+    | Guard `admin`, bukan `sanctum`. Bedanya bukan kosmetik: provider kedua
+    | guard disebut eksplisit di config/auth.php, dan itulah yang membuat token
+    | pengguna ditolak di sini dan token pengelola ditolak di endpoint
+    | pengguna. Tanpa provider eksplisit, Sanctum meloloskan pemilik token
+    | jenis apa pun — penjelasan lengkapnya di config/auth.php.
+    |
+    | Empat lapis, satu lebih banyak daripada endpoint pengguna:
+    |
+    |  1. auth:admin                    — token sah DAN milik App\Models\Admin
+    |  2. abilities:admin:access        — token jenis access, bukan long_lived
+    |  3. admin.active                  — akunnya belum dinonaktifkan. Lapis
+    |                                     ini ada karena status akun tidak
+    |                                     tersimpan di dalam token, dan token
+    |                                     itu hidup delapan jam.
+    |  4. throttle:admin                — batas laju
+    |
+    | Kelompok `admins` di dalamnya menambah lapis kelima: ->can(), yang
+    | menuntut peran super_admin. Aturannya di App\Policies\AdminPolicy,
+    | sumbernya AdminRole::can().
+    |
+    */
+
+    Route::prefix('admin')->name('admin.')->group(function (): void {
+
+        // ── Auth pengelola: tidak ada pendaftaran, dan itu disengaja ───────
+        // Akun pengelola hanya lahir dari dua tempat: perintah
+        // `php artisan sekarya:admin create` (super_admin, sekali) dan
+        // POST /admin/admins (dipanggil super_admin). Sebuah endpoint
+        // pendaftaran pengelola adalah pintu kenaikan hak akses yang terbuka
+        // ke internet.
+        Route::post('auth/login', AdminLoginController::class)
+            ->middleware('throttle:admin_login')->name('auth.login');
+
+        // HANYA long_lived pengelola yang boleh menukar diri jadi access baru.
+        Route::post('auth/refresh', AdminRefreshTokenController::class)
+            ->middleware([
+                'auth:admin',
+                'abilities:'.TokenAbility::AdminRefresh->value,
+                'throttle:refresh',
+            ])->name('auth.refresh');
+
+        // Logout menerima kedua jenis token dan TIDAK memakai `admin.active`:
+        // pengelola yang baru dinonaktifkan harus tetap bisa mencabut
+        // tokennya sendiri.
+        Route::post('auth/logout', AdminLogoutController::class)
+            ->middleware(['auth:admin', 'throttle:admin'])->name('auth.logout');
+
+        Route::middleware([
+            'auth:admin',
+            'abilities:'.TokenAbility::AdminAccess->value,
+            'admin.active',
+            'throttle:admin',
+        ])->group(function (): void {
+
+            Route::get('me', ShowAdminMeController::class)->name('me.show');
+
+            // ── Verifikasi identitas & rekening ────────────────────────────
+            Route::get('verifications', ListVerificationQueueController::class)
+                ->name('verifications.index');
+            // Detail MENULIS jejak baca — di sinilah NIK keluar terbaca.
+            Route::get('verifications/{verification}', ShowVerificationController::class)
+                ->name('verifications.show');
+            Route::post('verifications/{verification}/approve', ApproveVerificationController::class)
+                ->name('verifications.approve');
+            Route::post('verifications/{verification}/reject', RejectVerificationController::class)
+                ->name('verifications.reject');
+            Route::post('verifications/{verification}/revoke', RevokeVerificationController::class)
+                ->name('verifications.revoke');
+
+            // ── Konfirmasi transfer ───────────────────────────────────────
+            Route::get('payments', ListPaymentQueueController::class)->name('payments.index');
+            Route::get('payments/{payment}', ShowPaymentController::class)->name('payments.show');
+            // Satu-satunya jalan ke `held`, dan `held` membuka pekerjaan.
+            Route::post('payments/{payment}/confirm', ConfirmPaymentController::class)
+                ->name('payments.confirm');
+            Route::post('payments/{payment}/reject', RejectPaymentController::class)
+                ->name('payments.reject');
+
+            // ── Moderasi pengguna ─────────────────────────────────────────
+            Route::get('users', ListUsersController::class)->name('users.index');
+            Route::get('users/{user}', ShowUserController::class)->name('users.show');
+            Route::post('users/{user}/suspend', SuspendUserController::class)->name('users.suspend');
+            Route::post('users/{user}/ban', BanUserController::class)->name('users.ban');
+            Route::post('users/{user}/reinstate', ReinstateUserController::class)->name('users.reinstate');
+
+            // ── Akun pengelola — HANYA super_admin ────────────────────────
+            //
+            // Gerbangnya middleware, bukan Policy: aturannya kasar (soal peran
+            // pemanggil, bukan soal objeknya), dan penolakan lewat Policy
+            // keluar sebagai galat bawaan Laravel tanpa kode mesin —
+            // sedangkan Action menolak hal yang sama dengan
+            // `admin_access_denied`. Satu kegagalan, satu bentuk respons.
+            //
+            // Sasaran super_admin ditolak di dalam Action, dengan kode
+            // `super_admin_protected`. Penjaga terakhirnya hook `deleting` di
+            // model Admin, dan jumlahnya dijaga indeks unique di basis data.
+            Route::middleware('admin.manages-admins')->group(function (): void {
+                Route::get('admins', ListAdminsController::class)->name('admins.index');
+                Route::post('admins', CreateAdminController::class)->name('admins.store');
+                Route::get('admins/{admin}', ShowAdminController::class)->name('admins.show');
+                Route::delete('admins/{admin}', DeleteAdminController::class)->name('admins.destroy');
+            });
+        });
     });
 });

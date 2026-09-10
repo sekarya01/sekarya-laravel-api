@@ -30,6 +30,7 @@ final class Payment extends Model
         return [
             'status' => PaymentStatus::class,
             'amount' => 'integer',
+            'reported_at' => 'datetime',
             'paid_at' => 'datetime',
             'held_at' => 'datetime',
             'released_at' => 'datetime',

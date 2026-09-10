@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
 use Database\Factories\UserVerificationFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -54,5 +55,32 @@ final class UserVerification extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Pengelola yang menilai. `reviewed_by` menunjuk `admins`, bukan `users` —
+     * dijamin foreign key sejak migrasi
+     * `link_verification_reviewer_to_admins`.
+     *
+     * @return BelongsTo<Admin, $this>
+     */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'reviewed_by');
+    }
+
+    /**
+     * Antrean penilaian: yang belum final, paling lama menunggu di depan.
+     *
+     * Urutannya `submitted_at` lalu `id` — dua baris yang diajukan pada detik
+     * yang sama tidak boleh menghasilkan urutan yang berbeda antar halaman,
+     * yang pada cursor pagination berarti baris terlewat atau terkirim dua
+     * kali.
+     *
+     * @param  Builder<$this>  $query
+     */
+    public function scopeQueueOrder(Builder $query): void
+    {
+        $query->orderBy('submitted_at')->orderBy('id');
     }
 }

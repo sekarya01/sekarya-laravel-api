@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
-use App\Enums\TokenAbility;
+use App\Models\Admin;
 use App\Models\User;
 use Laravel\Sanctum\NewAccessToken;
 
@@ -14,6 +14,18 @@ use Laravel\Sanctum\NewAccessToken;
  * Ada supaya aturan umur token dan aturan rotasi tidak tersebar di beberapa
  * Action. Kalau nanti umurnya berubah atau long_lived ikut dirotasi, hanya
  * kelas ini yang disunting.
+ *
+ * Melayani DUA jenis pemilik token: pengguna dan pengelola. Yang membedakan
+ * keduanya hanya ability yang dilekatkan, dan itu ditanyakan kepada
+ * pemiliknya (`accessAbility()`), bukan dicabang di sini — kalau dicabang,
+ * aturan "logout mencabut long_lived juga" dan "access lama mati saat rotasi"
+ * harus ditulis dua kali, dan yang satu akan tertinggal.
+ *
+ * Tipenya union `User|Admin`, bukan sebuah interface: `createToken()` dan
+ * `tokens()` datang dari trait HasApiTokens milik Sanctum, dan trait bukan
+ * kontrak — sebuah interface di sini harus menyalin tanda tangan Sanctum dan
+ * akan pecah setiap kali Sanctum mengubahnya (dan Sanctum sudah pernah
+ * mengubahnya: `$expiresAt` baru ada di v4).
  */
 final class TokenIssuer
 {
@@ -25,13 +37,13 @@ final class TokenIssuer
      *
      * @return array{access: NewAccessToken, long_lived: NewAccessToken}
      */
-    public function issuePair(User $user): array
+    public function issuePair(User|Admin $owner): array
     {
-        $this->revokeAll($user);
+        $this->revokeAll($owner);
 
         return [
-            'long_lived' => $this->createLongLived($user),
-            'access' => $this->createAccess($user),
+            'long_lived' => $this->createLongLived($owner),
+            'access' => $this->createAccess($owner),
         ];
     }
 
@@ -42,25 +54,25 @@ final class TokenIssuer
      * baru diminta, yang lama tidak bisa dipakai lagi. Long_lived token
      * sendiri tidak diganti.
      */
-    public function rotateAccess(User $user): NewAccessToken
+    public function rotateAccess(User|Admin $owner): NewAccessToken
     {
-        $this->revokeAccessTokens($user);
+        $this->revokeAccessTokens($owner);
 
-        return $this->createAccess($user);
+        return $this->createAccess($owner);
     }
 
     /** Cabut semua access token, sisakan long_lived. */
-    public function revokeAccessTokens(User $user): void
+    public function revokeAccessTokens(User|Admin $owner): void
     {
-        $user->tokens()
+        $owner->tokens()
             ->where('name', config('sekarya.tokens.access_name'))
             ->delete();
     }
 
     /** Cabut seluruh token — logout menyeluruh. */
-    public function revokeAll(User $user): void
+    public function revokeAll(User|Admin $owner): void
     {
-        $user->tokens()->delete();
+        $owner->tokens()->delete();
     }
 
     public function accessTtlHours(): int
@@ -68,22 +80,22 @@ final class TokenIssuer
         return (int) config('sekarya.tokens.access_ttl_hours');
     }
 
-    private function createAccess(User $user): NewAccessToken
+    private function createAccess(User|Admin $owner): NewAccessToken
     {
-        return $user->createToken(
+        return $owner->createToken(
             (string) config('sekarya.tokens.access_name'),
-            [TokenAbility::Access->value],
+            [$owner->accessAbility()->value],
             now()->addHours($this->accessTtlHours()),
         );
     }
 
-    private function createLongLived(User $user): NewAccessToken
+    private function createLongLived(User|Admin $owner): NewAccessToken
     {
-        return $user->createToken(
+        return $owner->createToken(
             (string) config('sekarya.tokens.long_lived_name'),
             // HANYA kemampuan refresh. Token ini tidak bisa memanggil
             // endpoint aplikasi apa pun, sesuai perannya.
-            [TokenAbility::Refresh->value],
+            [$owner->refreshAbility()->value],
             now()->addDays((int) config('sekarya.tokens.long_lived_ttl_days')),
         );
     }

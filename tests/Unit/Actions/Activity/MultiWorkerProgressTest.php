@@ -10,7 +10,6 @@ use App\Actions\Activity\StartActivityAction;
 use App\Actions\Activity\SubmitActivityAction;
 use App\Actions\Bid\AcceptBidAction;
 use App\Actions\Bid\PlaceBidAction;
-use App\Actions\Payment\HoldPaymentAction;
 use App\Data\Activity\SubmitActivityData;
 use App\Data\Bid\PlaceBidData;
 use App\Enums\ActivityStatus;
@@ -77,8 +76,7 @@ final class MultiWorkerProgressTest extends TestCase
             app(AcceptBidAction::class)->handle($bid, $this->poster);
         }
 
-        $this->activities = app(HoldPaymentAction::class)
-            ->handle($this->task->refresh(), $this->poster)
+        $this->activities = $this->openActivities($this->task->refresh(), $this->poster)
             ->values();
     }
 

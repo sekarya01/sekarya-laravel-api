@@ -23,6 +23,17 @@ final class PaymentResource extends BaseResource
             'amount' => $this->amount,
             // Kunci yang menggerakkan UI: dana sudah ditahan atau belum.
             'is_held' => $this->status->opensActivity(),
+
+            // Laporan transfer menunggu pengelola. Pemberi kerja yang melihat
+            // ini tahu bahwa bolanya bukan lagi di tangannya.
+            'awaits_confirmation' => $this->status->awaitsConfirmation(),
+            'reported_at' => $this->iso($this->reported_at),
+
+            // Alasan laporan transfer sebelumnya ditolak. Tanpa ini, "kembali
+            // ke pending" tidak mengatakan apa pun tentang apa yang harus
+            // diperbaiki, dan laporan berikutnya akan sama saja.
+            'rejection_reason' => $this->rejection_reason,
+
             'paid_at' => $this->iso($this->paid_at),
             'held_at' => $this->iso($this->held_at),
             'released_at' => $this->iso($this->released_at),

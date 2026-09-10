@@ -392,6 +392,16 @@ return [
         'v1.auth.verify-email' => ['ok' => 'auth.email_verified', 'fail' => 'auth.verify_failed'],
         'v1.auth.resend-code' => ['ok' => 'auth.code_resent'],
         'v1.auth.refresh' => ['ok' => 'auth.token_refreshed', 'fail' => 'auth.refresh_failed'],
+
+        // Pengelola. Terdaftar di sini untuk alasan yang sama seperti auth
+        // pengguna — aplikasi ini tidak pernah memanggil `Auth::attempt()`,
+        // jadi event Login/Failed milik Laravel tidak pernah menyala — dan
+        // untuk satu alasan tambahan: percobaan masuk yang gagal pada akun
+        // yang bisa menyetujui pembayaran adalah event keamanan yang paling
+        // perlu terlihat di dasbor.
+        'v1.admin.auth.login' => ['ok' => 'admin.login', 'fail' => 'admin.login_failed'],
+        'v1.admin.auth.logout' => ['ok' => 'admin.logout'],
+        'v1.admin.auth.refresh' => ['ok' => 'admin.token_refreshed', 'fail' => 'admin.refresh_failed'],
     ],
 
     /*

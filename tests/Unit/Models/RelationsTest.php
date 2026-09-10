@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Models;
 
-use App\Actions\Payment\HoldPaymentAction;
 use App\Enums\ActorType;
 use App\Enums\ReviewerRole;
 use App\Enums\TaskStatus;
@@ -49,7 +48,7 @@ final class RelationsTest extends TestCase
         $this->assertSame($poster->getKey(), $payment->payer->getKey());
         $this->assertNull($payment->activity);
 
-        $activity = app(HoldPaymentAction::class)->handle($task, $poster)->sole();
+        $activity = $this->openActivities($task, $poster)->sole();
         $this->assertSame($activity->getKey(), $payment->refresh()->activity->getKey());
     }
 

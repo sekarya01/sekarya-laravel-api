@@ -85,10 +85,29 @@ final class EnumsTest extends TestCase
 
     public function test_payment_transitions(): void
     {
-        $this->assertTrue(PaymentStatus::Pending->canTransitionTo(PaymentStatus::Held));
+        $this->assertTrue(PaymentStatus::Pending->canTransitionTo(PaymentStatus::AwaitingConfirmation));
         $this->assertTrue(PaymentStatus::Pending->canTransitionTo(PaymentStatus::Cancelled));
+        $this->assertTrue(PaymentStatus::AwaitingConfirmation->canTransitionTo(PaymentStatus::Held));
+        // Ditolak pengelola → kembali ke pending, boleh dilaporkan ulang.
+        $this->assertTrue(PaymentStatus::AwaitingConfirmation->canTransitionTo(PaymentStatus::Pending));
         $this->assertTrue(PaymentStatus::Held->canTransitionTo(PaymentStatus::Released));
         $this->assertTrue(PaymentStatus::Held->canTransitionTo(PaymentStatus::Refunded));
+    }
+
+    /**
+     * INVARIAN: dana tidak bisa ditahan tanpa melewati antrean pengelola.
+     *
+     * Ini satu-satunya hal yang menahan "pemberi kerja menyatakan sendiri
+     * uangnya sudah masuk". Kalau `pending -> held` dibuka lagi, endpoint
+     * pemberi kerja bisa membuka pekerjaan tanpa ada yang memeriksa mutasi.
+     */
+    public function test_money_cannot_be_held_without_being_reported_first(): void
+    {
+        $this->assertFalse(PaymentStatus::Pending->canTransitionTo(PaymentStatus::Held));
+
+        $this->assertTrue(PaymentStatus::AwaitingConfirmation->awaitsConfirmation());
+        $this->assertFalse(PaymentStatus::Pending->awaitsConfirmation());
+        $this->assertFalse(PaymentStatus::Held->awaitsConfirmation());
     }
 
     public function test_payment_cannot_be_held_twice_or_reopened(): void
@@ -188,7 +207,10 @@ final class EnumsTest extends TestCase
     public function test_enum_values_are_stable(): void
     {
         $this->assertSame(['hiring', 'working'], array_column(UserActiveMode::cases(), 'value'));
-        $this->assertSame(['token:access', 'token:refresh'], array_column(TokenAbility::cases(), 'value'));
+        $this->assertSame(
+            ['token:access', 'token:refresh', 'admin:access', 'admin:refresh'],
+            array_column(TokenAbility::cases(), 'value'),
+        );
         $this->assertSame(['identity', 'bank_account'], array_column(VerificationType::cases(), 'value'));
         $this->assertSame(['poster', 'worker'], array_column(ReviewerRole::cases(), 'value'));
     }
