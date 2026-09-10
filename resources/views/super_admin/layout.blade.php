@@ -95,6 +95,27 @@
         .marq.marq-go { text-overflow: clip; }
         .marq.marq-go .marq-in { animation: marqScroll 5s linear infinite; }
         @keyframes marqScroll { 0%, 12% { transform: translateX(0); } 88%, 100% { transform: translateX(calc(11rem - 100%)); } }
+
+        /* Drawer kanan generik (filter, dkk.) — tutup geser kiri→kanan,
+           buka geser kanan→kiri seperti popup. */
+        .rdrawer { position: fixed; inset: 0; z-index: 50; visibility: hidden; transition: visibility 0s .45s; }
+        .rdrawer.open { visibility: visible; transition-delay: 0s; }
+        .rdrawer-bg { position: absolute; inset: 0; background: rgba(10, 30, 53, .6);
+            backdrop-filter: blur(4px); opacity: 0; transition: opacity .35s ease; }
+        .rdrawer.open .rdrawer-bg { opacity: 1; }
+        .rdrawer-panel { position: absolute; top: 0; right: 0; height: 100%; width: 100%;
+            max-width: 22rem; display: flex; flex-direction: column; overflow-y: auto;
+            transform: translateX(105%); transition: transform .42s cubic-bezier(.22,.8,.32,1);
+            box-shadow: -24px 0 48px -16px rgba(10, 30, 53, .5); }
+        .rdrawer.open .rdrawer-panel { transform: translateX(0); }
+        .label-dark { display: block; font-size: .75rem; font-weight: 700; color: #B9C8DC; margin-bottom: .5rem; }
+        .field-dark { width: 100%; border-radius: .75rem; border: 1px solid rgba(255,255,255,.16);
+            background: rgba(255,255,255,.08); color: #fff; padding: .625rem 1rem; font-size: .875rem;
+            transition: all .2s ease; }
+        .field-dark::placeholder { color: rgba(255,255,255,.35); }
+        .field-dark:focus { outline: none; border-color: #F97316; background: rgba(255,255,255,.12);
+            box-shadow: 0 0 0 4px rgba(249,115,22,.25); }
+        .field-dark option { color: #0f172a; }
         .toast { animation: toastIn .35s cubic-bezier(.22,.8,.32,1) both; }
         .toast.hide { opacity: 0; transform: translateX(24px); transition: all .3s ease; }
         .stat-icon { width: 2.75rem; height: 2.75rem; border-radius: .875rem; display: flex; align-items: center;
@@ -283,6 +304,22 @@
         // yang sedang disabled — cegah di sini juga.
         form.addEventListener('submit', e => { if (btn.disabled) e.preventDefault(); });
         check();
+    });
+    // Drawer kanan generik: [data-open-drawer="id"] membuka, [data-close-drawer]
+    // atau Escape menutup.
+    function setRdrawer(id, open) {
+        const d = document.getElementById(id);
+        if (!d) return;
+        d.classList.toggle('open', open);
+        d.setAttribute('aria-hidden', String(!open));
+        document.body.style.overflow = open ? 'hidden' : '';
+    }
+    document.querySelectorAll('[data-open-drawer]').forEach(b =>
+        b.addEventListener('click', () => setRdrawer(b.dataset.openDrawer, true)));
+    document.querySelectorAll('[data-close-drawer]').forEach(b =>
+        b.addEventListener('click', () => { const d = b.closest('.rdrawer'); if (d) setRdrawer(d.id, false); }));
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') document.querySelectorAll('.rdrawer.open').forEach(d => setRdrawer(d.id, false));
     });
 </script>
 </body>
