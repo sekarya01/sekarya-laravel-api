@@ -46,5 +46,5 @@
     </div>
 </div>
 
-@include('super_admin.partials.pager', ['paginator' => $logs])
+@include('super_admin.partials.pages', ['paginator' => $logs])
 @endsection

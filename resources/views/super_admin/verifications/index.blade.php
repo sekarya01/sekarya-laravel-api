@@ -68,5 +68,5 @@
     </div>
 </div>
 
-@include('super_admin.partials.pager', ['paginator' => $queue])
+@include('super_admin.partials.pages', ['paginator' => $queue])
 @endsection

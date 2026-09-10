@@ -6,9 +6,7 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 
 use App\Actions\Admin\Access\CreateAdminAction;
 use App\Actions\Admin\Access\DeleteAdminAction;
-use App\Actions\Admin\Access\ListAdminsAction;
 use App\Data\Admin\CreateAdminData;
-use App\Data\CursorPageData;
 use App\Exceptions\Domain\DomainException;
 use App\Models\Admin;
 use Illuminate\Http\RedirectResponse;
@@ -24,9 +22,13 @@ use Illuminate\View\View;
  */
 final class AdminAccountController
 {
-    public function index(Request $request, ListAdminsAction $action): View
+    public function index(Request $request): View
     {
-        $admins = $action->handle(CursorPageData::fromRequest($request));
+        // Pagination BERNOMOR; urutannya sama seperti ListAdminsAction.
+        $admins = Admin::query()
+            ->latestFirst()
+            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->withQueryString();
 
         return view('super_admin.admins.index', ['admins' => $admins]);
     }

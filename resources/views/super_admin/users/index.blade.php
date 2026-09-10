@@ -6,21 +6,41 @@
 @section('content')
 <div class="anim-rise">
     <h3 class="text-xl font-extrabold" style="color: #163C68;">Moderasi pengguna</h3>
-    <p class="mt-1 text-sm text-slate-500"><span class="font-mono font-bold">email</span> adalah pencocokan persis (terindeks) — bukan pencarian sebagian. Tidak ada LIKE di proyek ini.</p>
+    <p class="mt-1 text-sm text-slate-500">Semua pencocokan <strong>persis dan terindeks</strong> — bukan pencarian sebagian. Tidak ada LIKE di proyek ini. Untuk ULID, langsung lompat ke detailnya.</p>
 </div>
 
 <form method="GET" class="anim-rise ad-1 mt-4 card p-4 flex flex-wrap items-end gap-3 text-sm">
     <div class="flex-1 min-w-[14rem]">
-        <label class="label">Email persis</label>
-        <input name="email" value="{{ $filterEmail }}" placeholder="cth. budi@sekarya.test" class="field">
+        <label class="label" for="u-email">Email persis</label>
+        <input id="u-email" name="email" value="{{ $filterEmail }}" placeholder="cth. budi@sekarya.test" class="field">
+    </div>
+    <div class="min-w-[12rem]">
+        <label class="label" for="u-ulid">Lompat via ULID</label>
+        <input id="u-ulid" name="ulid" value="{{ old('ulid') }}" placeholder="01K…" maxlength="26" class="field font-mono">
     </div>
     <div>
-        <label class="label">Status</label>
-        <select name="status" class="field w-auto! min-w-[12rem]">
+        <label class="label" for="u-status">Status</label>
+        <select id="u-status" name="status" class="field w-auto! min-w-[12rem]">
             <option value="">Semua status</option>
             @foreach (['active' => 'green', 'pending_verification' => 'amber', 'suspended' => 'orange', 'banned' => 'red'] as $s => $t)
                 <option value="{{ $s }}" @selected($filterStatus === $s)>{{ $s }}</option>
             @endforeach
+        </select>
+    </div>
+    <div>
+        <label class="label" for="u-gender">Jenis kelamin</label>
+        <select id="u-gender" name="gender" class="field w-auto! min-w-[10rem]">
+            <option value="">Semua</option>
+            <option value="male" @selected($filterGender === 'male')>Laki-laki</option>
+            <option value="female" @selected($filterGender === 'female')>Perempuan</option>
+        </select>
+    </div>
+    <div>
+        <label class="label" for="u-ready">Kesiapan kerja</label>
+        <select id="u-ready" name="ready" class="field w-auto! min-w-[10rem]">
+            <option value="">Semua</option>
+            <option value="yes" @selected($filterReady === 'yes')>Siap saja</option>
+            <option value="no" @selected($filterReady === 'no')>Belum siap</option>
         </select>
     </div>
     <button class="btn btn-accent">Cari</button>
@@ -45,7 +65,7 @@
                             <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-xs shrink-0" style="background: linear-gradient(135deg, #163C68, #2A5E9E);">
                                 {{ strtoupper(substr($u->name, 0, 1)) }}
                             </div>
-                            <div class="min-w-0"><p class="font-bold"><span class="marq" title="{{ $u->name }}"><span class="marq-in">{{ $u->name }}</span></span></p><p class="text-xs text-slate-400"><span class="marq" title="{{ $u->email }}"><span class="marq-in">{{ $u->email }}</span></span></p></div>
+                            <div class="min-w-0"><p class="font-bold"><span class="marq" title="{{ $u->name }}"><span class="marq-in">{{ $u->name }}</span></span></p><p class="text-xs text-slate-400"><span class="marq" title="{{ $u->email }}"><span class="marq-in">{{ $u->email }}</span></span></p>@if ($u->readyToWork())<p class="text-xs font-bold" style="color: #F97316;">● siap kerja</p>@endif</div>
                         </div>
                     </td>
                     <td class="td-c">@include('super_admin.partials.badge', ['text' => $u->status->value, 'tone' => $tone])</td>
@@ -62,5 +82,5 @@
     </div>
 </div>
 
-@include('super_admin.partials.pager', ['paginator' => $queue])
+@include('super_admin.partials.pages', ['paginator' => $queue])
 @endsection

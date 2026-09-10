@@ -31,7 +31,7 @@ final class AuditLogController
             ->with('admin')
             ->when($filterAction !== '', fn ($q) => $q->where('action', $filterAction))
             ->orderByDesc('id')
-            ->cursorPaginate($perPage)
+            ->paginate($perPage)
             ->withQueryString();
 
         return view('super_admin.audit.index', [

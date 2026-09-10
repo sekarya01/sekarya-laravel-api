@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Web\SuperAdmin;
 
-use App\Actions\Admin\Verification\ListVerificationQueueAction;
 use App\Actions\Admin\Verification\ReviewVerificationAction;
 use App\Actions\Admin\Verification\ViewVerificationAction;
 use App\Data\Admin\ReviewVerificationData;
-use App\Data\Admin\VerificationQueueData;
-use App\Data\CursorPageData;
 use App\Enums\AdminAction;
 use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
@@ -27,10 +24,14 @@ use Illuminate\View\View;
  * Daftar tidak memuat NIK / nomor rekening / path foto. Detail memanggil
  * ViewVerificationAction yang mencatat `verification.viewed` — setiap
  * pembukaan NIK meninggalkan jejak siapa, kapan, dari IP mana.
+ *
+ * Pagination BERNOMOR (bukan cursor seperti API): dasbor butuh lompat ke
+ * halaman tertentu + tahu totalnya. Aturan saring & urutnya disalin dari
+ * ListVerificationQueueAction — kalau Action itu berubah, samakan di sini.
  */
 final class VerificationController
 {
-    public function index(Request $request, ListVerificationQueueAction $action): View
+    public function index(Request $request): View
     {
         $request->validate([
             'status' => ['sometimes', 'string', 'max:30'],
@@ -46,14 +47,23 @@ final class VerificationController
             ? VerificationType::tryFrom($request->string('type')->value())
             : null;
 
-        $data = new VerificationQueueData(
-            page: CursorPageData::fromRequest($request),
-            status: $status,
-            type: $type,
-        );
+        $queue = UserVerification::query()
+            ->when(
+                $status !== null,
+                fn ($q) => $q->where('status', $status),
+                fn ($q) => $q->whereIn('status', [
+                    VerificationStatus::Pending,
+                    VerificationStatus::InReview,
+                ]),
+            )
+            ->when($type !== null, fn ($q) => $q->where('type', $type))
+            ->with('user')
+            ->queueOrder()
+            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->withQueryString();
 
         return view('super_admin.verifications.index', [
-            'queue' => $action->handle($data),
+            'queue' => $queue,
             'filterStatus' => $rawStatus,
             'filterType' => $request->string('type')->value() ?: '',
         ]);
@@ -80,8 +90,7 @@ final class VerificationController
             return back()->withErrors(['action' => $e->getMessage()]);
         }
 
-        return redirect()->route('super_admin.verifications.show', $verification)
-            ->with('status', 'Verifikasi disetujui.');
+        return $this->backTo($request, $verification, 'Verifikasi disetujui.');
     }
 
     public function reject(Request $request, UserVerification $verification, ReviewVerificationAction $action): RedirectResponse
@@ -108,8 +117,7 @@ final class VerificationController
             return back()->withErrors(['action' => $e->getMessage()])->withInput();
         }
 
-        return redirect()->route('super_admin.verifications.show', $verification)
-            ->with('status', 'Verifikasi ditolak. Alasan diteruskan ke pengguna.');
+        return $this->backTo($request, $verification, 'Verifikasi ditolak. Alasan diteruskan ke pengguna.');
     }
 
     public function revoke(Request $request, UserVerification $verification, ReviewVerificationAction $action): RedirectResponse
@@ -136,8 +144,24 @@ final class VerificationController
             return back()->withErrors(['action' => $e->getMessage()])->withInput();
         }
 
+        return $this->backTo($request, $verification, 'Verifikasi dicabut.');
+    }
+
+    /**
+     * Kembali ke halaman asal putusan — mis. halaman pekerja yang memuat
+     * formulir putusan inline. Hanya path dasbor sendiri yang diterima,
+     * supaya parameter ini tidak bisa jadi open redirect.
+     */
+    private function backTo(Request $request, UserVerification $verification, string $status): RedirectResponse
+    {
+        $to = $request->string('redirect_to')->value();
+
+        if (str_starts_with($to, '/access/super_admin/')) {
+            return redirect()->to($to)->with('status', $status);
+        }
+
         return redirect()->route('super_admin.verifications.show', $verification)
-            ->with('status', 'Verifikasi dicabut.');
+            ->with('status', $status);
     }
 
     /**
