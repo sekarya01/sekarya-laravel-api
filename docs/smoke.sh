@@ -440,9 +440,15 @@ W_INCOMPLETE=(-H "Authorization: Bearer ${INCOMPLETE_TOKEN}" -H "$ACC")
 check "profil pekerja ada tapi belum siap kerja" 200 "d['data']['ready_to_work']" 'false' \
     "${AUTH[@]}" "$BASE/me"
 
-check "belum terverifikasi berarti belum masuk daftar pekerja" 200 \
-    "[w['id'] for w in d['data'] if w['id'] == '${ME_ID}']" '[]' \
+# Verifikasi MENANDAI, tidak menyaring: yang belum terverifikasi tetap
+# muncul di daftar, hanya penandanya mati.
+check "belum terverifikasi tetap muncul, penandanya mati" 200 \
+    "[w['ready_to_work'] for w in d['data'] if w['id'] == '${ME_ID}']" '[false]' \
     "${AUTH[@]}" "$BASE/workers"
+
+check "penyaring opsional menyembunyikan yang belum siap" 200 \
+    "[w['id'] for w in d['data'] if w['id'] == '${ME_ID}']" '[]' \
+    "${AUTH[@]}" "$BASE/workers?ready_to_work=1"
 
 # Gerbangnya dibuka lewat ALUR SUNGGUHAN: pengguna mengajukan, pengelola
 # menyetujui. Bukan baris yang disuntikkan ke basis data — yang diuji justru
@@ -465,9 +471,13 @@ check "pengelola menyetujui identitas pemilik akun" 200 "d['data']['status']" '"
 check "siap kerja menyala SESUDAH pengelola menyetujui" 200 "d['data']['ready_to_work']" 'true' \
     "${AUTH[@]}" "$BASE/me"
 
-check "dan barulah ia muncul di daftar pekerja" 200 \
+check "penandanya menyala di daftar pekerja" 200 \
     "[w['ready_to_work'] for w in d['data'] if w['id'] == '${ME_ID}']" '[true]' \
     "${AUTH[@]}" "$BASE/workers"
+
+check "dan sekarang ia lolos penyaring siap kerja" 200 \
+    "[w['ready_to_work'] for w in d['data'] if w['id'] == '${ME_ID}']" '[true]' \
+    "${AUTH[@]}" "$BASE/workers?ready_to_work=1"
 
 check "identitas belum lengkap = profil pekerja ditolak" 422 \
     "[d['code'], d['context']['missing']]" '["profile_incomplete", ["gender", "birth_date"]]' \

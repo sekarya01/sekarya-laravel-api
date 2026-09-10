@@ -35,6 +35,9 @@ final class ListWorkersRequest extends FormRequest
             // lansia, pekerjaan di ruang tertutup). Nilainya hanya dua, sama
             // seperti kolomnya.
             'gender' => ['sometimes', Rule::enum(Gender::class)],
+            // Penyaring, bukan gerbang. Tanpa parameter ini daftarnya memuat
+            // semua pekerja — yang terverifikasi maupun belum.
+            'ready_to_work' => ['sometimes', 'boolean'],
         ];
     }
 }

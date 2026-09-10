@@ -49,6 +49,22 @@ final class WorkerListApiTest extends TestCase
         return $account->refresh();
     }
 
+    /** Pekerja lengkap identitasnya tapi BELUM diverifikasi pengelola. */
+    private function unverifiedWorkerAt(string $at, array $user = []): User
+    {
+        Carbon::setTestNow($at);
+
+        $account = $this->activeUser($user + [
+            'gender' => Gender::Female,
+            'birth_date' => '1996-04-05',
+        ]);
+        UserWorker::factory()->create(['user_id' => $account->getKey()]);
+
+        Carbon::setTestNow();
+
+        return $account->refresh();
+    }
+
     /** @return list<string> ULID pada urutan yang dikembalikan API. */
     private function ids(array $json): array
     {
@@ -339,20 +355,49 @@ final class WorkerListApiTest extends TestCase
             ->assertOk()->assertJsonPath('data.ready_to_work', false);
     }
 
-    /** Yang belum diverifikasi tidak muncul di daftar sama sekali. */
-    public function test_an_unverified_worker_is_not_listed(): void
+    /**
+     * Verifikasi MENANDAI, tidak menyaring.
+     *
+     * Pekerja yang belum terverifikasi tetap muncul, dengan penandanya mati.
+     * Menyembunyikannya berarti ia tidak akan pernah mendapat pekerjaan
+     * pertamanya — dan verifikasi berubah dari penanda kepercayaan menjadi
+     * syarat masuk yang tidak pernah disebut ke siapa pun.
+     */
+    public function test_an_unverified_worker_is_still_listed_but_flagged_false(): void
     {
         $terverifikasi = $this->workerAt('2026-09-01 10:00:00');
+        $belum = $this->unverifiedWorkerAt('2026-09-02 10:00:00');
 
-        $belum = $this->activeUser(['gender' => Gender::Female, 'birth_date' => '1996-04-05']);
-        UserWorker::factory()->create(['user_id' => $belum->getKey()]);
+        $baris = $this->asUser($terverifikasi)
+            ->getJson(route('v1.workers.index'))->assertOk()->json('data');
 
-        $ids = $this->ids(
-            $this->asUser($terverifikasi)->getJson(route('v1.workers.index'))->assertOk()->json(),
+        $penanda = collect($baris)->pluck('ready_to_work', 'id');
+
+        $this->assertTrue($penanda[$terverifikasi->ulid] ?? null);
+        $this->assertFalse(
+            $penanda[$belum->ulid] ?? null,
+            'pekerja belum terverifikasi harus tetap muncul, hanya penandanya mati',
         );
+    }
 
-        $this->assertContains($terverifikasi->ulid, $ids);
-        $this->assertNotContains($belum->ulid, $ids);
+    /** Penyaringnya opsional — dipakai pemberi kerja yang memang memilih begitu. */
+    public function test_the_list_can_be_narrowed_to_verified_workers_on_request(): void
+    {
+        $terverifikasi = $this->workerAt('2026-09-01 10:00:00');
+        $belum = $this->unverifiedWorkerAt('2026-09-02 10:00:00');
+
+        $hanyaSiap = $this->ids($this->asUser($terverifikasi)
+            ->getJson(route('v1.workers.index', ['ready_to_work' => 1]))->assertOk()->json());
+
+        $this->assertContains($terverifikasi->ulid, $hanyaSiap);
+        $this->assertNotContains($belum->ulid, $hanyaSiap);
+
+        // Dan arah sebaliknya: yang BELUM siap, untuk pengelola yang menyisir.
+        $belumSiap = $this->ids($this->asUser($terverifikasi)
+            ->getJson(route('v1.workers.index', ['ready_to_work' => 0]))->assertOk()->json());
+
+        $this->assertContains($belum->ulid, $belumSiap);
+        $this->assertNotContains($terverifikasi->ulid, $belumSiap);
     }
 
     /**

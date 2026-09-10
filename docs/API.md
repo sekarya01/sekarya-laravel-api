@@ -6,7 +6,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
 | **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 57 operation cocok dengan 57 rute nyata |
-| **Uji otomatis** | `bash docs/smoke.sh` — 160 pemeriksaan |
+| **Uji otomatis** | `bash docs/smoke.sh` — 162 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
 
@@ -21,10 +21,10 @@ bash docs/smoke.sh
 ```
 
 Menjalankan server sendiri, mereset database, mendaftar akun lewat alur auth yang
-sebenarnya, menjalankan 160 pemeriksaan, lalu membereskan diri. Keluaran akhir:
+sebenarnya, menjalankan 162 pemeriksaan, lalu membereskan diri. Keluaran akhir:
 
 ```
-SEMUA LULUS  132/160 pemeriksaan
+SEMUA LULUS  132/162 pemeriksaan
 ```
 
 Kalau mau memakai server yang sudah jalan: `bash docs/smoke.sh 8000`.
@@ -976,12 +976,18 @@ curl -s "$BASE/workers?per_page=2&city=Jakarta&gender=female" \
   | jq '{orang: [.data[].name], next: .meta.next_cursor}'
 ```
 
-Yang muncul hanya yang **`ready_to_work: true`** — akun `active`, punya profil pekerja,
-dan identitasnya sudah diverifikasi pengelola. Pekerja yang baru membuka profilnya belum
-muncul di sini sampai verifikasinya disetujui, dan langsung hilang lagi kalau dicabut.
-Akun yang ditangguhkan tetap punya barisnya; daftar ini tempat pemberi kerja memilih orang
-untuk dihubungi, jadi penyaring yang tidak terbaca di sini adalah penyaring yang tidak
-berlaku.
+Yang muncul: setiap akun **`active`** yang punya profil pekerja — terverifikasi maupun
+belum. **Verifikasi identitas menandai, tidak menyaring**: yang belum diverifikasi tetap
+tampil dengan `ready_to_work: false`. Menyembunyikannya berarti pekerja baru tidak akan
+pernah mendapat pekerjaan pertamanya, dan verifikasi berubah dari penanda kepercayaan
+menjadi syarat masuk yang tidak pernah disebut ke siapa pun.
+
+Yang tetap menyaring hanya status akun. Akun yang ditangguhkan masih punya barisnya, dan
+daftar ini tempat pemberi kerja memilih orang untuk dihubungi — moderasi yang tidak
+terbaca di sini adalah moderasi yang tidak berlaku.
+
+Pemberi kerja yang memang hanya mau yang terverifikasi menambahkan `ready_to_work=true`;
+`ready_to_work=false` menyisir yang belum, berguna untuk pengelola.
 
 Tiga hal yang menentukan bentuk endpoint ini:
 
@@ -1399,7 +1405,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `GET` | `/me/verifications` | access | `api` | Status verifikasi identitas. Hanya status, bukan artefaknya. |
 | `POST` | `/me/verifications` | access | `api` | Ajukan verifikasi identitas (KTP, selfie, rekening). |
 | `GET` | `/skills` | access | `api` | Katalog keahlian. |
-| `GET` | `/workers` | access | `api` | Daftar pekerja siap kerja. Filter: `city`, `province`, `gender`. Cursor. |
+| `GET` | `/workers` | access | `api` | Daftar pekerja. Filter: `city`, `province`, `gender`, `ready_to_work`. Cursor. |
 
 **Task**
 
@@ -1545,7 +1551,7 @@ jadi sumber kebenaran.
 php artisan route:list --path=api    # rute + middleware
 php artisan about --only=environment
 tail -f storage/logs/laravel.log     # termasuk kode verifikasi saat MAIL_MAILER=log
-bash docs/smoke.sh                   # 160 pemeriksaan
+bash docs/smoke.sh                   # 162 pemeriksaan
 ```
 
 Audit lapisan pengamanan — daftar yang keluar harus kosong atau bisa dijelaskan:

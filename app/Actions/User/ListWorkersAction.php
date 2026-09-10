@@ -30,11 +30,20 @@ use Illuminate\Database\Eloquent\Relations\Relation;
  *    `created_at` dan `id` — jadi tidak ada galat, hanya nilai cursor yang
  *    salah, dan halaman berikutnya melompati orang.
  *
- * Yang muncul hanya yang `ready_to_work`: akun `active`, punya baris profil,
- * DAN identitasnya sudah diverifikasi pengelola. Akun yang ditangguhkan atau
- * yang verifikasinya dicabut masih punya baris profil — daftar ini tempat
- * pemberi kerja memilih orang untuk dihubungi, jadi penyaring yang tidak
- * terbaca di sini adalah penyaring yang tidak berlaku.
+ * Yang muncul: setiap akun `active` yang punya baris profil pekerja —
+ * terverifikasi maupun belum. Verifikasi identitas MENANDAI barisnya
+ * (`ready_to_work`), tidak menyaringnya. Pekerja yang baru bergabung harus
+ * tetap bisa ditemukan; kalau tidak, ia tidak akan pernah mendapat pekerjaan
+ * pertamanya, dan verifikasi berubah dari penanda kepercayaan menjadi syarat
+ * masuk yang tidak pernah disebut ke siapa pun.
+ *
+ * Yang tetap MENYARING cuma status akun. Akun yang ditangguhkan masih punya
+ * baris profil, dan daftar ini tempat pemberi kerja memilih orang untuk
+ * dihubungi — moderasi yang tidak terbaca di sini adalah moderasi yang tidak
+ * berlaku.
+ *
+ * `ready_to_work` tersedia sebagai penyaring opsional bagi pemberi kerja yang
+ * memang hanya mau melihat yang sudah terverifikasi.
  */
 final class ListWorkersAction
 {
@@ -44,14 +53,21 @@ final class ListWorkersAction
         return UserWorker::query()
             ->whereHas('user', fn (Builder $q) => $q
                 ->where('status', UserStatus::Active)
-                // Identitas terverifikasi adalah GERBANGNYA, bukan hiasan.
-                // `ready_to_work` didefinisikan sebagai profil + verifikasi
-                // ini, jadi daftar yang memuat orang tanpa verifikasi akan
-                // membantah penandanya sendiri di baris yang sama.
-                ->whereHas('verifications', fn (Builder $v) => $v
-                    ->where('type', VerificationType::Identity)
-                    ->where('status', VerificationStatus::Verified))
-                ->when($data->gender !== null, fn (Builder $g) => $g->where('gender', $data->gender)))
+                ->when($data->gender !== null, fn (Builder $g) => $g->where('gender', $data->gender))
+                // Verifikasi identitas MENANDAI, tidak menyaring. Yang belum
+                // terverifikasi tetap muncul dengan `ready_to_work: false` —
+                // menyembunyikannya berarti pemberi kerja tidak punya cara
+                // menemukan pekerja yang baru bergabung, dan pekerja baru
+                // tidak punya cara mendapat pekerjaan pertamanya.
+                //
+                // Penyaringnya OPSIONAL, dan hanya berlaku kalau diminta.
+                ->when($data->readyToWork !== null, fn (Builder $r) => $data->readyToWork
+                    ? $r->whereHas('verifications', fn (Builder $v) => $v
+                        ->where('type', VerificationType::Identity)
+                        ->where('status', VerificationStatus::Verified))
+                    : $r->whereDoesntHave('verifications', fn (Builder $v) => $v
+                        ->where('type', VerificationType::Identity)
+                        ->where('status', VerificationStatus::Verified))))
             ->when($data->city !== null, fn (Builder $q) => $q->whereResolvedAddress('city', $data->city))
             ->when($data->province !== null, fn (Builder $q) => $q->whereResolvedAddress('province', $data->province))
             // Pemiliknya ikut termuat berikut bahan pertimbangannya. Tanpa ini

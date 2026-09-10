@@ -527,10 +527,17 @@ paths:
         Sisi sebaliknya dari feed task: pemberi kerja mencari ORANG, bukan
         pekerjaan.
 
-        Yang muncul hanya yang **`ready_to_work: true`** — akun `active`, punya
-        baris `user_workers`, DAN identitasnya sudah diverifikasi pengelola.
-        Pekerja yang baru membuka profilnya tidak muncul di sini sampai
-        verifikasinya disetujui, dan langsung hilang lagi kalau dicabut.
+        Yang muncul: setiap akun `active` yang punya baris `user_workers` —
+        **terverifikasi maupun belum**. Verifikasi identitas MENANDAI barisnya
+        lewat `ready_to_work`, ia tidak menyaringnya. Pekerja yang baru
+        bergabung harus tetap bisa ditemukan; kalau disembunyikan, ia tidak
+        akan pernah mendapat pekerjaan pertamanya.
+
+        Yang tetap menyaring hanya status akun: yang ditangguhkan atau
+        diblokir tidak muncul.
+
+        Pakai `ready_to_work=true` kalau memang hanya mau melihat yang sudah
+        terverifikasi, atau `ready_to_work=false` untuk menyisir yang belum.
 
         **Urutannya "yang baru SIAP BEKERJA", bukan "yang baru mendaftar".**
         Kuncinya `user_workers.created_at` + `id`, karena seseorang bisa punya
@@ -565,6 +572,12 @@ paths:
           description: |
             Ada pekerjaan yang memang menuntutnya — jaga anak, perawat lansia,
             pekerjaan di ruang tertutup.
+        - name: ready_to_work
+          in: query
+          schema: { type: boolean }
+          description: |
+            Penyaring **opsional**. Dihilangkan berarti seluruh pekerja
+            muncul, terverifikasi maupun belum.
       responses:
         '200':
           description: Pekerja, yang paling baru siap bekerja lebih dulu.
