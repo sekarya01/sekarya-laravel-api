@@ -1,56 +1,50 @@
 @extends('super_admin.layout')
 
 @section('title', 'Jejak audit')
+@section('header', 'Jejak Audit')
 
 @section('content')
-<h2 class="text-2xl font-semibold">Jejak audit</h2>
-<p class="mt-1 text-sm text-slate-500">Append-only — tidak ada <span class="font-mono">updated_at</span>. API belum punya endpoint baca; dasbor ini membaca langsung dari basis data.</p>
+<div class="anim-rise">
+    <h3 class="text-xl font-extrabold" style="color: #163C68;">Jejak audit</h3>
+    <p class="mt-1 text-sm text-slate-500">Append-only — tidak ada <span class="font-mono font-bold">updated_at</span>. API belum punya endpoint baca; dasbor ini membaca langsung dari basis data.</p>
+</div>
 
-<form method="GET" class="mt-4 flex gap-2 text-sm">
-    <select name="action" class="rounded border border-slate-300 px-3 py-2">
-        <option value="">Semua tindakan</option>
-        @foreach ($actions as $a)
-            <option value="{{ $a->value }}" @selected($filterAction === $a->value)>{{ $a->value }}</option>
-        @endforeach
-    </select>
-    <button class="rounded bg-slate-900 px-4 py-2 text-white">Saring</button>
+<form method="GET" class="anim-rise ad-1 mt-4 card p-4 flex flex-wrap items-end gap-3 text-sm">
+    <div class="flex-1 min-w-[12rem]">
+        <label class="label">Tindakan</label>
+        <select name="action" class="field">
+            <option value="">Semua tindakan</option>
+            @foreach ($actions as $a)
+                <option value="{{ $a->value }}" @selected($filterAction === $a->value)>{{ $a->value }}</option>
+            @endforeach
+        </select>
+    </div>
+    <button class="btn btn-accent">Saring</button>
 </form>
 
-<div class="mt-4 overflow-x-auto rounded-xl bg-white shadow">
-    <table class="w-full text-sm">
-        <thead>
-        <tr class="text-left text-slate-500">
-            <th class="px-4 py-3">Waktu</th>
-            <th class="px-4 py-3">Pelaku</th>
-            <th class="px-4 py-3">Tindakan</th>
-            <th class="px-4 py-3">Subjek</th>
-            <th class="px-4 py-3">IP</th>
-            <th class="px-4 py-3">Alasan</th>
-        </tr>
-        </thead>
-        <tbody>
-        @forelse ($logs as $log)
-            <tr class="border-t">
-                <td class="px-4 py-3 whitespace-nowrap">{{ $log->created_at }}</td>
-                <td class="px-4 py-3">{{ $log->admin?->email }}</td>
-                <td class="px-4 py-3 font-mono text-xs">{{ $log->action->value }}</td>
-                <td class="px-4 py-3 font-mono text-xs">{{ $log->subject_type }} #{{ $log->subject_id }}</td>
-                <td class="px-4 py-3 font-mono text-xs">{{ $log->ip ?? '—' }}</td>
-                <td class="px-4 py-3">{{ $log->reason ?? '—' }}</td>
-            </tr>
-        @empty
-            <tr><td colspan="6" class="px-4 py-6 text-slate-500">Belum ada jejak.</td></tr>
-        @endforelse
-        </tbody>
-    </table>
+<div class="anim-rise ad-2 mt-4 card overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[760px]">
+            <thead><tr class="table-head">
+                <th>Waktu</th><th>Pelaku</th><th>Tindakan</th><th>Subjek</th><th>IP</th><th>Alasan</th>
+            </tr></thead>
+            <tbody>
+            @forelse ($logs as $log)
+                <tr class="table-row">
+                    <td class="whitespace-nowrap text-slate-500 text-xs">{{ $log->created_at }}</td>
+                    <td class="font-medium text-xs max-w-[180px] truncate">{{ $log->admin?->email }}</td>
+                    <td>@include('super_admin.partials.badge', ['text' => $log->action->value, 'tone' => 'navy'])</td>
+                    <td class="font-mono text-xs text-slate-500 whitespace-nowrap">{{ $log->subject_type }} #{{ $log->subject_id }}</td>
+                    <td class="font-mono text-xs text-slate-400">{{ $log->ip ?? '—' }}</td>
+                    <td class="text-xs text-slate-500 max-w-[220px] truncate" title="{{ $log->reason }}">{{ $log->reason ?? '—' }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="6">@include('super_admin.partials.empty', ['title' => 'Belum ada jejak', 'hint' => 'Jejak muncul setelah ada keputusan pengelola.'])</td></tr>
+            @endforelse
+            </tbody>
+        </table>
+    </div>
 </div>
 
-<div class="mt-4 flex gap-2 text-sm">
-    @if ($logs->previousCursor())
-        <a href="{{ $logs->previousPageUrl() }}" class="rounded border px-3 py-2 bg-white">← Sebelumnya</a>
-    @endif
-    @if ($logs->hasMorePages())
-        <a href="{{ $logs->nextPageUrl() }}" class="rounded border px-3 py-2 bg-white">Berikutnya →</a>
-    @endif
-</div>
+@include('super_admin.partials.pager', ['paginator' => $logs])
 @endsection
