@@ -10,4 +10,4 @@ $tones = [
     'slate' => 'background:#EEF2F7;color:#52627A;box-shadow:inset 0 0 0 1px #D7E0EC;',
 ];
 @endphp
-<span class="inline-flex items-center rounded-full px-2.5 py-1 text-[.7rem] font-bold whitespace-nowrap" style="{{ $tones[$tone] ?? $tones['slate'] }}">{{ $text }}</span>
+<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap" style="{{ $tones[$tone] ?? $tones['slate'] }}">{{ $text }}</span>

@@ -5,7 +5,7 @@
 
 @section('content')
 <div class="anim-rise flex flex-wrap items-center gap-3">
-    <a href="{{ route('super_admin.payments.index') }}" class="btn btn-ghost !py-2 !text-xs">← Kembali ke antrean</a>
+    <a href="{{ route('super_admin.payments.index') }}" class="btn btn-ghost py-2! text-xs!">← Kembali ke antrean</a>
     @php
         $tone = match($payment->status->value) {
             'held' => 'green', 'released' => 'navy', 'pending' => 'amber',
@@ -17,7 +17,7 @@
 
 <div class="anim-rise mt-3 rounded-2xl p-5 sm:p-6 text-white relative overflow-hidden" style="background: linear-gradient(120deg, #0A1E35, #163C68 70%);">
     <div class="absolute -right-8 -top-12 w-56 h-56 rounded-full opacity-25" style="background: #F97316; filter: blur(60px);"></div>
-    <p class="relative text-[.7rem] uppercase tracking-[.2em] font-bold text-orange-200">Nominal transfer yang dilaporkan</p>
+    <p class="relative text-xs uppercase tracking-widest font-bold text-orange-200">Nominal transfer yang dilaporkan</p>
     <p class="relative mt-1 text-3xl sm:text-4xl font-extrabold">Rp{{ number_format($payment->amount, 0, ',', '.') }}</p>
     <p class="relative mt-1 font-mono text-xs text-slate-400">{{ $payment->ulid }}</p>
 </div>
@@ -38,7 +38,7 @@
                 <li class="flex gap-3">
                     <div class="flex flex-col items-center">
                         <span class="w-3.5 h-3.5 rounded-full border-2 shrink-0 mt-1" style="{{ $done ? 'background:#F97316;border-color:#F97316;' : 'background:#fff;border-color:#CBD5E1;' }}"></span>
-                        @if (! $loop->last)<span class="w-0.5 flex-1 min-h-[1.4rem]" style="background: {{ $done ? '#FBD9B6' : '#E2E8F0' }};"></span>@endif
+                        @if (! $loop->last)<span class="w-1 flex-1 min-h-6" style="background: {{ $done ? '#FBD9B6' : '#E2E8F0' }};"></span>@endif
                     </div>
                     <div class="pb-4">
                         <p class="text-sm font-bold {{ $done ? '' : 'text-slate-400' }}" @if($done) style="color:#163C68;" @endif>{{ $label }}</p>

@@ -12,7 +12,7 @@
 @endphp
 
 <div class="anim-rise flex flex-wrap items-center gap-3">
-    <a href="{{ route('super_admin.verifications.index') }}" class="btn btn-ghost !py-2 !text-xs">← Kembali ke antrean</a>
+    <a href="{{ route('super_admin.verifications.index') }}" class="btn btn-ghost py-2! text-xs!">← Kembali ke antrean</a>
     @include('super_admin.partials.badge', ['text' => $verification->status->value, 'tone' => $tone])
     @include('super_admin.partials.badge', ['text' => $verification->type->value, 'tone' => 'navy'])
 </div>
@@ -22,7 +22,7 @@
 </h3>
 
 <div class="anim-rise ad-1 mt-3 rounded-2xl border border-amber-200 px-4 py-3.5 text-sm text-amber-900 flex gap-3" style="background: linear-gradient(120deg, #FFFBEB, #FFF7E6);">
-    <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+    <svg class="w-5 h-5 shrink-0 mt-1" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
     <p>Membuka halaman ini <strong>mencatat</strong> <span class="font-mono font-bold">verification.viewed</span> ke jejak audit
     (siapa, kapan, dari IP mana). NIK / nomor rekening di bawah hanya ada di halaman ini — tidak pernah di daftar.</p>
 </div>
@@ -59,18 +59,18 @@
         <h4 class="font-extrabold" style="color: #163C68;">Data dokumen <span class="font-medium text-slate-400 text-xs">· terbaca utuh, keputusan pemilik proyek</span></h4>
         <div class="mt-4 rounded-2xl p-4 sm:p-5" style="background: linear-gradient(135deg, #0A1E35, #163C68);">
             @if ($verification->type->value === 'identity')
-                <p class="text-[.68rem] uppercase tracking-[.2em] font-bold text-orange-300">NIK KTP</p>
+                <p class="text-xs uppercase tracking-widest font-bold text-orange-300">NIK KTP</p>
                 <p class="mt-1 font-mono text-2xl sm:text-3xl font-bold tracking-wider text-white">{{ $verification->document_number_enc ?? '—' }}</p>
                 <div class="mt-4 grid sm:grid-cols-2 gap-3 text-sm">
-                    <div><p class="text-[.68rem] uppercase tracking-wider text-slate-400 font-bold">Nama di dokumen</p><p class="font-semibold text-white">{{ $verification->name_on_document ?? '—' }}</p></div>
-                    <div><p class="text-[.68rem] uppercase tracking-wider text-slate-400 font-bold">Tanggal lahir</p><p class="font-semibold text-white">{{ $verification->birth_date_on_document ?? '—' }}</p></div>
+                    <div><p class="text-xs uppercase tracking-wider text-slate-400 font-bold">Nama di dokumen</p><p class="font-semibold text-white">{{ $verification->name_on_document ?? '—' }}</p></div>
+                    <div><p class="text-xs uppercase tracking-wider text-slate-400 font-bold">Tanggal lahir</p><p class="font-semibold text-white">{{ $verification->birth_date_on_document ?? '—' }}</p></div>
                 </div>
             @else
-                <p class="text-[.68rem] uppercase tracking-[.2em] font-bold text-orange-300">Nomor rekening</p>
+                <p class="text-xs uppercase tracking-widest font-bold text-orange-300">Nomor rekening</p>
                 <p class="mt-1 font-mono text-2xl sm:text-3xl font-bold tracking-wider text-white">{{ $verification->account_number_enc ?? '—' }}</p>
                 <div class="mt-4 grid sm:grid-cols-2 gap-3 text-sm">
-                    <div><p class="text-[.68rem] uppercase tracking-wider text-slate-400 font-bold">Bank</p><p class="font-semibold text-white">{{ $verification->bank_code ?? '—' }}</p></div>
-                    <div><p class="text-[.68rem] uppercase tracking-wider text-slate-400 font-bold">Atas nama</p><p class="font-semibold text-white">{{ $verification->account_holder_name ?? '—' }}</p></div>
+                    <div><p class="text-xs uppercase tracking-wider text-slate-400 font-bold">Bank</p><p class="font-semibold text-white">{{ $verification->bank_code ?? '—' }}</p></div>
+                    <div><p class="text-xs uppercase tracking-wider text-slate-400 font-bold">Atas nama</p><p class="font-semibold text-white">{{ $verification->account_holder_name ?? '—' }}</p></div>
                 </div>
             @endif
         </div>
