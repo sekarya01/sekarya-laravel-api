@@ -23,21 +23,31 @@ final class AdminUserResource extends BaseResource
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
+        $worker = $this->resource->workerProfileOrNew();
+
         return [
             'id' => $this->ulid,
             'name' => $this->name,
+            'gender' => $this->gender?->value,
+            // Pengelola melihat tanggalnya, bukan hanya umurnya: verifikasi
+            // identitas mencocokkan tanggal lahir dengan yang tertera di KTP,
+            // dan umur saja tidak bisa dicocokkan dengan apa pun.
+            'birth_date' => $this->birth_date?->toDateString(),
+            'age' => $this->age,
             'email' => $this->email,
             'phone' => $this->phone,
             'status' => $this->status->value,
             'active_mode' => $this->active_mode->value,
             'email_verified' => $this->email_verified_at !== null,
             'identity_verified' => $this->resource->isIdentityVerified(),
+            'ready_to_work' => $this->resource->readyToWork(),
             'city' => $this->city,
             'province' => $this->province,
             'as_worker' => [
-                'rating_avg' => (float) $this->worker_rating_avg,
-                'rating_count' => $this->worker_rating_count,
-                'tasks_completed' => $this->tasks_completed,
+                'rating_avg' => (float) $worker->worker_rating_avg,
+                'rating_count' => $worker->worker_rating_count,
+                'tasks_completed' => $worker->tasks_completed,
+                'bids_won' => $worker->bids_won,
             ],
             'as_poster' => [
                 'rating_avg' => (float) $this->poster_rating_avg,

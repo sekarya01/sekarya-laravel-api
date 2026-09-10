@@ -152,11 +152,11 @@ final class ActivityActionsTest extends TestCase
 
     public function test_approve_increments_worker_tasks_completed(): void
     {
-        $before = $this->worker->tasks_completed;
+        $before = $this->reputationOf($this->worker)->tasks_completed;
 
         app(ApproveActivityAction::class)->handle($this->submitted(), $this->poster);
 
-        $this->assertSame($before + 1, $this->worker->refresh()->tasks_completed);
+        $this->assertSame($before + 1, $this->reputationOf($this->worker)->tasks_completed);
     }
 
     public function test_approving_an_unsubmitted_activity_is_rejected(): void

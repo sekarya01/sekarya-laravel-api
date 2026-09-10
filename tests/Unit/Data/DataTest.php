@@ -7,6 +7,8 @@ namespace Tests\Unit\Data;
 use App\Data\CursorPageData;
 use App\Data\Task\ListTasksData;
 use App\Data\User\UpdateProfileData;
+use App\Data\User\UpsertWorkerProfileData;
+use App\Enums\Gender;
 use App\Enums\UserActiveMode;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\TestCase;
@@ -97,5 +99,60 @@ final class DataTest extends TestCase
         $data = new UpdateProfileData(activeMode: UserActiveMode::Working);
 
         $this->assertSame(UserActiveMode::Working, $data->toAttributes()['active_mode']);
+    }
+
+    /**
+     * "Tidak dikirim" dan "dikirim bernilai null" adalah dua permintaan yang
+     * berbeda, dan hanya `present` yang bisa membedakannya — nilai propertinya
+     * null pada kedua keadaan.
+     */
+    public function test_a_field_sent_as_null_is_kept_so_it_can_clear_the_column(): void
+    {
+        $data = new UpdateProfileData(present: ['bio', 'gender']);
+
+        $this->assertSame(['gender' => null, 'bio' => null], $data->toAttributes());
+    }
+
+    public function test_a_field_that_was_not_sent_never_reaches_the_column_list(): void
+    {
+        $data = new UpdateProfileData(name: 'Budi', present: ['name']);
+
+        $this->assertSame(['name' => 'Budi'], $data->toAttributes());
+    }
+
+    public function test_gender_is_carried_as_the_enum(): void
+    {
+        $data = new UpdateProfileData(gender: Gender::Female, present: ['gender']);
+
+        $this->assertSame(Gender::Female, $data->toAttributes()['gender']);
+    }
+
+    // ── UpsertWorkerProfileData ─────────────────────────────────────────────
+
+    /** Null di profil pekerja berarti "kembali ikut akun" — harus ikut terkirim. */
+    public function test_worker_profile_keeps_nulls_that_were_actually_sent(): void
+    {
+        $data = new UpsertWorkerProfileData(present: ['display_name']);
+
+        $this->assertSame(['display_name' => null], $data->toAttributes());
+    }
+
+    public function test_worker_profile_ignores_fields_that_were_not_sent(): void
+    {
+        $data = new UpsertWorkerProfileData(
+            displayName: 'Budi Tukang AC',
+            latitude: -6.2,
+            present: ['display_name'],
+        );
+
+        $this->assertSame(['display_name' => 'Budi Tukang AC'], $data->toAttributes());
+    }
+
+    /** Dibangun langsung tanpa payload: perilaku lama, hanya nilai non-null. */
+    public function test_worker_profile_falls_back_to_non_null_values_without_a_payload(): void
+    {
+        $data = new UpsertWorkerProfileData(displayName: 'Budi', radiusKm: 15);
+
+        $this->assertSame(['display_name' => 'Budi', 'radius_km' => 15], $data->toAttributes());
     }
 }

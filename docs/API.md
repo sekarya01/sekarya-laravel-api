@@ -6,7 +6,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
 | **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 57 operation cocok dengan 57 rute nyata |
-| **Uji otomatis** | `bash docs/smoke.sh` — 132 pemeriksaan |
+| **Uji otomatis** | `bash docs/smoke.sh` — 155 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
 
@@ -21,10 +21,10 @@ bash docs/smoke.sh
 ```
 
 Menjalankan server sendiri, mereset database, mendaftar akun lewat alur auth yang
-sebenarnya, menjalankan 132 pemeriksaan, lalu membereskan diri. Keluaran akhir:
+sebenarnya, menjalankan 155 pemeriksaan, lalu membereskan diri. Keluaran akhir:
 
 ```
-SEMUA LULUS  132/132 pemeriksaan
+SEMUA LULUS  132/155 pemeriksaan
 ```
 
 Kalau mau memakai server yang sudah jalan: `bash docs/smoke.sh 8000`.
@@ -41,7 +41,7 @@ Sisa dokumen ini untuk mencoba manual.
 # sekali saja
 mysql -u root -e "CREATE DATABASE IF NOT EXISTS sekarya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
-php artisan migrate:fresh --seed     # 16 tabel + 9 kategori + 42 keahlian
+php artisan migrate:fresh --seed     # 26 tabel + 9 kategori + 42 keahlian
 php artisan serve                    # http://127.0.0.1:8000
 
 export BASE=http://127.0.0.1:8000/api/v1
@@ -777,7 +777,213 @@ curl -s -G "$BASE/tasks" -d 'per_page=2' -d "cursor=$NEXT" \
 
 ---
 
-## 12. Verifikasi identitas
+## 12. Profil pekerja — tabel sendiri
+
+Satu orang di Sekarya bisa jadi dua-duanya: hari ini memberi kerja, besok mencari kerja.
+Yang dipisah ke tabel `user_workers` **bukan orangnya**, melainkan sisi pekerjanya —
+nama yang ia tampilkan sebagai pekerja, nomor yang boleh dihubungi pemberi kerja, alamat
+tempat ia menerima pekerjaan, lokasi kerja, dan seluruh reputasinya sebagai pekerja.
+
+### Identitas tetap satu
+
+`gender` dan `birth_date` **tidak ada** di profil pekerja, dan tidak bisa dikirim ke
+sana. Keduanya identitas orangnya, bukan peran yang sedang ia jalankan — satu orang tidak
+berganti tanggal lahir saat berpindah mode. Sumbernya `users`, diubah lewat `PATCH /me`:
+
+```bash
+curl -s -X PATCH "$BASE/me" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"gender": "male", "birth_date": "1995-03-02"}' | jq '.data | {gender, birth_date, age}'
+```
+
+```json
+{ "gender": "male", "birth_date": "1995-03-02", "age": 31 }
+```
+
+**`age` dihitung, tidak disimpan, dan tidak bisa dikirim.** Kolom umur akan salah pada
+hari ulang tahun setiap penggunanya, dan tidak ada satu pun permintaan HTTP yang datang
+karena seseorang bertambah tua — tidak ada yang bisa memicu pembaruannya. Yang disimpan
+tanggalnya; umurnya dihitung setiap kali dibaca. Kirim `age` dan ia diabaikan.
+
+Batasnya 17-100 tahun. 17 adalah usia KTP, dan verifikasi identitas di aplikasi ini
+mencocokkan dengan KTP — orang yang belum bisa punya KTP tidak akan pernah lolos.
+Formatnya persis `YYYY-MM-DD`; tanpa itu `01/02/2003` diterima, dan artinya berbeda di
+dua benua.
+
+### Membaca profil pekerja tidak membuat baris
+
+```bash
+curl -s "$BASE/me/worker" -H "Authorization: Bearer $AT" -H 'Accept: application/json' \
+  | jq '.data | {configured, name, contact_phone, gender, age, own}'
+```
+
+Orang yang belum pernah mengisi apa pun tetap mendapat profil **utuh** — seluruhnya
+diwarisi dari akun:
+
+```json
+{
+  "configured": false,
+  "name": "Budi Santoso",
+  "contact_phone": "+628111000111",
+  "gender": "male",
+  "age": 31,
+  "own": { "display_name": null, "contact_phone": null, "address_line": null }
+}
+```
+
+Perhatikan dua lapisnya. Di tingkat atas nilai **terpakai**; di `own` yang benar-benar
+**diisi sendiri**, `null` kalau diwarisi. Formulir sunting harus memakai `own` sebagai
+nilai awal — kalau ia memakai nilai terpakai, sekali disimpan kembali seluruh warisan
+berubah jadi nilai tetap, ikatannya ke akun putus diam-diam, dan ganti nama di profil
+akun berhenti terlihat di sini.
+
+### `null` berarti "kembali ikut akun"
+
+```bash
+curl -s -X PUT "$BASE/me/worker" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"display_name": "Budi Tukang AC", "radius_km": 15,
+       "latitude": -6.2088, "longitude": 106.8456}' -w '\nstatus=%{http_code}\n'
+```
+
+`201` saat profilnya baru dibuat, `200` pada panggilan berikutnya. Mengirim isi yang sama
+dua kali menghasilkan keadaan yang sama, jadi klien tidak perlu tahu lebih dulu apakah
+profilnya sudah ada.
+
+Sekarang kembalikan namanya mengikuti akun:
+
+```bash
+curl -s -X PUT "$BASE/me/worker" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"display_name": null}' | jq '.data | {name, own: .own.display_name}'
+```
+
+```json
+{ "name": "Budi Santoso", "own": null }
+```
+
+Field yang **tidak disebut** tidak tersentuh. Yang dikirim bernilai `null` kembali
+mewarisi.
+
+### Alamat adalah satu kesatuan
+
+Begitu salah satu kolom alamat diisi, **seluruh** alamatnya berhenti mewarisi dari akun:
+
+```bash
+curl -s -X PUT "$BASE/me/worker" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"city": "Surabaya"}' | jq '.data.address'
+```
+
+```json
+{ "address_line": null, "city": "Surabaya", "province": null, "postal_code": null }
+```
+
+Kalau tiap kolom jatuh sendiri-sendiri ke akun, pekerja yang menuliskan alamat kerjanya
+di kota lain akan mendapat gabungan dua alamat — jalannya dari sini, kotanya dari
+domisili akun. Itu alamat yang tidak pernah ada, dan pemberi kerja akan mendatanginya.
+
+### Koordinat hanya sah berpasangan
+
+```bash
+curl -s -X PUT "$BASE/me/worker" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"latitude": -6.2088}' -w '\nstatus=%{http_code}\n'
+```
+
+`422`. Satu lintang tanpa bujur bukan lokasi yang kurang lengkap — ia bukan lokasi sama
+sekali, dan setiap kueri jarak akan melewatinya tanpa memberi tahu siapa pun bahwa orang
+ini mengira dirinya sudah terpasang di peta.
+
+### Reputasi tidak bisa dikirim
+
+`worker_rating_avg`, `worker_rating_count`, `tasks_completed` dan `bids_won` dijaga dua
+lapis: tidak ada di aturan validasi, dan tidak mass-assignable di modelnya. Yang
+menulisnya hanya Action — `AcceptBidAction` (menang lelang), `ApproveActivityAction`
+(pekerjaan disetujui), dan `CreateReviewAction` (dihitung ulang dari tabel `reviews`).
+Reputasi yang bisa dikirim klien bukan reputasi; ia kolom isian.
+
+Kirim saja, dan ia diabaikan:
+
+```bash
+curl -s -X PUT "$BASE/me/worker" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"tasks_completed": 999}' | jq '.data.as_worker'
+```
+
+```json
+{ "rating_avg": 0, "rating_count": 0, "tasks_completed": 0, "bids_won": 0 }
+```
+
+### `ready_to_work` — dihitung, bukan kolom
+
+Setiap profil (`/me`, profil publik, dan sisi pengelola) membawa `ready_to_work`:
+`true` begitu ada baris di `user_workers`.
+
+Ia **diturunkan dari ada-tidaknya profil**, sejajar dengan `identity_verified`, dan bukan
+kolom boolean di `users`. Kolom akan menjawab pertanyaan ini dari tempat yang bukan
+sumbernya, dan bisa melenceng lewat jalur mana pun yang membuat atau menghapus profil —
+Action perekrutan, penghapusan akun beruntun, satu `DELETE` di phpMyAdmin. Yang tertinggal
+bukan sekadar angka salah: ia pekerja yang muncul di `GET /workers` padahal profilnya
+sudah tidak ada.
+
+```bash
+curl -s "$BASE/me" -H "Authorization: Bearer $AT" -H 'Accept: application/json' \
+  | jq '.data.ready_to_work'
+```
+
+### Daftar pekerja — sisi sebaliknya dari feed task
+
+```bash
+curl -s "$BASE/workers?per_page=2&city=Jakarta&gender=female" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' \
+  | jq '{orang: [.data[].name], next: .meta.next_cursor}'
+```
+
+Yang muncul hanya akun **`active`** yang punya profil pekerja — persis
+`ready_to_work: true`. Akun yang ditangguhkan tetap punya barisnya, dan daftar ini adalah
+tempat pemberi kerja memilih orang untuk dihubungi; moderasi yang tidak terbaca di sini
+adalah moderasi yang tidak berlaku.
+
+Tiga hal yang menentukan bentuk endpoint ini:
+
+**Urutannya "yang baru SIAP BEKERJA", bukan "yang baru mendaftar".** Kuncinya
+`user_workers.created_at` + `id`, bukan `users.created_at`. Seseorang bisa punya akun dua
+tahun lalu dan baru kemarin membuka profil pekerjanya — dan dialah yang justru dicari.
+
+**Cursor, bukan offset.** `meta` memuat `next_cursor` dan tidak pernah memuat `total`
+maupun `current_page`, sama seperti seluruh endpoint daftar di API ini. Cursor-nya opaque;
+jangan pernah disusun sendiri di sisi klien.
+
+**Penyaring kota membandingkan alamat TERPAKAI**, bukan kolom profilnya saja. Alamat kerja
+bawaannya diwarisi dari akun, jadi menyaring `user_workers.city` saja akan menghilangkan
+hampir setiap pekerja — daftarnya akan tampak bekerja sambil hampir selalu kosong.
+
+Bentuk barisnya **identik dengan profil publik** (`PublicUser`), bukan bentuk tersendiri.
+Daftar inilah yang mengembalikan paling banyak orang sekaligus, jadi batas pengungkapan
+yang didefinisikan dua kali akan bocor justru di tempat yang paling mahal.
+
+### Apa yang dilihat orang lain
+
+Pemberi kerja yang menimbang penawaran melihat `PublicUser`, dan batasnya lebih ketat:
+
+| Field | Sendiri (`/me`, `/me/worker`) | Orang lain | Pengelola |
+|---|---|---|---|
+| `gender` | ✅ | ✅ | ✅ |
+| `age` | ✅ | ✅ | ✅ |
+| `birth_date` | ✅ | ❌ | ✅ |
+| Alamat jalan | ✅ | ❌ | ❌ |
+| Kota kerja + radius | ✅ | ✅ (`as_worker.work_area`) | ❌ |
+| Koordinat lokasi kerja | ✅ | ❌ | ❌ |
+| Nomor kontak | ✅ | ❌ | ✅ (nomor akun) |
+
+Umur adalah bahan pertimbangan yang wajar — pekerjaan angkat-angkut, jaga malam. Tanggal
+lahir persis adalah bahan pembobolan identitas: bank dan layanan publik memakainya
+sebagai verifikasi. Pengelola melihat tanggalnya karena verifikasi identitas
+mencocokkannya dengan yang tertera di KTP, dan umur saja tidak bisa dicocokkan dengan
+apa pun.
+
+## 13. Verifikasi identitas
 
 ```bash
 curl -s -X POST "$BASE/me/verifications" \
@@ -828,11 +1034,11 @@ NIK sendiri disimpan dua kali dengan tujuan berbeda: **hash** untuk mendeteksi s
 dipakai beberapa akun, dan **terenkripsi** untuk dibaca manusia saat penilaian atau
 sengketa. Tidak pernah dalam bentuk mentah.
 
-Yang menilai pengajuan ini adalah **pengelola** — bagian 14.
+Yang menilai pengajuan ini adalah **pengelola** — bagian 15.
 
 ---
 
-## 13. Rate limit & CORS
+## 14. Rate limit & CORS
 
 Setiap endpoint dibatasi. Responsnya membawa kuota:
 
@@ -881,7 +1087,7 @@ membiarkannya `false` menutup seluruh kelas CSRF lintas asal.
 
 ---
 
-## 14. Konsol pengelola
+## 15. Konsol pengelola
 
 Pengelola **bukan pengguna dengan peran**. Ia baris di tabelnya sendiri (`admins`),
 dipegang guard-nya sendiri, dan tokennya tidak berlaku di endpoint pengguna — begitu pula
@@ -1118,7 +1324,7 @@ ORDER BY l.created_at DESC LIMIT 20;
 
 ## Ringkasan endpoint
 
-**57 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**60 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1127,7 +1333,7 @@ Semua di bawah `/api/v1`. Kolom **Token**: `access` = token pendek 8 jam, `long_
 token 30 hari yang HANYA bisa refresh, `admin` = token pengelola, `—` = tanpa token.
 Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya.php`.
 
-> [!important] 35 endpoint pertama untuk PENGGUNA, 22 terakhir untuk PENGELOLA, dan
+> [!important] 38 endpoint pertama untuk PENGGUNA, 22 terakhir untuk PENGELOLA, dan
 > tokennya **tidak bisa ditukar**. Akun pengelola ada di tabelnya sendiri dengan
 > guard-nya sendiri: token pengguna di `/admin` menghasilkan `401`, dan token pengelola
 > di endpoint pengguna juga `401`. Lihat bagian **Pengelola** di bawah.
@@ -1150,9 +1356,12 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `GET` | `/categories` | access | `api` | Katalog kategori + harga referensi. |
 | `GET` | `/me` | access | `api` | Profil sendiri, lengkap dengan data kontak. |
 | `PATCH` | `/me` | access | `api` | Ubah profil. `extras` divalidasi per peran. |
+| `GET` | `/me/worker` | access | `api` | Profil pekerja sendiri. Membacanya tidak membuat baris. |
+| `PUT` | `/me/worker` | access | `api` | Isi/ubah profil pekerja. `null` = kembali ikut akun. |
 | `GET` | `/me/verifications` | access | `api` | Status verifikasi identitas. Hanya status, bukan artefaknya. |
 | `POST` | `/me/verifications` | access | `api` | Ajukan verifikasi identitas (KTP, selfie, rekening). |
 | `GET` | `/skills` | access | `api` | Katalog keahlian. |
+| `GET` | `/workers` | access | `api` | Daftar pekerja siap kerja. Filter: `city`, `province`, `gender`. Cursor. |
 
 **Task**
 
@@ -1298,7 +1507,7 @@ jadi sumber kebenaran.
 php artisan route:list --path=api    # rute + middleware
 php artisan about --only=environment
 tail -f storage/logs/laravel.log     # termasuk kode verifikasi saat MAIL_MAILER=log
-bash docs/smoke.sh                   # 132 pemeriksaan
+bash docs/smoke.sh                   # 155 pemeriksaan
 ```
 
 Audit lapisan pengamanan — daftar yang keluar harus kosong atau bisa dijelaskan:

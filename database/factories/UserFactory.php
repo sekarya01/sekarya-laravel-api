@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\Gender;
 use App\Enums\UserActiveMode;
 use App\Enums\UserStatus;
 use App\Models\Skill;
 use App\Models\User;
+use App\Models\UserWorker;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -27,6 +29,11 @@ class UserFactory extends Factory
             // hook mati kalau model event dinonaktifkan, dan kolomnya NOT NULL unique.
             'ulid' => (string) Str::ulid(),
             'name' => fake()->name(),
+            'gender' => fake()->randomElement(Gender::cases()),
+            // Rentang umur yang sah menurut aturan validasi (17-100 tahun),
+            // supaya data buatan factory tidak pernah jadi data yang API-nya
+            // sendiri akan tolak.
+            'birth_date' => fake()->dateTimeBetween('-60 years', '-18 years')->format('Y-m-d'),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'phone' => fake()->unique()->numerify('+628##########'),
@@ -59,15 +66,33 @@ class UserFactory extends Factory
         return $this->state(fn (): array => ['active_mode' => UserActiveMode::Hiring]);
     }
 
-    /** Punya reputasi sebagai penerima kerja. */
+    /**
+     * Punya reputasi sebagai penerima kerja.
+     *
+     * Lewat afterCreating, sama seperti `withSkills`: sejak reputasi pindah
+     * ke `user_workers`, angkanya bukan kolom di baris ini lagi dan tidak bisa
+     * ikut pada INSERT users.
+     */
     public function experiencedWorker(): static
     {
-        return $this->state(fn (): array => [
-            'worker_rating_avg' => 4.9,
-            'worker_rating_count' => 214,
-            'tasks_completed' => 214,
-            'bids_won' => 230,
-        ]);
+        return $this->afterCreating(function (User $user): void {
+            UserWorker::factory()->experienced()->create(['user_id' => $user->getKey()]);
+
+            // Relasi yang sudah terlanjur termuat (User::$with) akan basi
+            // kalau tidak dibuang — test yang membaca $user->workerProfile
+            // langsung sesudah membuat akan melihat null.
+            $user->unsetRelation('workerProfile');
+        });
+    }
+
+    /** Belum pernah mengisi apa pun sebagai pekerja. */
+    public function withWorkerProfile(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            UserWorker::factory()->create(['user_id' => $user->getKey()]);
+
+            $user->unsetRelation('workerProfile');
+        });
     }
 
     /**

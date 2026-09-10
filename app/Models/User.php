@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\BidStatus;
+use App\Enums\Gender;
 use App\Enums\TokenAbility;
 use App\Enums\UserActiveMode;
 use App\Enums\UserStatus;
@@ -13,9 +14,11 @@ use App\Enums\VerificationType;
 use App\Models\Concerns\HasUlid;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -32,12 +35,30 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name', 'email', 'phone', 'password', 'avatar_path', 'bio',
+        'name', 'gender', 'birth_date', 'email', 'phone', 'password', 'avatar_path', 'bio',
         'active_mode', 'address_line', 'city', 'province', 'postal_code', 'theme',
     ];
 
     /** @var list<string> */
     protected $hidden = ['password', 'remember_token'];
+
+    /**
+     * Profil pekerja ikut termuat SETIAP KALI seorang pengguna dimuat.
+     *
+     * Blunt, dan disengaja. Sejak reputasi pindah ke `user_workers`, hampir
+     * setiap tempat yang menampilkan seorang pengguna membutuhkannya:
+     * daftar penawaran, kartu pekerja di task, penilaian, antrean moderasi.
+     * Menyebutkannya satu per satu di setiap Action berarti satu yang
+     * terlewat = N+1 yang tidak menimbulkan galat apa pun — halamannya tetap
+     * benar, hanya melambat sebanding jumlah barisnya, dan itu baru terasa di
+     * produksi.
+     *
+     * Harganya satu kueri berindeks (`user_workers.user_id` unique) per
+     * pemuatan pengguna.
+     *
+     * @var list<string>
+     */
+    protected $with = ['workerProfile'];
 
     /** @return array<string, string> */
     protected function casts(): array
@@ -46,12 +67,32 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
             'last_active_at' => 'datetime',
+            'birth_date' => 'date',
             'password' => 'hashed',
+            'gender' => Gender::class,
             'active_mode' => UserActiveMode::class,
             'status' => UserStatus::class,
-            'worker_rating_avg' => 'decimal:2',
             'poster_rating_avg' => 'decimal:2',
         ];
+    }
+
+    /**
+     * Umur, DIHITUNG dari tanggal lahir. Tidak pernah disimpan.
+     *
+     * Kolom `age` akan salah pada hari ulang tahun setiap penggunanya, dan
+     * tidak ada satu pun kejadian di aplikasi ini yang bisa memicu
+     * pembaruannya — tidak ada permintaan HTTP yang datang karena seseorang
+     * bertambah tua. Yang bisa menjaganya cuma cron harian yang memindai
+     * seluruh tabel, untuk angka yang biayanya satu pengurangan.
+     *
+     * Alasan yang sama membuat kolom turunan MySQL juga tidak bisa dipakai:
+     * `CURDATE()` non-deterministik, dan GENERATED menolaknya.
+     */
+    protected function age(): Attribute
+    {
+        return Attribute::get(fn (): ?int => $this->birth_date === null
+            ? null
+            : (int) $this->birth_date->diffInYears(now()));
     }
 
     /**
@@ -80,6 +121,54 @@ class User extends Authenticatable
     public function skills(): BelongsToMany
     {
         return $this->belongsToMany(Skill::class);
+    }
+
+    /**
+     * Sisi pekerja dari akun ini — nol atau satu baris.
+     *
+     * @return HasOne<UserWorker, $this>
+     */
+    public function workerProfile(): HasOne
+    {
+        return $this->hasOne(UserWorker::class);
+    }
+
+    /**
+     * Profil pekerja yang pasti ADA DI MEMORI, tanpa menulis apa pun.
+     *
+     * Dipakai jalur BACA. Sebuah GET yang membuat baris berarti sekadar
+     * membuka profil sendiri sudah menambah baris di basis data, dan permintaan
+     * yang seharusnya aman jadi punya efek samping.
+     *
+     * Instance yang dikembalikan bisa saja belum tersimpan; relasi `user`
+     * selalu dipasang supaya resolusi "NULL = pakai punya akun" tetap bekerja
+     * tanpa satu kueri tambahan pun.
+     */
+    public function workerProfileOrNew(): UserWorker
+    {
+        $profile = $this->relationLoaded('workerProfile')
+            ? $this->getRelation('workerProfile')
+            : $this->workerProfile()->first();
+
+        $profile ??= new UserWorker;
+        $profile->setRelation('user', $this);
+
+        return $profile;
+    }
+
+    /**
+     * Profil pekerja yang pasti TERSIMPAN. Dipakai jalur TULIS — Action yang
+     * menaikkan agregat reputasi tidak bisa menunggu profilnya dibuat manual:
+     * orang bisa memenangkan penawaran tanpa pernah membuka halaman profil
+     * pekerjanya, dan `increment()` pada baris yang tidak ada hilang diam-diam.
+     */
+    public function workerProfileOrCreate(): UserWorker
+    {
+        $profile = $this->workerProfile()->firstOrCreate();
+
+        $this->setRelation('workerProfile', $profile);
+
+        return $profile;
     }
 
     /** @return HasMany<UserVerification, $this> */
@@ -136,6 +225,27 @@ class User extends Authenticatable
     public function scopeLatestFirst(Builder $query): void
     {
         $query->orderByDesc('created_at')->orderByDesc('id');
+    }
+
+    /**
+     * Siap menerima pekerjaan: profil pekerjanya sudah terdaftar.
+     *
+     * DIHITUNG dari ada-tidaknya baris `user_workers`, bukan kolom boolean di
+     * `users` — persis alasan yang sama dengan badge terverifikasi di bawah.
+     * Sebuah kolom akan menjawab pertanyaan ini dari tempat yang bukan
+     * sumbernya, dan ia bisa melenceng lewat jalur mana pun yang membuat atau
+     * menghapus profil: Action perekrutan, penghapusan akun beruntun, satu
+     * DELETE di phpMyAdmin. Yang tertinggal bukan sekadar angka salah — ia
+     * pekerja yang muncul di daftar padahal profilnya sudah tidak ada, atau
+     * sebaliknya.
+     *
+     * Gratis di jalur normal: `$with` sudah memuat relasinya.
+     */
+    public function readyToWork(): bool
+    {
+        return $this->relationLoaded('workerProfile')
+            ? $this->getRelation('workerProfile') !== null
+            : $this->workerProfile()->exists();
     }
 
     /**

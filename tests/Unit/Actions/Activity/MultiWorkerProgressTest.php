@@ -132,8 +132,8 @@ final class MultiWorkerProgressTest extends TestCase
         $this->assertNull($payment->released_at);
 
         // Orang ini memang sudah menyelesaikan bagiannya.
-        $this->assertSame(1, $this->workers[0]->refresh()->tasks_completed);
-        $this->assertSame(0, $this->workers[1]->refresh()->tasks_completed);
+        $this->assertSame(1, $this->reputationOf($this->workers[0])->tasks_completed);
+        $this->assertSame(0, $this->reputationOf($this->workers[1])->tasks_completed);
     }
 
     public function test_the_money_is_released_once_when_the_last_worker_is_approved(): void
@@ -158,7 +158,7 @@ final class MultiWorkerProgressTest extends TestCase
         $this->assertSame(600_000, $payment->amount);
 
         foreach ($this->workers as $worker) {
-            $this->assertSame(1, $worker->refresh()->tasks_completed);
+            $this->assertSame(1, $this->reputationOf($worker)->tasks_completed);
         }
     }
 

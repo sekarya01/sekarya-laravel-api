@@ -158,6 +158,68 @@ Yang tidak boleh "dirapikan":
 - `POST /tasks/{task}/start` menurunkan target ke jumlah yang sudah diterima lalu menutup
   lelang — untuk pekerjaan bertanggal yang tidak mendapat pelamar sebanyak targetnya.
 
+## Profil pekerja dipisah dari akun
+
+`users` menyimpan ORANGNYA, `user_workers` menyimpan sisi PEKERJANYA — satu baris per
+orang, lahir saat ia pertama kali menang lelang, disetujui pekerjaannya, dinilai, atau
+mengisi `PUT /me/worker`. Yang dipisah bukan populasinya (tidak seperti `admins`): ini
+orang yang sama dalam peran yang berbeda.
+
+| | `users` | `user_workers` |
+|---|---|---|
+| Identitas | nama, email, HP, **gender**, **birth_date** | — |
+| Tampilan pekerja | — | `display_name`, `contact_phone`, `avatar_path` (semua NULLABLE) |
+| Alamat | domisili orangnya | alamat kerja (NULLABLE, sebagai satu kesatuan) |
+| Lokasi kerja | — | `latitude`/`longitude`/`radius_km` |
+| Reputasi pekerja | — | `worker_rating_avg`, `_count`, `tasks_completed`, `bids_won` |
+| Reputasi pemberi kerja | `poster_rating_*`, `tasks_posted` | — |
+
+Yang tidak boleh "dirapikan":
+
+- **Kolom identitas di `user_workers` adalah PELENGKAP, bukan salinan.** NULL berarti
+  "pakai punya akun", bukan "kosong", dan resolusinya HANYA di `App\Models\UserWorker`
+  (`resolvedName()`, `resolvedPhone()`, `resolvedAvatarPath()`, `resolvedAddress()`).
+  Kalau kolom-kolom itu wajib diisi, dua tabel menyimpan jawaban atas pertanyaan yang
+  sama dan keduanya bisa benar sendiri-sendiri: ganti nama di profil akun berhenti
+  terlihat di profil pekerja, tanpa galat apa pun.
+- **`gender` dan `birth_date` TIDAK ada di `user_workers`**, dan `UpsertWorkerProfileRequest`
+  tidak menerimanya. Orang tidak berganti tanggal lahir saat berpindah mode. API tetap
+  mengeluarkan `gender` dan `age` di profil pekerja — lewat relasi, bukan lewat kolom.
+- **Alamat diresolusi sebagai SATU KESATUAN** (`hasOwnAddress()`). Kalau tiap kolom jatuh
+  sendiri-sendiri ke akun, pekerja yang menulis alamat kerjanya di kota lain mendapat
+  gabungan dua alamat — jalannya dari profil pekerja, kotanya dari domisili akun. Itu
+  alamat yang tidak pernah ada, dan pemberi kerja akan mendatanginya.
+- **UMUR DIHITUNG, TIDAK DISIMPAN.** `User::age()` menurunkannya dari `birth_date` setiap
+  kali dibaca. Kolom `age` akan salah pada hari ulang tahun setiap penggunanya dan tidak
+  ada kejadian di aplikasi ini yang bisa memicu pembaruannya — tidak ada permintaan HTTP
+  yang datang karena seseorang bertambah tua. Kolom turunan MySQL juga tidak bisa:
+  `CURDATE()` non-deterministik, dan GENERATED menolaknya. Batas umurnya (17-100) di
+  `config/sekarya.php` → `profile`, bukan sebagai literal di aturan validasi.
+- **Agregat reputasi tidak mass-assignable, dua lapis.** Tidak ada di aturan validasi DAN
+  tidak ada di `$fillable`. Yang menulisnya hanya `AcceptBidAction`,
+  `ApproveActivityAction`, dan `CreateReviewAction` — yang terakhir menghitung ulang dari
+  tabel `reviews`, bukan menambah inkremental.
+- **`User::$with = ['workerProfile']`.** Blunt, dan disengaja: hampir setiap tempat yang
+  menampilkan pengguna butuh reputasinya, dan satu Action yang lupa eager-load
+  menghasilkan N+1 yang tidak menimbulkan galat apa pun.
+- **`ListBidsAction` sort=rating memakai LEFT join, bukan inner.** Baris `user_workers`
+  baru lahir saat orangnya pertama kali menang; inner join akan MENGHILANGKAN penawaran
+  dari pekerja baru — pada urutan yang dipakai pemberi kerja untuk memilih orang.
+- **Jalur BACA tidak boleh membuat baris.** `workerProfileOrNew()` untuk GET,
+  `workerProfileOrCreate()` untuk Action. Kalau `GET /me/worker` membuat baris,
+  `configured` tidak akan pernah bisa menjawab pertanyaan yang ia ada untuk menjawabnya.
+- **`down()` migrasi perpindahan tidak boleh memakai `after()`.** Kolom-kolom itu dulu
+  duduk sesudah `users.skills`, dan kolom itu sudah dihapus ketika keahlian menjadi
+  relasi — `after('skills')` membuat SELURUH rollback gagal dengan "Unknown column".
+  Sudah pernah terjadi; `tests/Feature/Deployment/WorkerAggregateMigrationTest.php`
+  menjalankan siklus maju-mundur-maju dengan data sungguhan di basis data sekali-pakai.
+
+Batas pengungkapan yang menyertainya: **orang lain melihat `age`, tidak pernah
+`birth_date`** (tanggal lahir persis dipakai bank dan layanan publik sebagai verifikasi),
+dan lokasi kerja keluar sebagai `as_worker.work_area` sebatas kota + radius — tanpa jalan
+dan tanpa koordinat. Pengelola melihat tanggalnya, karena verifikasi identitas
+mencocokkannya dengan KTP.
+
 ## Auth & security
 
 **Dua populasi pemilik token, bukan satu tabel dengan kolom peran.** Pengguna di
@@ -297,7 +359,7 @@ Yang tidak boleh "dirapikan":
   Karena itu pula penghapusan pengelola adalah soft delete, dan alamat emailnya tetap
   terpakai selamanya.
 
-Yang **belum** ada, dan sudah tercatat di `docs/API.md` bagian 14: endpoint membaca
+Yang **belum** ada, dan sudah tercatat di `docs/API.md` bagian 15: endpoint membaca
 jejak audit, dan signed URL untuk melihat foto KTP/selfie (sampai itu ada, penilaian
 identitas hanya bertumpu pada data teks).
 
@@ -362,17 +424,17 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
 ```bash
 # Sekali saat setup: buat database-nya lebih dulu
 #   CREATE DATABASE sekarya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-php artisan migrate:fresh --seed  # 16 tabel + kategori & skills
+php artisan migrate:fresh --seed  # 26 tabel + kategori & skills
 php artisan sekarya:admin create  # akun super_admin — SATU-SATUNYA cara membuatnya
 php artisan serve                 # http://localhost:8000
-php artisan test                  # 887 test, 3.244 asersi
+php artisan test                  # 950 test, 3.473 asersi
 composer test-report              # coverage/html + junit + testdox (lihat tests/README.md)
 php artisan sekarya:axiom --audit # buktikan penyaringan PII sebelum kirim apa pun
 php artisan test tests/Unit       # fast tier
 ./vendor/bin/pint                 # format (run before committing)
 php artisan route:list --path=api
 php artisan sekarya:demo --fresh     # seed fixtures + print dev tokens
-bash docs/smoke.sh                # 132 live HTTP assertions, self-hosting server
+bash docs/smoke.sh                # 155 live HTTP assertions, self-hosting server
 ```
 
 ## API contract

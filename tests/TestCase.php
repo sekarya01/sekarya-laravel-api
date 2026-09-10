@@ -18,6 +18,7 @@ use App\Models\EmailVerificationCode;
 use App\Models\Skill;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\UserWorker;
 use App\Notifications\VerificationCodeNotification;
 use App\Support\TokenIssuer;
 use Database\Seeders\CategorySeeder;
@@ -85,6 +86,20 @@ abstract class TestCase extends BaseTestCase
         $user->save();
 
         return $user->refresh();
+    }
+
+    /**
+     * Reputasi seseorang sebagai PEKERJA, dibaca segar dari basis data.
+     *
+     * Angkanya sudah tidak ada di baris `users` sejak profil pekerja dipisah,
+     * jadi `$user->refresh()->tasks_completed` bukan lagi nol melainkan
+     * `null` — dan `null` lolos dari assertion yang membandingkan longgar.
+     * Helper ini juga menjawab untuk orang yang belum punya profil: nol,
+     * bukan galat.
+     */
+    protected function reputationOf(User $user): UserWorker
+    {
+        return $user->fresh()?->workerProfileOrNew() ?? new UserWorker;
     }
 
     /**

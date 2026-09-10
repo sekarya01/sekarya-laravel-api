@@ -57,9 +57,12 @@ use App\Http\Controllers\Api\V1\Task\PublishTaskController;
 use App\Http\Controllers\Api\V1\Task\ShowTaskController;
 use App\Http\Controllers\Api\V1\Task\StartTaskController;
 use App\Http\Controllers\Api\V1\User\ListVerificationsController;
+use App\Http\Controllers\Api\V1\User\ListWorkersController;
 use App\Http\Controllers\Api\V1\User\ShowMeController;
+use App\Http\Controllers\Api\V1\User\ShowWorkerProfileController;
 use App\Http\Controllers\Api\V1\User\SubmitVerificationController;
 use App\Http\Controllers\Api\V1\User\UpdateProfileController;
+use App\Http\Controllers\Api\V1\User\UpsertWorkerProfileController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -123,8 +126,23 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // Akun
         Route::get('me', ShowMeController::class)->name('me.show');
         Route::patch('me', UpdateProfileController::class)->name('me.update');
+        // Profil PEKERJA — tabel sendiri, sisi lain dari akun yang sama.
+        // Identitas (nama, jenis kelamin, tanggal lahir) tetap diubah lewat
+        // PATCH /me; yang di sini hanya yang khas pekerja.
+        //
+        // PUT, bukan POST: klien tidak perlu tahu apakah profilnya sudah
+        // pernah dibuat, dan mengirim isi yang sama dua kali menghasilkan
+        // keadaan yang sama.
+        Route::get('me/worker', ShowWorkerProfileController::class)->name('me.worker.show');
+        Route::put('me/worker', UpsertWorkerProfileController::class)->name('me.worker.update');
+
         Route::get('me/verifications', ListVerificationsController::class)->name('me.verifications.index');
         Route::post('me/verifications', SubmitVerificationController::class)->name('me.verifications.store');
+
+        // Pekerja yang siap menerima pekerjaan — sisi sebaliknya dari feed
+        // task. Cursor pagination, berangkat dari `user_workers` supaya
+        // urutannya "yang baru siap bekerja", bukan "yang baru mendaftar".
+        Route::get('workers', ListWorkersController::class)->name('workers.index');
 
         // Task
         Route::get('tasks', ListOpenTasksController::class)->name('tasks.index');

@@ -36,11 +36,18 @@ final class ListBidsAction
             ])]);
 
         // Pengurutan berdasarkan rating butuh join — tidak bisa dari kolom bid sendiri.
+        //
+        // LEFT join, bukan inner: reputasi ada di `user_workers`, dan baris itu
+        // baru lahir saat orangnya pertama kali menang atau mengisi profil
+        // pekerjanya. Inner join akan MENGHILANGKAN penawaran dari pekerja
+        // baru — tanpa galat, dan justru pada urutan yang dipakai pemberi
+        // kerja untuk memilih orang. Yang belum punya profil jatuh ke bawah
+        // sendirinya: di MySQL, NULL diurutkan paling akhir pada DESC.
         if ($sort === 'rating') {
             $query
-                ->join('users', 'users.id', '=', 'bids.bidder_id')
-                ->orderByDesc('users.worker_rating_avg')
-                ->orderByDesc('users.tasks_completed')
+                ->leftJoin('user_workers', 'user_workers.user_id', '=', 'bids.bidder_id')
+                ->orderByDesc('user_workers.worker_rating_avg')
+                ->orderByDesc('user_workers.tasks_completed')
                 ->select('bids.*');
         } elseif ($sort === 'amount') {
             $query->orderBy('bids.amount');

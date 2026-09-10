@@ -94,17 +94,63 @@ ok()   { printf '  %sLULUS%s %s\n' "$G" "$N" "$1"; PASS=$((PASS + 1)); }
 bad()  { printf '  %sGAGAL%s %s\n' "$R" "$N" "$1"; FAIL=$((FAIL + 1)); }
 json() { printf '%s' "$1" | python3 -c "import json,sys;d=json.load(sys.stdin);print(eval('''$2'''))" 2>/dev/null; }
 
+# Kosongkan ember rate limit.
+#
+# Skrip ini butuh TUJUH pendaftaran, sementara limiter `register` hanya
+# mengizinkan lima per menit per IP — dan seluruh permintaan di sini datang
+# dari 127.0.0.1. Selama ini ia lolos karena untung-untungan: kalau
+# pendaftaran keenam kebetulan jatuh sesudah jendela 60 detik bergulir, semua
+# hijau; kalau tidak, ia dijawab 429, tokennya kosong, dan yang TERLIHAT
+# adalah empat pemeriksaan lelang yang gagal empat langkah kemudian tanpa
+# menyebut pendaftaran sama sekali.
+#
+# Yang direset embernya, BUKAN batasnya: angka limiter tetap sama persis
+# seperti produksi, dan pemeriksaan rate limit di bagian 5 tetap membuktikan
+# limiter itu benar-benar hidup. Yang dihapus hanya jejak dari fase sebelumnya
+# — kebutuhan tujuh akun dalam satu menit adalah sifat skrip ini, bukan sifat
+# kliennya.
+reset_rate_limits() { php artisan cache:clear >/dev/null 2>&1; }
+
 # Daftar + verifikasi lewat alur nyata; kode dibaca dari log email.
 # Menulis respons pasangan token ke stdout.
+#
+# GAGALNYA HARUS BERISIK. Dulu fungsi ini menelan status pendaftaran ke
+# /dev/null, jadi satu pendaftaran yang ditolak (paling sering `429` — batas
+# laju register hanya 5 per menit per IP) menghasilkan token kosong, dan yang
+# terlihat adalah EMPAT pemeriksaan lelang yang gagal empat langkah kemudian
+# dengan pesan yang tidak menyebut pendaftaran sama sekali.
 signup() {
     : > "$LOG"
-    curl -s -X POST "$BASE/auth/register" -H "$ACC" -H "$CT" \
+    local reg_status
+    reg_status="$(curl -s -X POST "$BASE/auth/register" -H "$ACC" -H "$CT" \
         -d "{\"name\":\"$1\",\"email\":\"$2\",\"phone\":\"$3\",\"password\":\"RahasiaKuat2026\",\"password_confirmation\":\"RahasiaKuat2026\",\"city\":\"Jakarta\"}" \
-        -o /dev/null
+        -o /dev/null -w '%{http_code}')"
+
+    if [[ "$reg_status" != "202" ]]; then
+        bad "signup <$2>: register menjawab ${reg_status}, harus 202$(
+            [[ "$reg_status" == "429" ]] && printf ' — batas laju register (%s/menit per IP) tercapai' "${SEKARYA_RL_REGISTER:-5}"
+        )" >&2
+        return 1
+    fi
+
     local code
     code="$(grep -oE '\*\*[0-9]{6}\*\*' "$LOG" | head -1 | tr -d '*')"
-    curl -s -X POST "$BASE/auth/verify-email" -H "$ACC" -H "$CT" \
-        -d "{\"email\":\"$2\",\"code\":\"$code\"}"
+
+    if [[ -z "$code" ]]; then
+        bad "signup <$2>: kode verifikasi tidak terbaca dari ${LOG} (MAIL_MAILER harus 'log')" >&2
+        return 1
+    fi
+
+    local verified
+    verified="$(curl -s -X POST "$BASE/auth/verify-email" -H "$ACC" -H "$CT" \
+        -d "{\"email\":\"$2\",\"code\":\"$code\"}")"
+
+    if [[ -z "$(json "$verified" "d['data']['access_token']")" ]]; then
+        bad "signup <$2>: verify-email tidak mengembalikan token: ${verified:0:200}" >&2
+        return 1
+    fi
+
+    printf '%s' "$verified"
 }
 
 # ── 1. reset ─────────────────────────────────────────────────────────────────
@@ -303,6 +349,112 @@ else
     bad "CORS: terdaftar=${CORS_OK} asing=${CORS_BAD} (harus >=1 dan 0)"
 fi
 
+# ── 5b. identitas & profil pekerja ───────────────────────────────────────────
+#
+# Dua tabel, satu orang. `gender`/`birth_date` di `users`; nama tampilan,
+# kontak, alamat kerja, lokasi dan reputasi di `user_workers`. Yang diuji di
+# sini justru sambungannya: warisan dari akun, `null` yang mengembalikan
+# warisan, dan umur yang dihitung — bukan disimpan.
+echo
+echo "${Y}==>${N} Identitas & profil pekerja"
+
+check "jenis kelamin & tanggal lahir tersimpan, umur ikut" 200 \
+    "[d['data']['gender'], d['data']['birth_date'], d['data']['age'] is not None]" \
+    '["male", "1995-03-02", true]' \
+    -X PATCH "${AUTH[@]}" -H "$CT" \
+    -d '{"gender":"male","birth_date":"1995-03-02"}' "$BASE/me"
+
+check "umur TIDAK diterima dari klien" 200 "d['data']['age']" \
+    "$(python3 -c "
+from datetime import date
+b = date(1995, 3, 2); t = date.today()
+print(t.year - b.year - ((t.month, t.day) < (b.month, b.day)))")" \
+    -X PATCH "${AUTH[@]}" -H "$CT" -d '{"age":99}' "$BASE/me"
+
+check "gender di luar dua nilai ditolak" 422 "'gender' in d['errors']" 'true' \
+    -X PATCH "${AUTH[@]}" -H "$CT" -d '{"gender":"laki-laki"}' "$BASE/me"
+
+check "umur di bawah batas minimum ditolak" 422 "'birth_date' in d['errors']" 'true' \
+    -X PATCH "${AUTH[@]}" -H "$CT" \
+    -d "{\"birth_date\":\"$(date -v-10y +%Y-%m-%d 2>/dev/null || date -d '10 years ago' +%Y-%m-%d)\"}" \
+    "$BASE/me"
+
+check "format tanggal lahir hanya YYYY-MM-DD" 422 "'birth_date' in d['errors']" 'true' \
+    -X PATCH "${AUTH[@]}" -H "$CT" -d '{"birth_date":"02-03-1995"}' "$BASE/me"
+
+check "profil pekerja kosong mewarisi dari akun, tanpa membuat baris" 200 \
+    "[d['data']['configured'], d['data']['own']['display_name'], d['data']['gender']]" \
+    '[false, null, "male"]' \
+    "${AUTH[@]}" "$BASE/me/worker"
+
+check "PUT pertama MEMBUAT profilnya" 201 \
+    "[d['data']['configured'], d['data']['name'], d['data']['own']['display_name']]" \
+    '[true, "Budi Tukang AC", "Budi Tukang AC"]' \
+    -X PUT "${AUTH[@]}" -H "$CT" \
+    -d '{"display_name":"Budi Tukang AC","latitude":-6.2088,"longitude":106.8456,"radius_km":15}' \
+    "$BASE/me/worker"
+
+check "PUT kedua hanya mengubah" 200 "d['data']['work_location']['radius_km']" '20' \
+    -X PUT "${AUTH[@]}" -H "$CT" -d '{"radius_km":20}' "$BASE/me/worker"
+
+check "field yang tidak disebut tidak tersentuh" 200 \
+    "d['data']['own']['display_name']" '"Budi Tukang AC"' \
+    "${AUTH[@]}" "$BASE/me/worker"
+
+check "null mengembalikan field ke warisan akun" 200 \
+    "[d['data']['own']['display_name'], d['data']['name'] != 'Budi Tukang AC']" \
+    '[null, true]' \
+    -X PUT "${AUTH[@]}" -H "$CT" -d '{"display_name":null}' "$BASE/me/worker"
+
+check "alamat kerja menggantikan alamat akun SELURUHNYA" 200 \
+    "[d['data']['address']['city'], d['data']['address']['address_line']]" \
+    '["Surabaya", null]' \
+    -X PUT "${AUTH[@]}" -H "$CT" -d '{"city":"Surabaya"}' "$BASE/me/worker"
+
+check "lintang tanpa bujur ditolak" 422 "'longitude' in d['errors']" 'true' \
+    -X PUT "${AUTH[@]}" -H "$CT" -d '{"latitude":-6.2088,"longitude":null}' "$BASE/me/worker"
+
+check "reputasi TIDAK bisa dikirim klien" 200 \
+    "[d['data']['as_worker']['tasks_completed'], d['data']['as_worker']['rating_avg']]" \
+    '[0, 0]' \
+    -X PUT "${AUTH[@]}" -H "$CT" \
+    -d '{"tasks_completed":999,"worker_rating_avg":5}' "$BASE/me/worker"
+
+check "identitas TIDAK bisa diubah lewat profil pekerja" 200 "d['data']['gender']" '"male"' \
+    -X PUT "${AUTH[@]}" -H "$CT" \
+    -d '{"gender":"female","birth_date":"1970-01-01"}' "$BASE/me/worker"
+
+check "profil pekerja butuh token" 401 "d['code']" '"unauthenticated"' \
+    -H "$ACC" "$BASE/me/worker"
+
+check "ready_to_work menyala begitu profil pekerja ada" 200 "d['data']['ready_to_work']" 'true' \
+    "${AUTH[@]}" "$BASE/me"
+
+check "daftar pekerja memuat yang siap kerja" 200 \
+    "any(w['ready_to_work'] for w in d['data'])" 'true' \
+    "${AUTH[@]}" "$BASE/workers"
+
+check "daftar pekerja memakai cursor, bukan offset" 200 \
+    "['next_cursor' in d['meta'], 'total' in d['meta'], 'current_page' in d['meta']]" \
+    '[true, false, false]' \
+    "${AUTH[@]}" "$BASE/workers?per_page=1"
+
+check "penyaring kota memakai alamat TERPAKAI" 200 "len(d['data']) >= 1" 'true' \
+    "${AUTH[@]}" "$BASE/workers?city=Surabaya"
+
+check "daftar pekerja tidak membocorkan tanggal lahir" 200 \
+    "[k for k in d['data'][0] if k in ('birth_date','email','phone')]" '[]' \
+    "${AUTH[@]}" "$BASE/workers"
+
+check "gender di luar dua nilai ditolak di daftar" 422 "'gender' in d['errors']" 'true' \
+    "${AUTH[@]}" "$BASE/workers?gender=perempuan"
+
+check "per_page di atas maksimum ditolak di daftar pekerja" 422 "'per_page' in d['errors']" 'true' \
+    "${AUTH[@]}" "$BASE/workers?per_page=500"
+
+check "daftar pekerja butuh token" 401 "d['code']" '"unauthenticated"' \
+    -H "$ACC" "$BASE/workers"
+
 # ── 6. katalog ───────────────────────────────────────────────────────────────
 echo
 echo "${Y}==>${N} Katalog"
@@ -315,6 +467,7 @@ check "keahlian tersedia" 200 "len(d['data']) >= 40" 'true' "${AUTH[@]}" "$BASE/
 echo
 echo "${Y}==>${N} Alur inti: task -> lelang -> deal -> transfer -> selesai"
 
+reset_rate_limits
 WORKER_TOKEN="$(json "$(signup 'Siti Penerima' 'siti@sekarya.test' '+628222333444')" "d['data']['access_token']")"
 OTHER_TOKEN="$(json "$(signup 'Agus Penawar' 'agus@sekarya.test' '+628333444555')" "d['data']['access_token']")"
 # Pelamar ketiga: dipakai untuk membuktikan kuota lamaran benar-benar menutup.
@@ -423,6 +576,7 @@ check "dana dilepas" 200 "d['data']['status']" '"released"' \
 echo
 echo "${Y}==>${N} Satu task merekrut banyak pekerja"
 
+reset_rate_limits
 M1="$(json "$(signup 'Budi Kru' 'budi.kru@sekarya.test' '+628555111222')" "d['data']['access_token']")"
 M2="$(json "$(signup 'Cici Kru' 'cici.kru@sekarya.test' '+628555111333')" "d['data']['access_token']")"
 M3="$(json "$(signup 'Dedi Kru' 'dedi.kru@sekarya.test' '+628555111444')" "d['data']['access_token']")"

@@ -361,7 +361,7 @@ php artisan sekarya:admin suspend --email=verif@domainanda.id   # + cabut tokenn
 ```
 
 Masuknya lewat `POST /api/v1/admin/auth/login`. Panduan lengkap konsolnya di
-[`API.md` bagian 14](API.md#14-konsol-pengelola).
+[`API.md` bagian 15](API.md#15-konsol-pengelola).
 
 ---
 
