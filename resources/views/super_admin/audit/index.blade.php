@@ -26,17 +26,17 @@
     <div class="overflow-x-auto">
         <table class="w-full text-sm min-w-[760px]">
             <thead><tr class="table-head">
-                <th>Waktu</th><th>Pelaku</th><th>Tindakan</th><th>Subjek</th><th>IP</th><th>Alasan</th>
+                <th>Waktu</th><th class="th-c">Pelaku</th><th class="th-c">Tindakan</th><th class="th-c">Subjek</th><th class="th-c">IP</th><th>Alasan</th>
             </tr></thead>
             <tbody>
             @forelse ($logs as $log)
                 <tr class="table-row">
                     <td class="whitespace-nowrap text-slate-500 text-xs">{{ $log->created_at }}</td>
-                    <td class="font-medium text-xs max-w-[180px] truncate">{{ $log->admin?->email }}</td>
-                    <td>@include('super_admin.partials.badge', ['text' => $log->action->value, 'tone' => 'navy'])</td>
-                    <td class="font-mono text-xs text-slate-500 whitespace-nowrap">{{ $log->subject_type }} #{{ $log->subject_id }}</td>
-                    <td class="font-mono text-xs text-slate-400">{{ $log->ip ?? '—' }}</td>
-                    <td class="text-xs text-slate-500 max-w-[220px] truncate" title="{{ $log->reason }}">{{ $log->reason ?? '—' }}</td>
+                    <td class="td-c font-medium text-xs"><span class="marq" title="{{ $log->admin?->email }}"><span class="marq-in">{{ $log->admin?->email }}</span></span></td>
+                    <td class="td-c">@include('super_admin.partials.badge', ['text' => $log->action->value, 'tone' => 'navy'])</td>
+                    <td class="td-c font-mono text-xs text-slate-500 whitespace-nowrap">{{ $log->subject_type }} #{{ $log->subject_id }}</td>
+                    <td class="td-c font-mono text-xs text-slate-400">{{ $log->ip ?? '—' }}</td>
+                    <td class="text-xs text-slate-500"><span class="marq" title="{{ $log->reason }}"><span class="marq-in">{{ $log->reason ?? '—' }}</span></span></td>
                 </tr>
             @empty
                 <tr><td colspan="6">@include('super_admin.partials.empty', ['title' => 'Belum ada jejak', 'hint' => 'Jejak muncul setelah ada keputusan pengelola.'])</td></tr>

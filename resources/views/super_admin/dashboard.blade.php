@@ -8,12 +8,12 @@
     <div class="rounded-2xl p-5 sm:p-6 text-white relative overflow-hidden" style="background: linear-gradient(120deg, #0A1E35 0%, #163C68 60%, #1E4E85 100%);">
         <div class="absolute -right-10 -top-16 w-64 h-64 rounded-full opacity-25" style="background: #F97316; filter: blur(70px);"></div>
         <div class="relative">
-            <p class="text-[.7rem] uppercase tracking-[.2em] font-bold text-orange-200">Halo, Super Admin</p>
+            <p class="text-xs uppercase tracking-widest font-bold text-orange-200">Halo, Super Admin</p>
             <h3 class="mt-1 text-xl sm:text-2xl font-extrabold">Ada {{ $pendingVerifications + $awaitingPayments }} antrean menunggu tindakanmu.</h3>
             <p class="mt-1 text-sm text-slate-300">Kerjakan yang paling lama menunggu dulu — mereka yang paling lama tertahan.</p>
             <div class="mt-4 flex flex-wrap gap-2">
-                <a href="{{ route('super_admin.verifications.index') }}" class="btn btn-accent !text-[.8rem]">Buka verifikasi →</a>
-                <a href="{{ route('super_admin.payments.index') }}" class="btn !text-[.8rem] bg-white/15 text-white border border-white/20 hover:bg-white/25">Buka transfer →</a>
+                <a href="{{ route('super_admin.verifications.index') }}" class="btn btn-accent text-sm!">Buka verifikasi →</a>
+                <a href="{{ route('super_admin.payments.index') }}" class="btn text-sm! bg-white/15 text-white border border-white/20 hover:bg-white/25">Buka transfer →</a>
             </div>
         </div>
     </div>
@@ -39,7 +39,7 @@ $stats = [
 ];
 @endphp
 
-<div class="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+<div class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
     @foreach ($stats as $i => $s)
         @php $tag = $s['href'] ? 'a' : 'div'; @endphp
         <{{ $tag }} @if($s['href']) href="{{ $s['href'] }}" @endif
@@ -48,7 +48,7 @@ $stats = [
                 <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">{!! $s['icon'] !!}</svg>
             </div>
             <div class="min-w-0">
-                <p class="text-[.7rem] uppercase tracking-wider font-bold text-slate-400">{{ $s['label'] }}</p>
+                <p class="text-xs uppercase tracking-wider font-bold text-slate-400">{{ $s['label'] }}</p>
                 <p class="text-3xl font-extrabold leading-none mt-1" style="color: #163C68;">{{ $s['value'] }}</p>
             </div>
         </{{ $tag }}>
@@ -61,21 +61,21 @@ $stats = [
             <h3 class="font-extrabold text-lg" style="color: #163C68;">Keputusan terakhir</h3>
             <p class="text-xs text-slate-400">Jejak append-only — tidak bisa disunting.</p>
         </div>
-        <a href="{{ route('super_admin.audit.index') }}" class="btn btn-ghost !py-2 !text-xs">Semua jejak →</a>
+        <a href="{{ route('super_admin.audit.index') }}" class="btn btn-ghost py-2! text-xs!">Semua jejak →</a>
     </div>
     <div class="mt-3 overflow-x-auto">
         <table class="w-full text-sm min-w-[640px]">
             <thead><tr class="table-head">
-                <th>Waktu</th><th>Pelaku</th><th>Tindakan</th><th>Subjek</th><th>Alasan</th>
+                <th>Waktu</th><th class="th-c">Pelaku</th><th class="th-c">Tindakan</th><th class="th-c">Subjek</th><th>Alasan</th>
             </tr></thead>
             <tbody>
             @forelse ($recentAudits as $log)
                 <tr class="table-row">
                     <td class="whitespace-nowrap text-slate-500 text-xs">{{ $log->created_at }}</td>
-                    <td class="font-medium">{{ $log->admin?->email }}</td>
-                    <td>@include('super_admin.partials.badge', ['text' => $log->action->value, 'tone' => 'navy'])</td>
-                    <td class="font-mono text-xs text-slate-500">{{ $log->subject_type }} #{{ $log->subject_id }}</td>
-                    <td class="text-slate-500 text-xs max-w-[220px] truncate">{{ $log->reason ?? '—' }}</td>
+                    <td class="td-c font-medium text-xs"><span class="marq" title="{{ $log->admin?->email }}"><span class="marq-in">{{ $log->admin?->email }}</span></span></td>
+                    <td class="td-c">@include('super_admin.partials.badge', ['text' => $log->action->value, 'tone' => 'navy'])</td>
+                    <td class="td-c font-mono text-xs text-slate-500">{{ $log->subject_type }} #{{ $log->subject_id }}</td>
+                    <td class="text-slate-500 text-xs"><span class="marq" title="{{ $log->reason }}"><span class="marq-in">{{ \Illuminate\Support\Str::limit((string) $log->reason, 60) }}</span></span></td>
                 </tr>
             @empty
                 <tr><td colspan="5">@include('super_admin.partials.empty', ['title' => 'Belum ada jejak', 'hint' => 'Setiap keputusanmu akan tercatat di sini.'])</td></tr>

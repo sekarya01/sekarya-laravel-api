@@ -14,6 +14,7 @@ use App\Models\Admin;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
 
 /**
@@ -32,12 +33,19 @@ final class AdminAccountController
 
     public function store(Request $request, CreateAdminAction $action): RedirectResponse
     {
-        $validated = $request->validate([
+        // Validasi manual agar drawer kanan terbuka lagi beserta galatnya.
+        $validator = Validator::make($request->all(), [
             'name' => ['required', 'string', 'min:3', 'max:100'],
             'email' => ['required', 'email', 'max:255', 'unique:admins,email'],
             // Sama ketatnya seperti API: 12+, campur huruf/angka/simbol.
             'password' => ['required', 'string', 'min:12', 'confirmed'],
         ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput()->with('open_modal', 'create-admin');
+        }
+
+        $validated = $validator->validated();
 
         /** @var Admin $actor */
         $actor = Auth::guard('admin_web')->user();
@@ -51,7 +59,7 @@ final class AdminAccountController
         try {
             $admin = $action->handle($build(), $actor);
         } catch (DomainException $e) {
-            return back()->withErrors(['action' => $e->getMessage()])->withInput();
+            return back()->withErrors(['action' => $e->getMessage()])->withInput()->with('open_modal', 'create-admin');
         }
 
         return redirect()->route('super_admin.admins.index')

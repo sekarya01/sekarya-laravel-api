@@ -16,7 +16,7 @@
     </div>
     <div>
         <label class="label">Status</label>
-        <select name="status" class="field !w-auto min-w-[12rem]">
+        <select name="status" class="field w-auto! min-w-[12rem]">
             <option value="">Semua status</option>
             @foreach (['active' => 'green', 'pending_verification' => 'amber', 'suspended' => 'orange', 'banned' => 'red'] as $s => $t)
                 <option value="{{ $s }}" @selected($filterStatus === $s)>{{ $s }}</option>
@@ -30,7 +30,7 @@
     <div class="overflow-x-auto">
         <table class="w-full text-sm min-w-[640px]">
             <thead><tr class="table-head">
-                <th>Pengguna</th><th>Status</th><th>Terdaftar</th><th class="!text-right">Aksi</th>
+                <th>Pengguna</th><th class="th-c">Status</th><th class="th-c">Terdaftar</th><th class="th-c">Aksi</th>
             </tr></thead>
             <tbody>
             @forelse ($queue as $u)
@@ -45,13 +45,13 @@
                             <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-xs shrink-0" style="background: linear-gradient(135deg, #163C68, #2A5E9E);">
                                 {{ strtoupper(substr($u->name, 0, 1)) }}
                             </div>
-                            <div class="min-w-0"><p class="font-bold truncate">{{ $u->name }}</p><p class="text-xs text-slate-400 truncate">{{ $u->email }}</p></div>
+                            <div class="min-w-0"><p class="font-bold"><span class="marq" title="{{ $u->name }}"><span class="marq-in">{{ $u->name }}</span></span></p><p class="text-xs text-slate-400"><span class="marq" title="{{ $u->email }}"><span class="marq-in">{{ $u->email }}</span></span></p></div>
                         </div>
                     </td>
-                    <td>@include('super_admin.partials.badge', ['text' => $u->status->value, 'tone' => $tone])</td>
-                    <td class="whitespace-nowrap text-slate-500 text-xs">{{ $u->created_at }}</td>
-                    <td class="!text-right">
-                        <a href="{{ route('super_admin.users.show', $u->ulid) }}" class="btn btn-navy !py-2 !px-3.5 !text-xs">Buka →</a>
+                    <td class="td-c">@include('super_admin.partials.badge', ['text' => $u->status->value, 'tone' => $tone])</td>
+                    <td class="td-c whitespace-nowrap text-slate-500 text-xs">{{ $u->created_at }}</td>
+                    <td class="td-c">
+                        <a href="{{ route('super_admin.users.show', $u->ulid) }}" class="btn btn-navy py-2! px-4! text-xs!">Buka →</a>
                     </td>
                 </tr>
             @empty

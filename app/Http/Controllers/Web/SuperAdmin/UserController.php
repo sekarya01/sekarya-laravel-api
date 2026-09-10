@@ -17,6 +17,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
 
 /**
@@ -80,7 +81,7 @@ final class UserController
             );
             $action->handle($user, $admin, $build());
         } catch (DomainException $e) {
-            return back()->withErrors(['action' => $e->getMessage()]);
+            return back()->withErrors(['action' => $e->getMessage()])->with('open_modal', 'reinstate');
         }
 
         return redirect()->route('super_admin.users.show', $user)
@@ -94,7 +95,20 @@ final class UserController
         AdminAction $act,
         string $kind,
     ): RedirectResponse {
-        $validated = $request->validate(['reason' => ['required', 'string', 'min:10', 'max:1000']]);
+        // Validasi manual agar popup yang benar bisa dibuka lagi beserta
+        // galatnya — $request->validate() langsung melempar tanpa jejak
+        // popup mana yang sedang dipakai.
+        $validator = Validator::make(
+            $request->all(),
+            ['reason' => ['required', 'string', 'min:10', 'max:1000']],
+            ['reason.min' => 'Jelaskan minimal 10 karakter supaya tercatat jelas di jejak audit.'],
+        );
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput()->with('open_modal', $kind);
+        }
+
+        $validated = $validator->validated();
 
         /** @var Admin $admin */
         $admin = Auth::guard('admin_web')->user();
@@ -107,7 +121,7 @@ final class UserController
             );
             $action->handle($user, $admin, $build());
         } catch (DomainException $e) {
-            return back()->withErrors(['action' => $e->getMessage()])->withInput();
+            return back()->withErrors(['action' => $e->getMessage()])->withInput()->with('open_modal', $kind);
         }
 
         $verb = $kind === 'ban' ? 'diblokir' : 'ditangguhkan';

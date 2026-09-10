@@ -43,13 +43,13 @@
         </div>
 
         <div class="p-7 sm:p-10">
-            <p class="text-[.68rem] uppercase tracking-[.22em] font-bold" style="color: var(--accent);">Sekarya · Pengelola</p>
+            <p class="text-xs uppercase tracking-widest font-bold" style="color: var(--accent);">Sekarya · Pengelola</p>
             <h2 class="mt-1 text-2xl font-extrabold" style="color: var(--brand);">Selamat datang kembali</h2>
             <p class="mt-1 text-sm text-slate-500">Hanya akun <span class="font-semibold">super_admin</span> yang bisa masuk.</p>
 
             @if ($errors->any())
                 <div class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                    <ul class="list-disc pl-5 space-y-0.5">
+                    <ul class="list-disc pl-5 space-y-1">
                         @foreach ($errors->all() as $error)
                             <li>{{ $error }}</li>
                         @endforeach
@@ -69,7 +69,7 @@
                     <input id="password" name="password" type="password" required autocomplete="current-password"
                         placeholder="••••••••••••" class="field">
                 </div>
-                <button class="w-full rounded-xl py-3 text-sm font-bold text-white transition-all hover:-translate-y-0.5 active:translate-y-0"
+                <button class="w-full rounded-xl py-3 text-sm font-bold text-white transition-all hover:brightness-110 active:brightness-95"
                         style="background: linear-gradient(135deg, var(--accent), #DD5F0A); box-shadow: 0 10px 24px -8px rgba(249,115,22,.7);">
                     Masuk ke Konsol
                 </button>
