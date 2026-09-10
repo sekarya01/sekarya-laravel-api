@@ -76,7 +76,12 @@ final class AcceptBidAction
 
             $this->hiring->sync($task);
 
-            $bid->bidder()->increment('bids_won');
+            // Reputasi pekerja hidup di `user_workers`, bukan di `users` —
+            // dan profil itu dibuat di sini kalau belum ada. Orang bisa
+            // memenangkan penawaran tanpa pernah membuka halaman profil
+            // pekerjanya, dan increment ke baris yang tidak ada hilang tanpa
+            // galat.
+            $bid->bidder->workerProfileOrCreate()->increment('bids_won');
 
             if ($task->isFullyStaffed()) {
                 $this->hiring->close($task, $poster, sprintf(

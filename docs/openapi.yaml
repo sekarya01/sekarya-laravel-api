@@ -518,6 +518,194 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationFailed'
 
+  /workers:
+    get:
+      tags: [Akun]
+      operationId: listWorkers
+      summary: Daftar pekerja siap kerja
+      description: |
+        Sisi sebaliknya dari feed task: pemberi kerja mencari ORANG, bukan
+        pekerjaan.
+
+        Yang muncul: setiap akun `active` yang punya baris `user_workers` —
+        **terverifikasi maupun belum**. Verifikasi identitas MENANDAI barisnya
+        lewat `ready_to_work`, ia tidak menyaringnya. Pekerja yang baru
+        bergabung harus tetap bisa ditemukan; kalau disembunyikan, ia tidak
+        akan pernah mendapat pekerjaan pertamanya.
+
+        Yang tetap menyaring hanya status akun: yang ditangguhkan atau
+        diblokir tidak muncul.
+
+        Pakai `ready_to_work=true` kalau memang hanya mau melihat yang sudah
+        terverifikasi, atau `ready_to_work=false` untuk menyisir yang belum.
+
+        **Urutannya "yang baru SIAP BEKERJA", bukan "yang baru mendaftar".**
+        Kuncinya `user_workers.created_at` + `id`, karena seseorang bisa punya
+        akun dua tahun lalu dan baru kemarin membuka profil pekerjanya.
+
+        Cursor pagination seperti seluruh endpoint daftar di API ini: `cursor`
+        opaque, `per_page` maksimum 50, dan `meta` tidak pernah memuat
+        `total` maupun `current_page`.
+
+        Penyaring `city`/`province` membandingkan alamat **terpakai**: alamat
+        kerja kalau pekerjanya mengisinya, domisili akun kalau tidak.
+        Membandingkan kolom profil saja akan menghilangkan hampir setiap
+        pekerja — alamat kerja bawaannya diwarisi — dan daftarnya akan tampak
+        bekerja sambil hampir selalu kosong.
+
+        Tidak ada pencarian nama sebagian: `LIKE '%budi%'` tidak bisa memakai
+        indeks apa pun, dan API ini nol kemunculan `LIKE`.
+      parameters:
+        - { $ref: '#/components/parameters/PerPage' }
+        - { $ref: '#/components/parameters/Cursor' }
+        - name: city
+          in: query
+          schema: { type: string, maxLength: 80 }
+          description: Kota kerja terpakai.
+        - name: province
+          in: query
+          schema: { type: string, maxLength: 80 }
+          description: Provinsi kerja terpakai.
+        - name: gender
+          in: query
+          schema: { type: string, enum: [male, female] }
+          description: |
+            Ada pekerjaan yang memang menuntutnya — jaga anak, perawat lansia,
+            pekerjaan di ruang tertutup.
+        - name: ready_to_work
+          in: query
+          schema: { type: boolean }
+          description: |
+            Penyaring **opsional**. Dihilangkan berarti seluruh pekerja
+            muncul, terverifikasi maupun belum.
+      responses:
+        '200':
+          description: Pekerja, yang paling baru siap bekerja lebih dulu.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PublicUser' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /me/worker:
+    get:
+      tags: [Akun]
+      operationId: showWorkerProfile
+      summary: Profil pekerja sendiri
+      description: |
+        Sisi **pekerja** dari akun — tabel sendiri (`user_workers`), satu baris
+        per orang.
+
+        **Membaca tidak membuat baris.** Yang belum pernah mengisi apa pun tetap
+        mendapat profil utuh, seluruhnya diwarisi dari akun, dengan
+        `configured: false` sebagai penandanya.
+
+        Responsnya punya dua lapis, dan keduanya diperlukan untuk membangun
+        formulir sunting yang benar:
+
+        - Di tingkat atas: nilai **terpakai**, sudah diresolusi.
+        - Di `own`: nilai yang benar-benar **diisi sendiri**, `null` kalau
+          diwarisi dari akun.
+
+        Tanpa lapis kedua, formulir tidak bisa membedakan "nama pekerja saya
+        memang Budi" dari "saya belum mengisinya, itu nama akun saya" — dan
+        sekali formulir itu disimpan kembali, seluruh nilai warisan berubah jadi
+        nilai yang diisi sendiri.
+      responses:
+        '200':
+          description: Profil pekerja, sudah diresolusi.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkerProfile'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+    put:
+      tags: [Akun]
+      operationId: upsertWorkerProfile
+      summary: Isi atau ubah profil pekerja
+      description: |
+        Membuat profilnya kalau belum ada, mengubahnya kalau sudah — klien tidak
+        perlu tahu lebih dulu yang mana, dan mengirim isi yang sama dua kali
+        menghasilkan keadaan yang sama.
+
+        **`null` di sini berarti "kembali ikut akun"**, bukan "kosongkan".
+        Mengirim `display_name: null` mengembalikan namanya mengikuti nama akun.
+        Field yang **tidak disebut** tidak tersentuh.
+
+        **Identitas akun harus lengkap lebih dulu.** Tanpa `gender` DAN
+        `birth_date` di akun, panggilan ini dijawab `422` dengan
+        `code: profile_incomplete` dan `context.missing` menyebut field mana
+        yang kurang — lengkapi lewat `PATCH /me`, lalu ulangi. Kartu pekerja
+        yang dibaca pemberi kerja menampilkan jenis kelamin dan umur; kartu
+        berisi dua tanda hubung bukan kartu yang bisa dipakai memilih orang.
+
+        Yang **tidak** diterima di sini, dan ditolak diam-diam kalau dikirim:
+
+        - `gender` dan `birth_date` — identitas orangnya, sumbernya satu, dan
+          diubah lewat `PATCH /me`.
+        - `worker_rating_avg`, `tasks_completed`, `bids_won` — reputasi yang
+          bisa dikirim klien bukan reputasi.
+
+        Alamat diperlakukan sebagai **satu kesatuan**: begitu salah satu kolom
+        alamat diisi, seluruh alamatnya berhenti mewarisi dari akun. Kalau tiap
+        kolom jatuh sendiri-sendiri, pekerja yang menulis alamat kerjanya di kota
+        lain akan mendapat gabungan dua alamat — jalannya dari sini, kotanya dari
+        domisili akun — dan itu alamat yang tidak pernah ada.
+
+        Koordinat hanya sah **berpasangan**: satu lintang tanpa bujur bukan
+        lokasi yang kurang lengkap, ia bukan lokasi sama sekali.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertWorkerProfileRequest'
+            example:
+              display_name: Budi Tukang AC
+              contact_phone: '+628222000222'
+              city: Jakarta Selatan
+              province: DKI Jakarta
+              latitude: -6.2088
+              longitude: 106.8456
+              radius_km: 15
+      responses:
+        '200':
+          description: Profil pekerja diubah.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkerProfile'
+        '201':
+          description: |
+            Profil pekerja **baru dibuat** oleh permintaan ini. Panggilan
+            berikutnya pada profil yang sama menjawab `200`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkerProfile'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
   /me/verifications:
     get:
       tags: [Akun]
@@ -2789,6 +2977,22 @@ components:
       properties:
         id: { type: string, description: ULID }
         name: { type: string }
+        gender: { $ref: '#/components/schemas/Gender' }
+        birth_date:
+          type: [string, 'null']
+          format: date
+          description: |
+            `YYYY-MM-DD`. Keluar utuh **hanya** di profil sendiri dan di sisi
+            pengelola. Orang lain hanya melihat `age` — tanggal lahir persis
+            adalah bahan pembobolan identitas.
+        age:
+          type: [integer, 'null']
+          description: |
+            **Dihitung** dari `birth_date` setiap kali dibaca, tidak pernah
+            disimpan dan tidak bisa dikirim. Kolom umur akan salah pada hari
+            ulang tahun setiap penggunanya, dan tidak ada permintaan HTTP yang
+            datang karena seseorang bertambah tua.
+          examples: [31]
         phone: { type: [string, 'null'] }
         email: { type: [string, 'null'], format: email }
         phone_verified: { type: boolean }
@@ -2800,6 +3004,7 @@ components:
         skills:
           type: array
           items: { $ref: '#/components/schemas/Skill' }
+        ready_to_work: { $ref: '#/components/schemas/ReadyToWork' }
         active_mode: { $ref: '#/components/schemas/UserActiveMode' }
         status: { $ref: '#/components/schemas/UserStatus' }
         theme: { type: string, enum: [light, dark, system] }
@@ -2827,7 +3032,17 @@ components:
       required: [id, name, identity_verified, as_worker, as_poster]
       properties:
         id: { type: string }
-        name: { type: string }
+        name:
+          type: string
+          description: |
+            Nama yang ia tampilkan **sebagai pekerja** kalau profil pekerjanya
+            mengisinya; kalau tidak, nama akunnya.
+        gender: { $ref: '#/components/schemas/Gender' }
+        age:
+          type: [integer, 'null']
+          description: |
+            Umur, bukan tanggal lahir. `birth_date` tidak pernah keluar dari
+            sini.
         avatar_url: { type: [string, 'null'], format: uri }
         bio: { type: [string, 'null'] }
         skills:
@@ -2838,18 +3053,72 @@ components:
         identity_verified:
           type: boolean
           description: Ada verifikasi `identity` berstatus `verified`. Dihitung, tidak disimpan — status bisa dicabut.
-        as_worker: { $ref: '#/components/schemas/WorkerAggregates' }
+        ready_to_work: { $ref: '#/components/schemas/ReadyToWork' }
+        as_worker: { $ref: '#/components/schemas/PublicWorkerAggregates' }
         as_poster: { $ref: '#/components/schemas/PosterAggregates' }
         member_since: { type: [string, 'null'], format: date-time }
+    ReadyToWork:
+      type: boolean
+      description: |
+        Siap menerima pekerjaan. Menuntut **dua** hal sekaligus:
+
+        1. ada baris di `user_workers` (profil pekerja sudah dibuka), dan
+        2. ada verifikasi `identity` berstatus `verified`.
+
+        Punya profil saja tidak cukup — siapa pun bisa membuatnya sendiri lewat
+        satu panggilan. Yang membuatnya berarti adalah persetujuan pengelola
+        atas identitasnya, dan itu tidak bisa diberikan sendiri. Verifikasi
+        yang dicabut langsung mematikan penanda ini.
+
+        Rekening bank **tidak** ikut jadi syarat: ia syarat untuk DIBAYAR,
+        bukan untuk boleh bekerja. Menggabungkannya berarti pekerja tidak bisa
+        melamar apa pun sampai dua antrean manual selesai.
+
+        **Dihitung, tidak disimpan**, persis seperti `identity_verified`.
+        Sebuah kolom boolean akan menjawab dari tempat yang bukan sumbernya dan
+        bisa melenceng lewat jalur mana pun yang membuat, menghapus, atau
+        mencabut; yang tertinggal bukan angka salah, melainkan pekerja yang
+        muncul di `GET /workers` padahal haknya sudah dicabut.
+    Gender:
+      type: [string, 'null']
+      enum: [male, female, null]
+      description: |
+        Dua nilai, mengikuti yang tercetak di KTP. `null` untuk akun yang belum
+        pernah mengisinya — pendaftaran tidak menanyakannya.
+    WorkArea:
+      type: object
+      description: |
+        Dari kota mana seorang pekerja bersedia berangkat, dan sejauh apa.
+        **Tanpa jalan dan tanpa koordinat**: pemberi kerja perlu tahu si pekerja
+        bersedia datang ke mana, ia tidak perlu tahu di rumah mana orangnya
+        tidur.
+      properties:
+        city: { type: [string, 'null'] }
+        province: { type: [string, 'null'] }
+        radius_km: { type: [integer, 'null'], examples: [15] }
     WorkerAggregates:
       type: object
-      description: Reputasi sebagai penerima kerja.
+      description: |
+        Reputasi sebagai penerima kerja. Angkanya hidup di tabel `user_workers`
+        (profil pekerja), bukan di baris akun.
       required: [rating_avg, rating_count, tasks_completed]
       properties:
         rating_avg: { type: number, examples: [4.9] }
         rating_count: { type: integer }
         tasks_completed: { type: integer, examples: [214] }
         bids_won: { type: integer }
+    PublicWorkerAggregates:
+      type: object
+      description: |
+        Reputasi pekerja seperti dilihat orang lain. `bids_won` tidak ikut:
+        berapa kali seseorang menang tidak menambah apa pun pada penilaian
+        pekerjaannya, dan ia membocorkan volume aktivitas orang itu.
+      required: [rating_avg, rating_count, tasks_completed]
+      properties:
+        rating_avg: { type: number, examples: [4.9] }
+        rating_count: { type: integer }
+        tasks_completed: { type: integer, examples: [214] }
+        work_area: { $ref: '#/components/schemas/WorkArea' }
     PosterAggregates:
       type: object
       description: |
@@ -2938,26 +3207,26 @@ components:
       properties:
         id: { type: string, description: ULID }
         name: { type: string }
+        gender: { $ref: '#/components/schemas/Gender' }
+        birth_date:
+          type: [string, 'null']
+          format: date
+          description: |
+            Pengelola melihat tanggalnya, bukan hanya umurnya: verifikasi
+            identitas mencocokkannya dengan yang tertera di KTP, dan umur saja
+            tidak bisa dicocokkan dengan apa pun.
+        age: { type: [integer, 'null'] }
         email: { type: string, format: email }
         phone: { type: [string, 'null'] }
         status: { $ref: '#/components/schemas/UserStatus' }
         active_mode: { $ref: '#/components/schemas/UserActiveMode' }
         email_verified: { type: boolean }
         identity_verified: { type: boolean }
+        ready_to_work: { $ref: '#/components/schemas/ReadyToWork' }
         city: { type: [string, 'null'] }
         province: { type: [string, 'null'] }
-        as_worker:
-          type: object
-          properties:
-            rating_avg: { type: number }
-            rating_count: { type: integer }
-            tasks_completed: { type: integer }
-        as_poster:
-          type: object
-          properties:
-            rating_avg: { type: number }
-            rating_count: { type: integer }
-            tasks_posted: { type: integer }
+        as_worker: { $ref: '#/components/schemas/WorkerAggregates' }
+        as_poster: { $ref: '#/components/schemas/PosterAggregates' }
         cancellations: { type: integer }
         last_active_at: { type: [string, 'null'], format: date-time }
         created_at: { type: [string, 'null'], format: date-time }
@@ -3368,6 +3637,18 @@ components:
       description: Semua opsional. Hanya field yang dikirim yang diubah.
       properties:
         name: { type: string, maxLength: 120 }
+        gender: { $ref: '#/components/schemas/Gender' }
+        birth_date:
+          type: [string, 'null']
+          format: date
+          description: |
+            Persis `YYYY-MM-DD`. Format lain ditolak — tanpa itu `01/02/2003`
+            diterima dan artinya berbeda di dua benua.
+
+            Umurnya harus 17-100 tahun. 17 adalah usia KTP, dan verifikasi
+            identitas di aplikasi ini bertumpu pada KTP.
+
+            **`age` tidak diterima.** Umur dihitung dari tanggal ini.
         bio: { type: [string, 'null'], maxLength: 2000 }
         skills:
           type: array
@@ -3381,6 +3662,108 @@ components:
         active_mode: { $ref: '#/components/schemas/UserActiveMode' }
         theme: { type: string, enum: [light, dark, system] }
       additionalProperties: false
+    UpsertWorkerProfileRequest:
+      type: object
+      description: |
+        Semua opsional. Yang **tidak disebut** tidak tersentuh; yang dikirim
+        bernilai `null` kembali mewarisi dari akun.
+      properties:
+        display_name: { type: [string, 'null'], maxLength: 120 }
+        contact_phone:
+          type: [string, 'null']
+          maxLength: 20
+          pattern: '^\+?[0-9]{9,19}$'
+          description: Nomor yang boleh dihubungi pemberi kerja, kalau berbeda dari nomor akun.
+        avatar_path: { type: [string, 'null'], maxLength: 255 }
+        address_line: { type: [string, 'null'], maxLength: 255 }
+        city: { type: [string, 'null'], maxLength: 80 }
+        province: { type: [string, 'null'], maxLength: 80 }
+        postal_code: { type: [string, 'null'], maxLength: 10 }
+        latitude:
+          type: [number, 'null']
+          minimum: -90
+          maximum: 90
+          description: Wajib berpasangan dengan `longitude`.
+        longitude:
+          type: [number, 'null']
+          minimum: -180
+          maximum: 180
+          description: Wajib berpasangan dengan `latitude`.
+        radius_km:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 500
+          description: |
+            Sejauh apa ia bersedia berangkat. Batas atasnya menjaga radius yang
+            secara efektif berarti "seluruh Indonesia" — itu bukan penyaring.
+      additionalProperties: false
+    WorkerProfile:
+      type: object
+      description: |
+        Profil pekerja **milik sendiri**. Yang dilihat orang lain tetap
+        `PublicUser`, dan ia lebih tertutup: alamat jalan dan koordinat tidak
+        pernah keluar dari sana.
+      required: [configured, name, as_worker]
+      properties:
+        configured:
+          type: boolean
+          description: |
+            Barisnya sudah pernah dibuat. `false` berarti seluruh isinya masih
+            diwarisi dari akun — membaca profil tidak membuat baris.
+        name: { type: [string, 'null'], description: Nilai terpakai. }
+        contact_phone: { type: [string, 'null'], description: Nilai terpakai. }
+        avatar_url: { type: [string, 'null'], format: uri }
+        gender:
+          allOf: [{ $ref: '#/components/schemas/Gender' }]
+          description: |
+            Selalu dari akun; ubah lewat `PATCH /me`. Terjamin terisi untuk
+            profil yang dibuat sejak identitas diwajibkan — baris lama bisa
+            masih `null`, dan baris itu tidak akan pernah `ready_to_work`.
+        age:
+          type: [integer, 'null']
+          description: Selalu dari akun, dihitung dari `birth_date`.
+        address:
+          type: object
+          description: |
+            Alamat terpakai — seluruhnya dari profil pekerja kalau ia mengisi
+            salah satunya, seluruhnya dari akun kalau tidak. Tidak pernah
+            campuran.
+          properties:
+            address_line: { type: [string, 'null'] }
+            city: { type: [string, 'null'] }
+            province: { type: [string, 'null'] }
+            postal_code: { type: [string, 'null'] }
+        work_location:
+          type: object
+          description: Dari mana ia berangkat, dan sejauh apa. Tidak pernah keluar ke orang lain.
+          properties:
+            latitude: { type: [number, 'null'] }
+            longitude: { type: [number, 'null'] }
+            radius_km: { type: [integer, 'null'] }
+        own:
+          type: object
+          description: |
+            Yang benar-benar **diisi sendiri**. `null` = diwarisi dari akun.
+            Inilah yang harus dipakai formulir sunting sebagai nilai awal —
+            memakai nilai terpakai akan mengubah setiap warisan jadi nilai tetap
+            begitu formulirnya disimpan.
+          properties:
+            display_name: { type: [string, 'null'] }
+            contact_phone: { type: [string, 'null'] }
+            avatar_path: { type: [string, 'null'] }
+            address_line: { type: [string, 'null'] }
+            city: { type: [string, 'null'] }
+            province: { type: [string, 'null'] }
+            postal_code: { type: [string, 'null'] }
+        ready_to_work:
+          allOf: [{ $ref: '#/components/schemas/ReadyToWork' }]
+          description: |
+            Berbeda dari `configured`: yang itu menjawab "profilnya sudah
+            pernah diisi", yang ini "sudah boleh muncul sebagai pekerja".
+            Pemiliknya perlu melihat keduanya untuk tahu ia sedang menunggu apa.
+        as_worker: { $ref: '#/components/schemas/WorkerAggregates' }
+        created_at: { type: [string, 'null'], format: date-time }
+        updated_at: { type: [string, 'null'], format: date-time }
     SubmitVerificationRequest:
       type: object
       required: [type]
@@ -3553,6 +3936,7 @@ components:
             - review_not_allowed
             - admin_access_denied
             - super_admin_protected
+            - profile_incomplete
         context:
           type: object
           additionalProperties: true

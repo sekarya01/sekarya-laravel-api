@@ -5,11 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Web\SuperAdmin;
 
 use App\Actions\Admin\Payment\ConfirmPaymentAction;
-use App\Actions\Admin\Payment\ListPaymentQueueAction;
 use App\Actions\Admin\Payment\RejectPaymentAction;
-use App\Data\Admin\PaymentQueueData;
 use App\Data\Admin\RejectPaymentData;
-use App\Data\CursorPageData;
 use App\Enums\PaymentStatus;
 use App\Exceptions\Domain\DomainException;
 use App\Models\Admin;
@@ -25,23 +22,29 @@ use Illuminate\View\View;
  * Bawaan `awaiting_confirmation`, urut `reported_at` (kapan pemberi kerja
  * mengaku transfer) — bukan `created_at`. Confirm adalah satu-satunya jalan
  * ke `held`, dan `held` membuka activity per pekerja yang diterima.
+ *
+ * Pagination BERNOMOR. Aturan saring & urut disalin dari
+ * ListPaymentQueueAction — kalau Action itu berubah, samakan di sini.
  */
 final class PaymentController
 {
-    public function index(Request $request, ListPaymentQueueAction $action): View
+    public function index(Request $request): View
     {
         $request->validate([
-            'status' => ['sometimes', 'string', 'max:30'],
-            'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'status' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50'],
         ]);
 
         $rawStatus = $request->string('status')->value() ?: PaymentStatus::AwaitingConfirmation->value;
         $status = PaymentStatus::tryFrom($rawStatus) ?? PaymentStatus::AwaitingConfirmation;
 
-        $queue = $action->handle(new PaymentQueueData(
-            page: CursorPageData::fromRequest($request),
-            status: $status,
-        ));
+        $queue = Payment::query()
+            ->where('status', $status)
+            ->with(['task.category', 'payer'])
+            ->orderBy('reported_at')
+            ->orderBy('id')
+            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->withQueryString();
 
         return view('super_admin.payments.index', [
             'queue' => $queue,

@@ -9,6 +9,7 @@ use App\Http\Controllers\Web\SuperAdmin\DashboardController;
 use App\Http\Controllers\Web\SuperAdmin\PaymentController;
 use App\Http\Controllers\Web\SuperAdmin\UserController;
 use App\Http\Controllers\Web\SuperAdmin\VerificationController;
+use App\Http\Controllers\Web\SuperAdmin\WorkerController;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Route;
 
@@ -49,6 +50,9 @@ Route::prefix('access/super_admin')->name('super_admin.')->group(function (): vo
         Route::post('users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
         Route::post('users/{user}/ban', [UserController::class, 'ban'])->name('users.ban');
         Route::post('users/{user}/reinstate', [UserController::class, 'reinstate'])->name('users.reinstate');
+
+        Route::get('workers', [WorkerController::class, 'index'])->name('workers.index');
+        Route::get('workers/{worker}', [WorkerController::class, 'show'])->name('workers.show');
 
         Route::get('admins', [AdminAccountController::class, 'index'])->name('admins.index');
         Route::post('admins', [AdminAccountController::class, 'store'])->name('admins.store');

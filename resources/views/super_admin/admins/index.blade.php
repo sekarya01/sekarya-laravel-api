@@ -56,7 +56,7 @@
     </div>
 </div>
 
-@include('super_admin.partials.pager', ['paginator' => $admins])
+@include('super_admin.partials.pages', ['paginator' => $admins])
 
 <div id="createDrawer" aria-hidden="true">
     <div class="drawer-bg" data-close-create></div>

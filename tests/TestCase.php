@@ -18,6 +18,8 @@ use App\Models\EmailVerificationCode;
 use App\Models\Skill;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\UserVerification;
+use App\Models\UserWorker;
 use App\Notifications\VerificationCodeNotification;
 use App\Support\TokenIssuer;
 use Database\Seeders\CategorySeeder;
@@ -85,6 +87,39 @@ abstract class TestCase extends BaseTestCase
         $user->save();
 
         return $user->refresh();
+    }
+
+    /**
+     * Identitas terverifikasi — gerbang `ready_to_work`.
+     *
+     * Lewat factory dengan status `verified` langsung, bukan lewat alur
+     * pengajuan + persetujuan pengelola: yang diuji di sini bukan alur
+     * verifikasinya (itu punya kelas test sendiri), melainkan apa yang terjadi
+     * SESUDAH identitas terverifikasi.
+     */
+    protected function verifyIdentity(User $user): UserVerification
+    {
+        $verification = UserVerification::factory()->verified()->create([
+            'user_id' => $user->getKey(),
+        ]);
+
+        $user->unsetRelation('verifications');
+
+        return $verification;
+    }
+
+    /**
+     * Reputasi seseorang sebagai PEKERJA, dibaca segar dari basis data.
+     *
+     * Angkanya sudah tidak ada di baris `users` sejak profil pekerja dipisah,
+     * jadi `$user->refresh()->tasks_completed` bukan lagi nol melainkan
+     * `null` — dan `null` lolos dari assertion yang membandingkan longgar.
+     * Helper ini juga menjawab untuk orang yang belum punya profil: nol,
+     * bukan galat.
+     */
+    protected function reputationOf(User $user): UserWorker
+    {
+        return $user->fresh()?->workerProfileOrNew() ?? new UserWorker;
     }
 
     /**

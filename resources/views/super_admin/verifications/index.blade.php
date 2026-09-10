@@ -9,7 +9,7 @@
     <p class="mt-1 text-sm text-slate-500">Paling lama menunggu di depan. Daftar ini <strong>tidak memuat</strong> NIK, nomor rekening, maupun path foto.</p>
 </div>
 
-<form method="GET" class="anim-rise ad-1 mt-4 card p-4 flex flex-wrap items-end gap-3 text-sm">
+<form method="GET" data-guard class="anim-rise ad-1 mt-4 card p-4 flex flex-wrap items-end gap-3 text-sm">
     <div>
         <label class="label">Status</label>
         <select name="status" class="field w-auto! min-w-[13rem]">
@@ -29,7 +29,7 @@
             @endforeach
         </select>
     </div>
-    <button class="btn btn-accent">Saring</button>
+    <button type="submit" class="btn btn-accent">Saring</button>
 </form>
 
 <div class="anim-rise ad-2 mt-4 card overflow-hidden">
@@ -68,5 +68,5 @@
     </div>
 </div>
 
-@include('super_admin.partials.pager', ['paginator' => $queue])
+@include('super_admin.partials.pages', ['paginator' => $queue])
 @endsection

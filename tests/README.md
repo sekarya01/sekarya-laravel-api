@@ -35,20 +35,26 @@ for f in t.getroot().iter('file'):
 EOF
 ```
 
-Terakhir dijalankan: **740 test, 2.442 assertion, 44 berkas** — diverifikasi pada
+Terakhir dijalankan: **957 test, 3.507 assertion, 61 berkas** — diverifikasi pada
 Laravel 11.55.1 / PHP 8.5.10.
 
 **Coverage** (diukur pada Laravel 11.55.1 / PHP 8.5.10 dengan pcov):
 
 | | |
 |---|---|
-| Baris | **99,75%** (2829/2836) |
-| Method | 99,38% (484/487) |
-| Kelas | 98,79% (163/165) |
+| Baris — seluruh `app/` | **91,53%** (3912/4274) |
+| Baris — **API saja** | **99,26%** (3912/3941) |
+| Baris — dasbor web `/access/super_admin` | **0%** (0/333) |
+| Method | 93,91% (664/707) |
 
-Tujuh baris tidak tercakup, dan ketiga-tiganya cabang defensif untuk keadaan yang
-skema nyata tidak pernah capai. Disebut spesifik supaya tidak jadi tempat
-sembunyi kode mati:
+**Angka `app/` diseret satu bagian yang memang belum punya test:** tujuh controller
+dasbor web super_admin plus middleware-nya, 333 statement, nol tercakup. Itu bukan
+cabang defensif melainkan kode yang belum diuji sama sekali — disebut di sini supaya
+tidak menghilang di balik satu angka gabungan, dan supaya jelas apa yang harus
+dikerjakan berikutnya.
+
+Di luar itu, 29 statement tidak tercakup, dan hampir semuanya cabang defensif untuk
+keadaan yang skema nyata tidak pernah capai. Yang paling perlu disebut:
 
 | Berkas | Baris | Kenapa |
 |---|---|---|

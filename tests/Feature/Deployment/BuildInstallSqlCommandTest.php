@@ -191,7 +191,7 @@ final class BuildInstallSqlCommandTest extends TestCase
             $this->assertStringNotContainsString($needle, $sql, 'data pengguna ikut terbawa: '.$needle);
         }
 
-        foreach (['users', 'tasks', 'bids', 'user_verifications', 'payments'] as $table) {
+        foreach (['users', 'tasks', 'bids', 'user_worker_verifications', 'payments'] as $table) {
             $this->assertStringNotContainsString(
                 'INSERT IGNORE INTO `'.$table.'`',
                 $sql,

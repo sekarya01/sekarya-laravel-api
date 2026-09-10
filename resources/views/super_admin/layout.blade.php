@@ -63,6 +63,7 @@
         .btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; font-weight: 600;
             font-size: .875rem; border-radius: .75rem; padding: .625rem 1rem; transition: all .2s ease; cursor: pointer; }
         .btn:active { transform: scale(.97); }
+        .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
         .btn-accent { background: var(--accent); color: #fff; box-shadow: 0 6px 16px -6px rgba(249,115,22,.6); }
         .btn-accent:hover { background: var(--accent-hover); box-shadow: 0 8px 20px -6px rgba(249,115,22,.7); transform: translateY(-2px); }
         .btn-navy { background: var(--brand); color: #fff; box-shadow: 0 6px 16px -8px rgba(22,60,104,.7); }
@@ -100,6 +101,17 @@
             justify-content: center; flex-shrink: 0; }
         .stat-icon svg { width: 1.5rem; height: 1.5rem; }
         .needs-attention { animation: glowPulse 2.4s ease-in-out infinite; }
+
+        /* Pagination bernomor */
+        .pg-btn { min-width: 2.5rem; height: 2.5rem; padding: 0 .75rem; display: inline-flex;
+            align-items: center; justify-content: center; border-radius: .75rem; font-weight: 700;
+            font-size: .8125rem; background: #fff; color: var(--brand); border: 1px solid #D7E0EC;
+            transition: all .2s ease; }
+        a.pg-btn:hover { border-color: var(--brand); background: #F2F6FB; transform: translateY(-2px); }
+        .pg-current { background: var(--brand) !important; border-color: var(--brand) !important;
+            color: #fff !important; box-shadow: 0 6px 14px -6px rgba(22,60,104,.6); }
+        .pg-disabled { opacity: .45; cursor: default; }
+        .pg-dots { color: #94A3B8; font-weight: 700; padding: 0 .25rem; }
     </style>
 </head>
 <body class="text-slate-800 min-h-screen antialiased">
@@ -113,7 +125,9 @@
          'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/>'],
         ['route' => 'super_admin.users.index', 'match' => 'super_admin.users.*', 'label' => 'Pengguna',
          'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/>'],
-        ['route' => 'super_admin.admins.index', 'match' => 'super_admin.admins.*', 'label' => 'Pengelola',
+                ['route' => 'super_admin.workers.index', 'match' => 'super_admin.workers.*', 'label' => 'Pekerja',
+                 'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0"/>'],
+                ['route' => 'super_admin.admins.index', 'match' => 'super_admin.admins.*', 'label' => 'Pengelola',
          'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/>'],
         ['route' => 'super_admin.audit.index', 'match' => 'super_admin.audit.*', 'label' => 'Audit',
          'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>'],
@@ -252,6 +266,23 @@
     document.addEventListener('mouseout', e => {
         const m = e.target.closest('.marq');
         if (m && !m.contains(e.relatedTarget)) m.classList.remove('marq-go');
+    });
+    // Guard filter: tombol cari mati selama form masih sama persis dengan
+    // keadaan awal (bawaan). Baru hidup setelah ≥1 field diubah/diisi.
+    // Server tetap menerima submit kosong (tanpa-JS / URL langsung) dengan
+    // aturan "null dilewati, daftar bawaan tampil" — guard ini murni UX.
+    document.querySelectorAll('form[data-guard]').forEach(form => {
+        const btn = form.querySelector('[type="submit"]');
+        if (!btn) return;
+        const snapshot = () => [...new FormData(form).entries()].map(([k, v]) => k + '=' + v).join('&');
+        const initial = snapshot();
+        const check = () => { btn.disabled = snapshot() === initial; };
+        form.addEventListener('input', check);
+        form.addEventListener('change', check);
+        // Enter di kolom teks men-submit form langsung tanpa lewat tombol
+        // yang sedang disabled — cegah di sini juga.
+        form.addEventListener('submit', e => { if (btn.disabled) e.preventDefault(); });
+        check();
     });
 </script>
 </body>

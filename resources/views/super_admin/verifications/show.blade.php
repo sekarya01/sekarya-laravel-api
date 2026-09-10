@@ -65,6 +65,20 @@
                     <div><p class="text-xs uppercase tracking-wider text-slate-400 font-bold">Nama di dokumen</p><p class="font-semibold text-white">{{ $verification->name_on_document ?? '—' }}</p></div>
                     <div><p class="text-xs uppercase tracking-wider text-slate-400 font-bold">Tanggal lahir</p><p class="font-semibold text-white">{{ $verification->birth_date_on_document ?? '—' }}</p></div>
                 </div>
+                @php
+                    $docBirth = $verification->birth_date_on_document?->toDateString();
+                    $accBirth = $verification->user?->birth_date?->toDateString();
+                @endphp
+                <div class="mt-4 grid sm:grid-cols-2 gap-3 text-sm">
+                    <div><p class="text-xs uppercase tracking-wider text-slate-400 font-bold">Tgl lahir (akun)</p><p class="font-semibold text-white">{{ $accBirth ?? '—' }}</p></div>
+                    <div><p class="text-xs uppercase tracking-wider text-slate-400 font-bold">Kecocokan</p>
+                        @if ($docBirth && $accBirth)
+                            @include('super_admin.partials.badge', ['text' => $docBirth === $accBirth ? 'cocok dengan akun' : 'BEDA — periksa KTP', 'tone' => $docBirth === $accBirth ? 'green' : 'red'])
+                        @else
+                            <p class="font-semibold text-white">—</p>
+                        @endif
+                    </div>
+                </div>
             @else
                 <p class="text-xs uppercase tracking-widest font-bold text-orange-300">Nomor rekening</p>
                 <p class="mt-1 font-mono text-2xl sm:text-3xl font-bold tracking-wider text-white">{{ $verification->account_number_enc ?? '—' }}</p>
@@ -90,7 +104,10 @@
     <form method="POST" action="{{ route('super_admin.verifications.approve', $verification) }}" class="anim-rise ad-2 card card-lift p-5" style="border-top: 4px solid #059669;">
         @csrf
         <h4 class="font-extrabold text-emerald-800">Setujui</h4>
-        <p class="mt-1 text-sm text-slate-500">Cocok dengan dokumen. Badge terverifikasi pemiliknya menyala.</p>
+        <p class="mt-1 text-sm text-slate-500">Badge terverifikasi pemiliknya menyala.</p>
+        @if ($verification->type->value === 'identity')
+            <p class="mt-2 text-xs leading-relaxed rounded-xl bg-emerald-50 border border-emerald-100 p-2.5 text-emerald-900">Menyetujui identitas juga menyalakan penanda <span class="font-mono font-bold">siap kerja</span> — bila profil pekerjanya sudah ada.</p>
+        @endif
         <button class="btn btn-success w-full mt-4">✓ Setujui</button>
     </form>
     <form method="POST" action="{{ route('super_admin.verifications.reject', $verification) }}" class="anim-rise ad-3 card card-lift p-5" style="border-top: 4px solid #DC2626;">

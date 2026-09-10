@@ -48,7 +48,7 @@ final class ApproveActivityAction
             // Agregat yang ditampilkan di kartu penawaran. Dinaikkan per
             // pekerja yang disetujui, bukan per task — orang ini memang sudah
             // menyelesaikan bagiannya.
-            $activity->worker()->increment('tasks_completed');
+            $activity->worker->workerProfileOrCreate()->increment('tasks_completed');
 
             $task = $activity->task;
 

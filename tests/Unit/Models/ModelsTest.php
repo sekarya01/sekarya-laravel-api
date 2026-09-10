@@ -331,7 +331,7 @@ final class ModelsTest extends TestCase
             'submitted_at' => now(),
         ]);
 
-        $raw = (string) \DB::table('user_verifications')
+        $raw = (string) \DB::table('user_worker_verifications')
             ->where('id', $verification->getKey())
             ->value('document_number_enc');
 

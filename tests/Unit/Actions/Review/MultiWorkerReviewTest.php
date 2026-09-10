@@ -84,7 +84,7 @@ final class MultiWorkerReviewTest extends TestCase
             ->count());
 
         foreach ([3, 4, 5] as $i => $rating) {
-            $reviewed = $this->workers[$i]->refresh();
+            $reviewed = $this->reputationOf($this->workers[$i]);
             $this->assertSame(1, $reviewed->worker_rating_count);
             $this->assertSame($rating, (int) $reviewed->worker_rating_avg);
         }
@@ -150,7 +150,7 @@ final class MultiWorkerReviewTest extends TestCase
             $this->assertSame('review_not_allowed', $e->errorCode());
         } finally {
             // Yang gagal tidak boleh menggeser rating yang sudah ada.
-            $this->assertSame(5, (int) $this->workers[0]->refresh()->worker_rating_avg);
+            $this->assertSame(5, (int) $this->reputationOf($this->workers[0])->worker_rating_avg);
         }
     }
 

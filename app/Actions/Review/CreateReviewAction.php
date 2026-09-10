@@ -131,9 +131,27 @@ final class CreateReviewAction
             ->selectRaw('COUNT(*) as c, AVG(rating) as a')
             ->first();
 
+        $count = (int) $stats->c;
+        $average = round((float) $stats->a, 2);
+
+        // Reputasi PEKERJA tinggal di `user_workers`, reputasi PEMBERI KERJA
+        // di `users`. Profil pekerjanya dibuat kalau belum ada: penilaian bisa
+        // datang untuk orang yang belum pernah membuka halaman profilnya.
+        if ($reviewerRole->affectsWorkerProfile()) {
+            User::query()->whereKey($revieweeId)->sole()
+                ->workerProfileOrCreate()
+                // forceFill: agregat sengaja tidak mass-assignable.
+                ->forceFill([
+                    'worker_rating_count' => $count,
+                    'worker_rating_avg' => $average,
+                ])->save();
+
+            return;
+        }
+
         User::query()->whereKey($revieweeId)->update([
-            "{$target}_rating_count" => (int) $stats->c,
-            "{$target}_rating_avg" => round((float) $stats->a, 2),
+            "{$target}_rating_count" => $count,
+            "{$target}_rating_avg" => $average,
         ]);
     }
 }

@@ -260,7 +260,7 @@ final class BidActionsTest extends TestCase
 
         app(AcceptBidAction::class)->handle($bid, $this->poster);
 
-        $this->assertSame(1, $this->worker->refresh()->bids_won);
+        $this->assertSame(1, $this->reputationOf($this->worker)->bids_won);
     }
 
     /**
@@ -334,7 +334,8 @@ final class BidActionsTest extends TestCase
     public function test_list_bids_sorted_by_rating(): void
     {
         $other = $this->activeUser();
-        $this->worker->forceFill(['worker_rating_avg' => 4.9, 'tasks_completed' => 214])->save();
+        $this->worker->workerProfileOrCreate()
+            ->forceFill(['worker_rating_avg' => 4.9, 'tasks_completed' => 214])->save();
         app(PlaceBidAction::class)->handle($this->bid(220_000), $this->task, $this->worker);
         app(PlaceBidAction::class)->handle($this->bid(180_000), $this->task, $other);
 

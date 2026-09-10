@@ -67,7 +67,7 @@ final class VerificationReviewTest extends TestCase
         $this->assertTrue($result->status->isVerified());
 
         // Barisnya, bukan objek di memori.
-        $this->assertDatabaseHas('user_verifications', [
+        $this->assertDatabaseHas('user_worker_verifications', [
             'id' => $this->verification->getKey(),
             'status' => VerificationStatus::Verified->value,
             'reviewed_by' => $this->admin->getKey(),
@@ -112,7 +112,7 @@ final class VerificationReviewTest extends TestCase
         ));
 
         $this->assertSame(VerificationStatus::Rejected, $result->status);
-        $this->assertDatabaseHas('user_verifications', [
+        $this->assertDatabaseHas('user_worker_verifications', [
             'id' => $this->verification->getKey(),
             'status' => VerificationStatus::Rejected->value,
             'rejection_reason' => 'Foto KTP tidak terbaca, silakan unggah ulang.',

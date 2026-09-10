@@ -70,10 +70,14 @@ final class ReviewActionsTest extends TestCase
         app(CreateReviewAction::class)
             ->handle(new CreateReviewData(5), $this->task, $this->poster);
 
+        // Reputasi PEKERJA hidup di `user_workers`...
+        $reputation = $this->reputationOf($this->worker);
+        $this->assertSame('5.00', (string) $reputation->worker_rating_avg);
+        $this->assertSame(1, $reputation->worker_rating_count);
+
+        // ...dan reputasi sebagai PEMBERI KERJA tetap di `users`, tidak
+        // tersentuh. Dua tabel, dua peran — itu inti desainnya.
         $worker = $this->worker->refresh();
-        $this->assertSame('5.00', (string) $worker->worker_rating_avg);
-        $this->assertSame(1, $worker->worker_rating_count);
-        // Reputasi sebagai pemberi kerja tidak tersentuh.
         $this->assertSame('0.00', (string) $worker->poster_rating_avg);
         $this->assertSame(0, $worker->poster_rating_count);
     }
@@ -92,8 +96,8 @@ final class ReviewActionsTest extends TestCase
         app(CreateReviewAction::class)->handle(new CreateReviewData(5), $this->task, $this->poster);
         app(CreateReviewAction::class)->handle(new CreateReviewData(3), $second, $other);
 
-        $this->assertSame('4.00', (string) $this->worker->refresh()->worker_rating_avg);
-        $this->assertSame(2, $this->worker->refresh()->worker_rating_count);
+        $this->assertSame('4.00', (string) $this->reputationOf($this->worker)->worker_rating_avg);
+        $this->assertSame(2, $this->reputationOf($this->worker)->worker_rating_count);
     }
 
     public function test_hidden_reviews_are_excluded_from_the_aggregate(): void
@@ -113,8 +117,8 @@ final class ReviewActionsTest extends TestCase
         $this->hireWorker($second, $this->worker);
         app(CreateReviewAction::class)->handle(new CreateReviewData(5), $second, $other);
 
-        $this->assertSame('5.00', (string) $this->worker->refresh()->worker_rating_avg);
-        $this->assertSame(1, $this->worker->refresh()->worker_rating_count);
+        $this->assertSame('5.00', (string) $this->reputationOf($this->worker)->worker_rating_avg);
+        $this->assertSame(1, $this->reputationOf($this->worker)->worker_rating_count);
     }
 
     public function test_reviewing_an_unfinished_task_is_rejected(): void

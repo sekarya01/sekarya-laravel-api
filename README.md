@@ -12,7 +12,7 @@ badan usaha. Semua pihak perseorangan.
 | Bahasa & framework | PHP `^8.3` (**pakai 8.4 di produksi**, lihat catatan di bawah) · Laravel `11.55.1` (dipin persis) |
 | Basis data | MySQL 8+ / InnoDB — **bukan** SQLite, lihat [Kenapa MySQL](#kenapa-mysql-bukan-sqlite) |
 | Autentikasi | Laravel Sanctum `^4.0`, sepasang token |
-| Test | PHPUnit `^11.5` — 887 test, 3.244 asersi, 56 berkas (ukur coverage: `composer test-report`) |
+| Test | PHPUnit `^11.5` — 957 test, 3.507 asersi, 61 berkas (ukur coverage: `composer test-report`) |
 | Kontrak API | OpenAPI 3.1 di `docs/openapi.yaml` — 57 endpoint (35 pengguna + 22 pengelola) |
 | Observability | Axiom (opsional, mati secara bawaan) |
 
@@ -78,7 +78,7 @@ CREATE DATABASE sekarya_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 Isi kredensial basis data di `.env`, lalu:
 
 ```bash
-php artisan migrate --seed     # 23 migrasi -> 25 tabel, + kategori & keahlian
+php artisan migrate --seed     # 26 migrasi -> 26 tabel, + kategori & keahlian
 npm install && npm run build   # opsional, hanya untuk aset
 ```
 
@@ -170,10 +170,10 @@ php artisan route:list --path=api
 ## Test
 
 ```bash
-php artisan test                  # 887 test, 3.244 asersi
+php artisan test                  # 957 test, 3.507 asersi
 php artisan test tests/Unit       # lapis cepat
 composer test-report              # + coverage/html, junit, testdox
-bash docs/smoke.sh                # 132 pemeriksaan HTTP sungguhan, server sendiri
+bash docs/smoke.sh                # 162 pemeriksaan HTTP sungguhan, server sendiri
 ./vendor/bin/pint                 # format — jalankan sebelum commit
 npx --yes -p @redocly/cli redocly lint docs/openapi.yaml
 ```
@@ -316,6 +316,20 @@ peran: tabel sendiri (`admins`), guard sendiri, ability token sendiri. Token pen
 `/admin` menghasilkan `401`, dan sebaliknya. Ada **tepat satu** `super_admin` — dijamin
 indeks unique di basis data — dan ia tidak bisa dihapus maupun dinonaktifkan.
 
+**Profil pekerja ada di tabelnya sendiri, dan kolomnya PELENGKAP — bukan salinan.**
+`users` menyimpan orangnya (termasuk `gender` dan `birth_date`); `user_workers` menyimpan
+sisi pekerjanya — nama tampilan, kontak, alamat kerja, lokasi, dan seluruh reputasi
+sebagai pekerja. Kolom identitas di sana semuanya nullable, dan **NULL berarti "pakai
+punya akun"**, bukan "kosong": kalau wajib diisi, dua tabel akan menyimpan jawaban atas
+pertanyaan yang sama dan ganti nama di profil akun berhenti terlihat di profil pekerja —
+tanpa galat apa pun.
+
+**Umur dihitung, tidak disimpan.** `User::age()` menurunkannya dari `birth_date` setiap
+kali dibaca. Kolom umur akan salah pada hari ulang tahun setiap penggunanya, dan tidak
+ada permintaan HTTP yang datang karena seseorang bertambah tua — tidak ada yang bisa
+memicu pembaruannya. Orang lain melihat `age`; **`birth_date` hanya keluar ke pemiliknya
+sendiri dan ke pengelola.**
+
 **Login, kirim ulang kode, dan verifikasi memberi jawaban identik** apakah emailnya ada
 atau tidak — kalau tidak, ketiganya menjadi alat pemetaan akun.
 
@@ -332,7 +346,7 @@ ada setelan MySQL yang perlu diminta ke penyedia hosting.
   akan mengotori setiap respons JSON — rinciannya di
   [Konsekuensi memakai Laravel 11](#konsekuensi-memakai-laravel-11).
 - Basis data dipasang sekali lewat
-  [`database/schema/sekarya-install.sql`](database/schema/sekarya-install.sql): 23 tabel
+  [`database/schema/sekarya-install.sql`](database/schema/sekarya-install.sql): 26 tabel
   beserta indeks dan foreign key, data acuan, dan riwayat migrasi supaya
   `php artisan migrate` tahu semuanya sudah dijalankan. Tanpa data pengguna. Tabelnya urut
   menurut ketergantungan dan tidak menghapus apa pun, jadi bisa diimpor lewat phpMyAdmin

@@ -62,6 +62,28 @@ return [
         'validate_email_dns' => (bool) env('SEKARYA_VALIDATE_EMAIL_DNS', true),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Profil
+    |--------------------------------------------------------------------------
+    |
+    | Batas umur. Angkanya di sini, bukan tersebar sebagai literal di aturan
+    | validasi — dua tempat yang menuliskannya sendiri-sendiri akan melenceng,
+    | dan yang melenceng adalah syarat siapa yang boleh bekerja.
+    |
+    */
+
+    'profile' => [
+        // 17 tahun: usia KTP di Indonesia. Verifikasi identitas di aplikasi ini
+        // mencocokkan dengan KTP, jadi orang yang belum bisa punya KTP tidak
+        // akan pernah bisa lolos verifikasi.
+        'min_age' => (int) env('SEKARYA_MIN_AGE', 17),
+
+        // Batas atas yang masuk akal. Bukan aturan bisnis — penjaga salah
+        // ketik: tahun 1025 lolos sebagai tanggal yang sah.
+        'max_age' => (int) env('SEKARYA_MAX_AGE', 100),
+    ],
+
     'verification' => [
         // Panjang kode numerik. 6 angka = 1 juta kemungkinan; yang menjaganya
         // bukan panjangnya, tapi masa berlaku pendek + batas percobaan.
