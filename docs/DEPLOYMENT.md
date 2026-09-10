@@ -254,6 +254,18 @@ php artisan event:cache
 Tanpa SSH, jalankan lewat cron sekali (`Cron Jobs` > jadwalkan, lalu hapus setelah
 berhasil), atau lewat Terminal di cPanel bila tersedia.
 
+> [!warning] Cron tidak menampilkan apa pun — beri ia tempat bicara
+> Cron yang gagal terlihat persis sama dengan cron yang berhasil: sama-sama diam.
+> Selalu akhiri dengan `>> ~/nama.log 2>&1`, lalu baca berkasnya di File Manager.
+>
+> ```
+> cd ~/sekarya && PHP artisan optimize:clear && PHP artisan config:cache >> ~/cache.log 2>&1
+> ```
+>
+> Ini sudah pernah menghabiskan waktu: path PHP yang salah membuat cron berhenti di
+> `No such file or directory`, dan karena tidak ada log, gejalanya baru muncul jauh
+> kemudian sebagai "kenapa `.env` saya tidak terbaca".
+
 **Setiap kali `.env` berubah, cache-nya harus dibuat ulang:**
 
 ```bash
@@ -299,10 +311,38 @@ Sandinya **tidak** ditampilkan dan tidak bisa dibaca lagi — yang tersimpan han
 hash-nya. Perintah ini **menolak** sandi contoh dari `.env.example` saat
 `APP_ENV=production`, dan menolak sandi di bawah 12 karakter di lingkungan mana pun.
 
-> **Tanpa SSH?** Sama seperti `config:cache`: jalankan lewat cPanel > Cron Jobs sekali
-> (jadwalkan, tunggu menyala, lalu hapus jadwalnya), atau lewat Terminal cPanel bila
-> tersedia. Setelah akunnya jadi, **hapus `SEKARYA_SUPER_ADMIN_PASSWORD` dari `.env`**
-> lalu buat ulang `config:cache` — nilainya tidak dipakai lagi setelah akunnya ada.
+**Tanpa SSH?** Lewat cPanel > Cron Jobs, sekali jalan — dan tulis begini persis:
+
+```
+cd ~/sekarya && /opt/cpanel/ea-php84/root/usr/bin/php artisan sekarya:admin create --no-interaction >> ~/admin-create.log 2>&1
+```
+
+Dua bagian itu bukan hiasan:
+
+- **`--no-interaction`** — cron tidak punya keyboard. Tanpa ini perintahnya berpotensi
+  menunggu jawaban yang tidak akan pernah datang.
+- **`>> ~/admin-create.log 2>&1`** — satu-satunya cara tahu apa yang terjadi. Baca
+  berkasnya di File Manager.
+
+| Isi log | Artinya |
+|---|---|
+| `INFO Super Admin dibuat: …` | berhasil |
+| `The name field is required` | config cache masih basi — jalankan `config:cache` dulu |
+| `must be at least 12 characters` | sandi di `.env` terlalu pendek |
+| `Sandi itu ada di daftar contoh yang terlacak git` | ganti sandinya |
+| `super_admin sudah ada: …` | sudah pernah dibuat; perhatikan alamat yang disebut |
+| `No such file or directory` | path PHP salah — lihat bagian 8 |
+| berkasnya tidak ada | cron belum pernah jalan |
+
+Urutannya wajib: sunting `.env` → `config:cache` → **baru** `sekarya:admin create`.
+Perintahnya membaca config yang sudah di-cache, jadi cron yang menyala terlalu cepat
+akan gagal dengan `The name field is required` dan tidak membuat apa pun.
+
+Setelah akunnya jadi, **hapus `SEKARYA_SUPER_ADMIN_PASSWORD` dari `.env`** lalu buat
+ulang `config:cache` — nilainya tidak dipakai lagi.
+
+Aman dijalankan berkali-kali: pemanggilan kedua ditolak dengan keterangan, bukan
+menimpa akun yang sudah ada.
 
 Akun ini:
 
@@ -328,7 +368,22 @@ Masuknya lewat `POST /api/v1/admin/auth/login`. Panduan lengkap konsolnya di
 ## 8. Cron
 
 cPanel > **Cron Jobs**. Sesuaikan path PHP-nya — cPanel biasanya menyediakan versi khusus
-seperti `/opt/cpanel/ea-php83/root/usr/bin/php`.
+seperti `/opt/cpanel/ea-php84/root/usr/bin/php`.
+
+> [!danger] Pastikan path-nya, jangan menebak
+> Bentuknya `/opt/cpanel/ea-php84/root/usr/bin/php`. Yang **tidak** ada:
+> `/usr/local/bin/ea-php84/...` — `/usr/local/bin/` memang berisi `php`, tapi tidak ada
+> folder `ea-php84` di dalamnya. Cron dengan path karangan berhenti seketika, diam-diam.
+>
+> Cari yang benar lewat cron sekali jalan:
+>
+> ```
+> { ls -d /opt/cpanel/ea-php*/root/usr/bin/php; command -v php; /usr/local/bin/php -v | head -1; } >> ~/cek-php.log 2>&1
+> ```
+>
+> Pakai baris yang muncul di `cek-php.log`. Menyebut versinya eksplisit lebih baik
+> daripada `/usr/local/bin/php`: yang terakhir mengikuti PHP bawaan server, yang bisa
+> saja 8.5 — dan 8.5 merusak seluruh respons JSON aplikasi ini.
 
 **Penjadwal Laravel**, setiap menit:
 
