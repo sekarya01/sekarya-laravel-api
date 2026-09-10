@@ -8,7 +8,6 @@ use App\Actions\Activity\ApproveActivityAction;
 use App\Actions\Activity\RejectActivityAction;
 use App\Actions\Activity\StartActivityAction;
 use App\Actions\Activity\SubmitActivityAction;
-use App\Actions\Payment\HoldPaymentAction;
 use App\Data\Activity\SubmitActivityData;
 use App\Enums\PaymentStatus;
 use App\Enums\TaskStatus;
@@ -52,7 +51,7 @@ final class ActivityGuardsTest extends TestCase
             'amount' => 220_000,
         ]);
         // Satu transfer membuka satu activity PER pekerja; task ini punya satu.
-        $this->activity = app(HoldPaymentAction::class)->handle($this->task, $this->poster)->sole();
+        $this->activity = $this->openActivities($this->task, $this->poster)->sole();
     }
 
     /** Menolak hasil yang belum diserahkan tidak boleh bisa. */

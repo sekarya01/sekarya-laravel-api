@@ -6,7 +6,6 @@ namespace Tests\Unit\Actions\Task;
 
 use App\Actions\Bid\AcceptBidAction;
 use App\Actions\Bid\PlaceBidAction;
-use App\Actions\Payment\HoldPaymentAction;
 use App\Actions\Task\StartWithCurrentWorkersAction;
 use App\Data\Bid\PlaceBidData;
 use App\Enums\BidStatus;
@@ -326,7 +325,7 @@ final class MultiWorkerHiringTest extends TestCase
             $this->accept($this->apply($worker, $amount));
         }
 
-        $activities = app(HoldPaymentAction::class)->handle($this->task->refresh(), $this->poster);
+        $activities = $this->openActivities($this->task->refresh(), $this->poster);
 
         $this->assertCount(3, $activities);
         $this->assertSame($workers, $activities->pluck('worker_id')->map(intval(...))->all());
@@ -352,10 +351,10 @@ final class MultiWorkerHiringTest extends TestCase
             $this->accept($this->apply($this->activeUser(), 100_000 * $i, $task));
         }
 
-        app(HoldPaymentAction::class)->handle($task->refresh(), $this->poster);
+        $this->openActivities($task->refresh(), $this->poster);
 
         try {
-            app(HoldPaymentAction::class)->handle($task->refresh(), $this->poster);
+            $this->openActivities($task->refresh(), $this->poster);
         } catch (\Throwable) {
             // Pembayaran sudah held; yang diperiksa di sini jumlah barisnya.
         }
@@ -375,7 +374,7 @@ final class MultiWorkerHiringTest extends TestCase
         $this->assertSame(TaskStatus::Open, $this->task->refresh()->status);
 
         try {
-            app(HoldPaymentAction::class)->handle($this->task->refresh(), $this->poster);
+            $this->openActivities($this->task->refresh(), $this->poster);
             $this->fail('menahan dana sebelum perekrutan selesai seharusnya ditolak');
         } catch (InvalidStatusTransitionException $e) {
             $this->assertSame('invalid_status_transition', $e->errorCode());

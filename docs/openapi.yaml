@@ -22,7 +22,8 @@ info:
     poster buat task (budget min–max)
       → worker ajukan penawaran
       → poster pilih SATU  ............ DEAL
-      → poster transfer  .............. dana DITAHAN, activity dibuka
+      → poster transfer lalu MELAPOR
+      → PENGELOLA konfirmasi mutasi  .. dana DITAHAN, activity dibuka
       → worker kerjakan lalu serahkan
       → poster setujui  ............... task selesai, dana DILEPAS
       → penilaian dua arah
@@ -43,6 +44,15 @@ info:
     |---|---|---|
     | `access_token` | **8 jam** | Semua endpoint aplikasi |
     | `long_lived_token` | 30 hari | **Hanya** `POST /auth/refresh` |
+
+    Dan **populasi token yang terpisah** untuk pengelola, dari
+    `POST /admin/auth/login`. Akun pengelola ada di tabelnya sendiri dengan
+    guard-nya sendiri, jadi tokennya tidak bisa ditukar:
+
+    | Token | Endpoint pengguna | Endpoint `/admin` |
+    |---|---|---|
+    | `access_token` pengguna | 200 | **401** |
+    | `access_token` pengelola | **401** | 200 |
 
     Memakai `long_lived_token` pada endpoint aplikasi menghasilkan `403`, dan
     sebaliknya. Setelah `POST /auth/refresh`, **access token lama langsung tidak
@@ -75,6 +85,8 @@ info:
     | `resend-code` | 3 | email |
     | `refresh` | 10 | pengguna |
     | Buat task & penawaran | 30 | pengguna |
+    | Endpoint `/admin` | 240 | pengelola |
+    | `admin/auth/login` | 5 | email + IP |
 
     ## Pagination
 
@@ -110,6 +122,11 @@ tags:
     description: Eksekusi pekerjaan, dibuka oleh transfer.
   - name: Penilaian
     description: Rating dua arah, terikat task yang selesai.
+  - name: Pengelola
+    description: |
+      Konsol pengelola: verifikasi identitas, konfirmasi transfer, moderasi
+      pengguna, dan akun pengelola. **Token dan tabelnya terpisah** dari
+      pengguna — lihat `adminAccessToken`.
 
 paths:
 
@@ -1071,49 +1088,68 @@ paths:
     post:
       tags: [Uang]
       operationId: holdPayment
-      summary: Transfer diterima — dana ditahan, activity dibuka
+      summary: Lapor sudah transfer — masuk antrean pengelola
       description: |
         **STUB.** Mekanisme pembayaran belum diriset, jadi belum ada gateway.
-        Endpoint ini menandai dana sudah masuk, lalu **membuka activity**.
 
-        Nanti pemicunya webhook gateway, bukan endpoint ini. Yang tidak berubah:
-        activity hanya boleh terbuka ketika dana benar-benar ditahan — itulah
-        satu aturan yang harus dipegang sekarang.
+        > **Path-nya masih `payment/hold`, tapi endpoint ini tidak lagi menahan
+        > dana.** Nama itu dipertahankan supaya klien yang sudah ada tidak perlu
+        > diubah; yang berubah adalah apa yang terjadi sesudah dipanggil, dan
+        > **status balasannya**: dulu `held`, sekarang `awaiting_confirmation`.
+        > Klien yang bercabang pada `data.status` atau `data.is_held` harus
+        > menyesuaikan.
 
-        **Satu transfer membuka satu activity PER pekerja.** Tagihannya satu
-        baris sebesar jumlah seluruh penawaran yang diterima; pembagiannya ada
-        di `agreed_amount` masing-masing activity. Task satu orang memakai
-        bentuk respons yang sama, berisi satu elemen.
+        Endpoint ini **tidak membuka apa pun.** Ia memindahkan tagihan ke
+        `awaiting_confirmation` dan menaruhnya di antrean pengelola. Yang
+        menahan dana — dan dengan itu membuka activity — adalah
+        `POST /admin/payments/{payment}/confirm`.
+
+        Pemisahan itu inti aturannya: sebelum ini endpoint pemberi kerja
+        langsung mencapai `held`, yang berarti pemberi kerja **menyatakan
+        sendiri** uangnya sudah masuk, dan pekerja yang menanggung akibatnya
+        kalau ternyata tidak.
 
         Perekrutan harus **selesai** lebih dulu (task berstatus `dealt`). Selama
         masih ada slot kosong, endpoint ini menolak — kalau tidak, pekerja yang
         direkrut belakangan tidak akan pernah punya activity.
+
+        Laporan baru mengosongkan `rejection_reason` sebelumnya.
       responses:
-        '201':
-          description: Dana ditahan, satu activity dibuka untuk setiap pekerja.
+        '200':
+          description: Laporan tercatat, menunggu konfirmasi pengelola.
           content:
             application/json:
               schema:
                 type: object
+                required: [data]
                 properties:
                   data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Activity'
+                    $ref: '#/components/schemas/Payment'
+              example:
+                data:
+                  id: 01JBQ7XK2M3N4P5Q6R7S8T9V0W
+                  status: awaiting_confirmation
+                  amount: 220000
+                  is_held: false
+                  awaits_confirmation: true
+                  reported_at: '2026-09-10T09:12:44+00:00'
+                  rejection_reason: null
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
           $ref: '#/components/responses/Forbidden'
         '422':
-          description: Pembayaran sudah tidak berstatus `pending`, atau perekrutan belum selesai.
+          description: |
+            Tagihan sudah tidak berstatus `pending`, atau perekrutan belum
+            selesai.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DomainError'
               example:
-                message: Tidak bisa berpindah dari held ke held.
+                message: Tidak bisa berpindah dari held ke awaiting_confirmation.
                 code: invalid_status_transition
-                context: { from: held, to: held }
+                context: { from: held, to: awaiting_confirmation }
 
   # ───────────────────────────── ACTIVITY ─────────────────────────────
   /activities/mine:
@@ -1377,6 +1413,916 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
 
+  # ──────────────────────────── PENGELOLA ─────────────────────────────
+  #
+  # POPULASI TOKEN YANG BERBEDA, bukan pengguna dengan peran. Akun pengelola
+  # ada di tabelnya sendiri (`admins`) dan dipegang guard-nya sendiri, jadi
+  # token pengguna menghasilkan 401 di sini — bukan 403.
+  #
+  # Empat lapis, satu lebih banyak daripada endpoint pengguna: guard, ability
+  # (`admin:access`), status akun diperiksa per permintaan, dan rate limit.
+  # Lapis ketiga ada karena status tidak tersimpan di dalam token, dan token
+  # itu hidup delapan jam.
+  #
+  # TIDAK ADA endpoint pendaftaran pengelola, dan itu disengaja: akun pengelola
+  # hanya lahir dari `php artisan sekarya:admin create` (super_admin, sekali)
+  # dan `POST /admin/admins` (dipanggil super_admin).
+
+  /admin/auth/login:
+    post:
+      tags: [Pengelola]
+      operationId: adminLogin
+      summary: Masuk sebagai pengelola
+      security: []
+      description: |
+        Alamat yang tidak terdaftar dan sandi yang salah menghasilkan respons
+        yang **identik**, termasuk waktunya — kalau berbeda, endpoint ini
+        menjadi alat menemukan alamat pengelola, dan daftar itu tepat yang
+        dibutuhkan sebelum mencoba menebak sandinya.
+
+        Batas laju 5/menit per email + IP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLoginRequest'
+            example:
+              email: super@sekarya.test
+              password: RahasiaKuatSekali99!
+      responses:
+        '200':
+          description: Pasangan token pengelola. Nilainya hanya bisa dibaca **sekali**.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminTokenPair'
+        '401':
+          description: Alamat atau sandi salah — jawaban yang sama untuk keduanya.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Email atau kata sandi salah.
+                code: invalid_credentials
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /admin/auth/refresh:
+    post:
+      tags: [Pengelola]
+      operationId: adminRefresh
+      summary: Tukar long_lived pengelola jadi access baru
+      security:
+        - adminLongLivedToken: []
+      description: |
+        Status akun diperiksa **ulang** di sini. Long_lived-nya hidup 30 hari,
+        jadi tanpa pemeriksaan ini pengelola yang dinonaktifkan bisa terus
+        memperpanjang aksesnya sendiri selama sebulan.
+
+        Access token lama langsung tidak berlaku. Long_lived tidak diganti.
+      responses:
+        '200':
+          description: Access token baru.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AccessToken'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+
+  /admin/auth/logout:
+    post:
+      tags: [Pengelola]
+      operationId: adminLogout
+      summary: Akhiri sesi pengelola
+      security:
+        - adminAccessToken: []
+        - adminLongLivedToken: []
+      description: |
+        Mencabut **semua** token, termasuk long_lived — mencabut access saja
+        akan menyisakan kredensial yang masih bisa menerbitkan akses baru.
+
+        Menerima kedua jenis token, dan **tidak** memeriksa status akun:
+        pengelola yang baru dinonaktifkan harus tetap bisa mencabut tokennya
+        sendiri.
+      responses:
+        '200':
+          description: Sesi diakhiri.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+              example:
+                message: Sesi pengelola diakhiri.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /admin/me:
+    get:
+      tags: [Pengelola]
+      operationId: showAdminMe
+      summary: Pengelola yang sedang masuk
+      security:
+        - adminAccessToken: []
+      responses:
+        '200':
+          description: Akun pengelola.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Admin'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+
+  /admin/verifications:
+    get:
+      tags: [Pengelola]
+      operationId: listVerificationQueue
+      summary: Antrean verifikasi identitas & rekening
+      security:
+        - adminAccessToken: []
+      description: |
+        **Paling lama menunggu di depan** — kebalikan dari seluruh endpoint
+        daftar lain di API ini. Antrean kerja yang menampilkan terbaru dulu
+        membuat pengajuan tertua tenggelam makin dalam setiap ada pengajuan
+        baru, dan justru itulah pengajuan yang paling lama membuat orang tidak
+        bisa bekerja.
+
+        Tanpa `status`, yang tampil adalah yang **masih menunggu keputusan**
+        (`pending` + `in_review`), bukan seluruh riwayat.
+
+        Baris di daftar ini tidak memuat NIK, nomor rekening, maupun path foto.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/VerificationStatus'
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/VerificationType'
+      responses:
+        '200':
+          description: Halaman antrean, cursor-paginated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminVerification'
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /admin/verifications/{verification}:
+    parameters:
+      - $ref: '#/components/parameters/VerificationId'
+    get:
+      tags: [Pengelola]
+      operationId: showVerification
+      summary: Detail pengajuan — NIK terbaca, dan pembacaannya dicatat
+      security:
+        - adminAccessToken: []
+      description: |
+        Satu-satunya tempat NIK dan nomor rekening keluar dalam bentuk terbaca.
+
+        **Permintaan GET ini menulis.** Setiap pembacaan meninggalkan baris
+        `verification.viewed` di jejak audit: siapa membuka data siapa, kapan,
+        dari IP mana. Sebuah GET yang menulis memang tidak biasa, dan di sini
+        itu tujuannya — tanpa baris itu, "siapa pernah membuka NIK siapa" tidak
+        terjawab oleh apa pun.
+      responses:
+        '200':
+          description: Rincian pengajuan.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminVerificationDetail'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/verifications/{verification}/approve:
+    parameters:
+      - $ref: '#/components/parameters/VerificationId'
+    post:
+      tags: [Pengelola]
+      operationId: approveVerification
+      summary: Setujui verifikasi
+      security:
+        - adminAccessToken: []
+      description: |
+        Status jadi `verified`, dan badge "terverifikasi" pemiliknya menyala —
+        badge itu **dihitung** dari status ini, tidak disimpan sebagai boolean,
+        supaya pencabutan tidak menyisakan penanda yang berbohong.
+
+        Keputusannya ditentukan **endpoint**-nya, bukan payload. Kalau
+        keputusan datang dari payload, `/approve` bisa dipakai menolak dan izin
+        per-endpoint kehilangan artinya.
+      responses:
+        '200':
+          description: Pengajuan disetujui.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminVerificationDetail'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Pengajuan sudah final — misalnya sudah ditolak.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Tidak bisa berpindah dari rejected ke verified.
+                code: invalid_status_transition
+                context: { from: rejected, to: verified }
+
+  /admin/verifications/{verification}/reject:
+    parameters:
+      - $ref: '#/components/parameters/VerificationId'
+    post:
+      tags: [Pengelola]
+      operationId: rejectVerification
+      summary: Tolak verifikasi
+      security:
+        - adminAccessToken: []
+      description: |
+        `reason` **wajib** dan dibaca penggunanya sendiri di
+        `GET /me/verifications` — tanpa itu, orang yang ditolak tidak punya
+        cara tahu apa yang harus diperbaiki, dan akan mengajukan hal yang sama
+        lagi.
+
+        Penolakan tidak bisa dibatalkan di baris yang sama: perbaikannya lewat
+        pengajuan ulang, yang meninggalkan riwayat penolakannya.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonRequest'
+            example:
+              reason: Foto KTP tidak terbaca, silakan unggah ulang.
+      responses:
+        '200':
+          description: Pengajuan ditolak.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminVerificationDetail'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /admin/verifications/{verification}/revoke:
+    parameters:
+      - $ref: '#/components/parameters/VerificationId'
+    post:
+      tags: [Pengelola]
+      operationId: revokeVerification
+      summary: Cabut verifikasi yang sudah diberikan
+      security:
+        - adminAccessToken: []
+      description: |
+        Untuk identitas yang ternyata palsu. Tanpa jalur ini, badge
+        "terverifikasi" tidak bisa ditarik kembali setelah diberikan.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonRequest'
+            example:
+              reason: Dokumen ternyata milik orang lain.
+      responses:
+        '200':
+          description: Verifikasi dicabut.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminVerificationDetail'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Hanya pengajuan berstatus `verified` yang bisa dicabut.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Tidak bisa berpindah dari pending ke revoked.
+                code: invalid_status_transition
+                context: { from: pending, to: revoked }
+
+  /admin/payments:
+    get:
+      tags: [Pengelola]
+      operationId: listPaymentQueue
+      summary: Antrean konfirmasi transfer
+      security:
+        - adminAccessToken: []
+      description: |
+        Bawaannya `awaiting_confirmation` — satu-satunya status yang menunggu
+        tindakan manusia.
+
+        Diurutkan `reported_at`, bukan `created_at`: baris tagihan dibuat saat
+        pelamar pertama diterima, jauh sebelum ada transfer yang dilaporkan,
+        jadi `created_at` tidak mengatakan apa pun tentang berapa lama orang
+        menunggu.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PaymentStatus'
+      responses:
+        '200':
+          description: Halaman antrean, cursor-paginated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminPayment'
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /admin/payments/{payment}:
+    parameters:
+      - $ref: '#/components/parameters/PaymentUlid'
+    get:
+      tags: [Pengelola]
+      operationId: showAdminPayment
+      summary: Detail satu tagihan
+      security:
+        - adminAccessToken: []
+      responses:
+        '200':
+          description: Tagihan beserta task dan pembayarnya.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminPayment'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/payments/{payment}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/PaymentUlid'
+    post:
+      tags: [Pengelola]
+      operationId: confirmPayment
+      summary: Dana masuk — ditahan, activity dibuka
+      security:
+        - adminAccessToken: []
+      description: |
+        **SATU-SATUNYA jalan menuju `held`**, dan `held` adalah gerbang yang
+        membuka pekerjaan. Panggil ini hanya setelah mutasi rekening
+        benar-benar terlihat.
+
+        Satu konfirmasi membuka **satu activity per pekerja** yang diterima,
+        masing-masing membawa harga penawarannya sendiri; tagihannya tetap satu
+        baris sebesar jumlah semuanya, karena pemberi kerja mentransfer sekali.
+        Task-nya pindah ke `active`, dan jejak statusnya menyebut **pengelola**
+        sebagai pelaku.
+
+        Tagihan yang belum dilaporkan (`pending`) ditolak: tanpa laporan, tidak
+        ada yang menyatakan transfernya ada.
+      responses:
+        '200':
+          description: Dana ditahan, activity dibuka untuk setiap pekerja.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminPayment'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Belum dilaporkan, sudah ditahan, atau perekrutan belum selesai.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Tidak bisa berpindah dari pending ke held.
+                code: invalid_status_transition
+                context: { from: pending, to: held }
+
+  /admin/payments/{payment}/reject:
+    parameters:
+      - $ref: '#/components/parameters/PaymentUlid'
+    post:
+      tags: [Pengelola]
+      operationId: rejectPayment
+      summary: Dana tidak ditemukan — laporan ditolak
+      security:
+        - adminAccessToken: []
+      description: |
+        Tagihan kembali ke `pending` dan boleh dilaporkan ulang. Bukan status
+        "ditolak" tersendiri: status seperti itu akan menuntut jalan keluarnya
+        sendiri untuk hal yang sudah dijawab `pending`.
+
+        `reason` tersimpan di baris tagihan supaya **pemberi kerja** bisa
+        membacanya di `GET /tasks/{task}/payment`, dan di jejak audit supaya
+        keputusan itu tetap ada setelah laporan berikutnya menimpanya.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonRequest'
+            example:
+              reason: Tidak ada mutasi masuk sejumlah itu hari ini.
+      responses:
+        '200':
+          description: Laporan ditolak, tagihan kembali ke `pending`.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminPayment'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /admin/users:
+    get:
+      tags: [Pengelola]
+      operationId: listUsersForAdmin
+      summary: Daftar pengguna untuk moderasi
+      security:
+        - adminAccessToken: []
+      description: |
+        `email` adalah pencocokan **persis**, bukan pencarian sebagian. `%budi%`
+        tidak bisa memakai indeks apa pun, jadi setiap ketikan akan memindai
+        seluruh tabel pengguna — dan proyek ini tidak memakai `LIKE` di mana
+        pun. Pencarian nama sebagian butuh tabel indeks terbalik tersendiri
+        (pola `task_search`); itu slice sendiri.
+
+        Alamat yang tidak terdaftar mengembalikan daftar **kosong**, bukan
+        `422`: kalau `422`, daftar ini menjadi alat menebak alamat terdaftar.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/UserStatus'
+        - name: email
+          in: query
+          required: false
+          description: Pencocokan persis.
+          schema: { type: string, format: email }
+      responses:
+        '200':
+          description: Halaman pengguna, cursor-paginated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminUser'
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /admin/users/{user}:
+    parameters:
+      - $ref: '#/components/parameters/UserUlid'
+    get:
+      tags: [Pengelola]
+      operationId: showUserForAdmin
+      summary: Detail satu pengguna
+      security:
+        - adminAccessToken: []
+      responses:
+        '200':
+          description: Pengguna.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminUser'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/users/{user}/suspend:
+    parameters:
+      - $ref: '#/components/parameters/UserUlid'
+    post:
+      tags: [Pengelola]
+      operationId: suspendUser
+      summary: Tangguhkan akun
+      security:
+        - adminAccessToken: []
+      description: |
+        **Seluruh token pengguna itu dicabut**, dan itulah yang benar-benar
+        menghentikannya. Status saja tidak: access token hidup delapan jam dan
+        tidak menyimpan status di dalamnya, jadi akun yang ditangguhkan tanpa
+        pencabutan token tetap bisa menawar dan mengerjakan task sampai
+        tokennya kedaluwarsa — long_lived-nya bahkan 30 hari.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonRequest'
+            example:
+              reason: Melaporkan transfer palsu dua kali berturut-turut.
+      responses:
+        '200':
+          description: Akun ditangguhkan, tokennya dicabut.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminUser'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /admin/users/{user}/ban:
+    parameters:
+      - $ref: '#/components/parameters/UserUlid'
+    post:
+      tags: [Pengelola]
+      operationId: banUser
+      summary: Blokir akun
+      security:
+        - adminAccessToken: []
+      description: |
+        Sama seperti `suspend` dalam hal pencabutan token. Bisa dibatalkan
+        lewat `reinstate` — pemulihan bisa salah sasaran, jadi blokir harus
+        bisa ditarik kembali.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonRequest'
+            example:
+              reason: Identitas palsu, dipakai untuk menipu berkali-kali.
+      responses:
+        '200':
+          description: Akun diblokir, tokennya dicabut.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminUser'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /admin/users/{user}/reinstate:
+    parameters:
+      - $ref: '#/components/parameters/UserUlid'
+    post:
+      tags: [Pengelola]
+      operationId: reinstateUser
+      summary: Pulihkan akun
+      security:
+        - adminAccessToken: []
+      description: |
+        Tujuannya **belum tentu** `active`. Akun yang belum pernah
+        memverifikasi email dikembalikan ke `pending_verification` dan harus
+        menyelesaikan kodenya sendiri — kalau dikembalikan ke `active`,
+        moderasi menjadi jalan melewati verifikasi email: tangguhkan lalu
+        pulihkan, dan akunnya aktif tanpa pernah memasukkan kode.
+
+        Tidak perlu `reason`: memulihkan akses tidak merugikan siapa pun.
+      responses:
+        '200':
+          description: Akun dipulihkan ke `active` atau `pending_verification`.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminUser'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Akun tidak sedang ditangguhkan atau diblokir.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Tidak bisa berpindah dari active ke active.
+                code: invalid_status_transition
+                context: { from: active, to: active }
+
+  /admin/admins:
+    get:
+      tags: [Pengelola]
+      operationId: listAdmins
+      summary: Daftar akun pengelola
+      security:
+        - adminAccessToken: []
+      description: |
+        **Hanya `super_admin`.** Peran `admin` menerima `403` dengan
+        `code: admin_access_denied` dan `context.reason: insufficient_role` —
+        bentuk kontrak, bukan galat bawaan framework, karena gerbangnya
+        middleware dan bukan Policy.
+
+        Akun yang sudah dihapus tidak ikut.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Halaman akun pengelola, cursor-paginated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Admin'
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+    post:
+      tags: [Pengelola]
+      operationId: createAdmin
+      summary: Buat akun pengelola baru
+      security:
+        - adminAccessToken: []
+      description: |
+        **Hanya `super_admin`.**
+
+        Perannya selalu `admin`, dipaksa di sisi server dan tidak bisa dikirim
+        klien — kalau bisa, endpoint ini adalah jalan membuat `super_admin`
+        kedua. Jumlah `super_admin` juga dijaga indeks unique di basis data,
+        jadi upaya menulisnya lewat jalur lain pun gagal.
+
+        Akun baru langsung `active`. Bawaan **kolomnya** tetap `suspended`
+        (keadaan paling sedikit hak); jalur ini menyetelnya sadar karena
+        akunnya memang sengaja dibuat oleh orang yang berhak.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAdminRequest'
+            example:
+              name: Verifikator Dua
+              email: verif2@sekarya.test
+              password: RahasiaKuatSekali99!
+              password_confirmation: RahasiaKuatSekali99!
+      responses:
+        '201':
+          description: Akun pengelola dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Admin'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /admin/admins/{admin}:
+    parameters:
+      - $ref: '#/components/parameters/AdminUlid'
+    get:
+      tags: [Pengelola]
+      operationId: showAdmin
+      summary: Detail satu akun pengelola
+      security:
+        - adminAccessToken: []
+      description: '**Hanya `super_admin`.**'
+      responses:
+        '200':
+          description: Akun pengelola.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Admin'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Pengelola]
+      operationId: deleteAdmin
+      summary: Hapus akun pengelola
+      security:
+        - adminAccessToken: []
+      description: |
+        **Hanya `super_admin`**, dan `super_admin` sendiri **tidak bisa
+        dihapus** — ia satu-satunya yang bisa membuat pengelola baru, jadi
+        menghapusnya berarti tidak ada lagi jalan memulihkan akses pengelola
+        dari dalam aplikasi.
+
+        Soft delete, bukan hapus permanen: jejak audit menunjuk barisnya, dan
+        "siapa menyetujui pembayaran ini" yang menunjuk baris yang sudah hilang
+        tidak bisa dibaca lagi. Akibat yang disengaja: **alamat emailnya tetap
+        terpakai** dan tidak bisa diberikan kepada orang lain.
+
+        Token akun itu dicabut. Tanpa itu, pengelola yang baru dihapus masih
+        bisa menyetujui pembayaran sampai delapan jam ke depan.
+      responses:
+        '200':
+          description: Akun dihapus, tokennya dicabut.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+              example:
+                message: Akun pengelola dihapus.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          description: |
+            Bukan `super_admin` (`admin_access_denied`), atau sasarannya
+            `super_admin` (`super_admin_protected`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              examples:
+                insufficientRole:
+                  summary: Peran `admin` mencoba menghapus pengelola
+                  value:
+                    message: Hanya super_admin yang boleh mengelola akun pengelola.
+                    code: admin_access_denied
+                    context: { reason: insufficient_role }
+                protected:
+                  summary: Sasarannya `super_admin`
+                  value:
+                    message: Akun super_admin tidak bisa dihapus.
+                    code: super_admin_protected
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+
 components:
 
   securitySchemes:
@@ -1398,6 +2344,31 @@ components:
       description: |
         `long_lived_token`, umur 30 hari. **Hanya** untuk `POST /auth/refresh`.
         Memakainya di endpoint lain menghasilkan `403`.
+    adminAccessToken:
+      type: http
+      scheme: bearer
+      description: |
+        `access_token` dari `POST /admin/auth/login` atau
+        `POST /admin/auth/refresh`. Umur **8 jam**.
+
+        **Populasi token yang berbeda, bukan pengguna dengan peran.** Akun
+        pengelola ada di tabelnya sendiri dan dipegang guard-nya sendiri, jadi:
+
+        | Token | Endpoint pengguna | Endpoint `/admin` |
+        |---|---|---|
+        | `access_token` pengguna | 200 | **401** |
+        | `access_token` pengelola | **401** | 200 |
+
+        `401`, bukan `403` — kegagalannya di autentikasi, karena guard
+        `/admin` sama sekali tidak mengenali pemilik token dari tabel
+        pengguna.
+    adminLongLivedToken:
+      type: http
+      scheme: bearer
+      description: |
+        `long_lived_token` pengelola, umur 30 hari. **Hanya** untuk
+        `POST /admin/auth/refresh`. Memakainya di endpoint lain menghasilkan
+        `403`.
 
   headers:
     RequestId:
@@ -1558,6 +2529,32 @@ components:
       required: true
       description: ULID activity.
       schema: { type: string, minLength: 26, maxLength: 26 }
+    PaymentUlid:
+      name: payment
+      in: path
+      required: true
+      description: ULID tagihan pembayaran.
+      schema: { type: string, minLength: 26, maxLength: 26 }
+    UserUlid:
+      name: user
+      in: path
+      required: true
+      description: ULID pengguna.
+      schema: { type: string, minLength: 26, maxLength: 26 }
+    AdminUlid:
+      name: admin
+      in: path
+      required: true
+      description: ULID akun pengelola.
+      schema: { type: string, minLength: 26, maxLength: 26 }
+    VerificationId:
+      name: verification
+      in: path
+      required: true
+      description: |
+        Id pengajuan verifikasi. Numerik, bukan ULID — baris ini tidak pernah
+        muncul di URL publik.
+      schema: { type: integer }
 
   responses:
     TokenPair:
@@ -1668,6 +2665,29 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ValidationError'
+    AdminForbidden:
+      description: |
+        Peran tidak mencukupi, akun pengelola dinonaktifkan, atau jenis token
+        salah.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DomainError'
+          examples:
+            suspended:
+              summary: Akun dinonaktifkan setelah sesi ini dibuka
+              value:
+                message: Akun pengelola ini dinonaktifkan.
+                code: admin_access_denied
+                context: { reason: suspended }
+            insufficientRole:
+              summary: Peran `admin` mencoba mengelola pengelola
+              value:
+                message: Hanya super_admin yang boleh mengelola akun pengelola.
+                code: admin_access_denied
+                context: { reason: insufficient_role }
     RateLimited:
       description: Batas laju terlampaui.
       headers:
@@ -1701,8 +2721,15 @@ components:
       enum: [pending, accepted, rejected, withdrawn, expired]
     PaymentStatus:
       type: string
-      enum: [pending, held, released, refunded, cancelled]
-      description: '`held` adalah gerbang pembuka activity.'
+      enum: [pending, awaiting_confirmation, held, released, refunded, cancelled]
+      description: |
+        `held` adalah gerbang pembuka activity, dan **hanya pengelola** yang bisa
+        mencapainya.
+
+        Alurnya: `pending` → pemberi kerja melapor sudah transfer
+        (`awaiting_confirmation`) → pengelola melihat mutasi lalu mengonfirmasi
+        (`held`). Ditolak pengelola, tagihan kembali ke `pending` dengan
+        `rejection_reason` terisi dan boleh dilaporkan ulang.
     ActivityStatus:
       type: string
       enum: [open, in_progress, submitted, approved, rejected]
@@ -1853,6 +2880,222 @@ components:
         rejection_reason: { type: [string, 'null'] }
         submitted_at: { type: [string, 'null'], format: date-time }
         reviewed_at: { type: [string, 'null'], format: date-time }
+
+    # ── pengelola ──
+    AdminRole:
+      type: string
+      enum: [super_admin, admin]
+      description: |
+        `super_admin` satu-satunya, tidak bisa dihapus maupun dinonaktifkan,
+        dan satu-satunya yang boleh mengelola akun pengelola. `admin` dibuat
+        olehnya, mengerjakan verifikasi/pembayaran/moderasi, dan bisa dihapus.
+    AdminStatus:
+      type: string
+      enum: [active, suspended]
+      description: |
+        Diperiksa saat login **dan** di setiap permintaan sesudahnya — status
+        tidak tersimpan di dalam token, dan token itu hidup delapan jam.
+    Admin:
+      type: object
+      description: |
+        Akun pengelola. Tidak pernah memuat `password` maupun `last_login_ip`.
+      required: [id, name, email, role, status]
+      properties:
+        id: { type: string, description: ULID }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/AdminRole' }
+        role_label: { type: string }
+        status: { $ref: '#/components/schemas/AdminStatus' }
+        is_super_admin:
+          type: boolean
+          description: Kunci yang menggerakkan UI — menu pengelola dan tombol hapus.
+        last_login_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: [string, 'null'], format: date-time }
+    AdminTokenPair:
+      type: object
+      required: [token_type, access_token, long_lived_token, admin]
+      properties:
+        token_type: { type: string, const: Bearer }
+        access_token:
+          type: string
+          description: Untuk semua endpoint `/admin`. Umur 8 jam.
+        long_lived_token:
+          type: string
+          description: '**Hanya** untuk `POST /admin/auth/refresh`. Umur 30 hari.'
+        access_expires_at: { type: [string, 'null'], format: date-time }
+        long_lived_expires_at: { type: [string, 'null'], format: date-time }
+        access_expires_in_seconds: { type: [integer, 'null'] }
+        admin: { $ref: '#/components/schemas/Admin' }
+    AdminUser:
+      type: object
+      description: |
+        Pengguna dilihat dari sisi pengelola. Lebih terbuka daripada
+        `PublicUser` (email dan nomor HP ikut, karena moderasi tanpa cara
+        menghubungi orangnya tidak berguna) tapi tetap bukan seluruh baris:
+        kata sandi dan isi tabel verifikasi tidak lewat sini.
+      required: [id, name, email, status]
+      properties:
+        id: { type: string, description: ULID }
+        name: { type: string }
+        email: { type: string, format: email }
+        phone: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/UserStatus' }
+        active_mode: { $ref: '#/components/schemas/UserActiveMode' }
+        email_verified: { type: boolean }
+        identity_verified: { type: boolean }
+        city: { type: [string, 'null'] }
+        province: { type: [string, 'null'] }
+        as_worker:
+          type: object
+          properties:
+            rating_avg: { type: number }
+            rating_count: { type: integer }
+            tasks_completed: { type: integer }
+        as_poster:
+          type: object
+          properties:
+            rating_avg: { type: number }
+            rating_count: { type: integer }
+            tasks_posted: { type: integer }
+        cancellations: { type: integer }
+        last_active_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: [string, 'null'], format: date-time }
+    AdminVerification:
+      type: object
+      description: |
+        Satu baris **antrean** verifikasi. Status saja: NIK, nomor rekening, dan
+        path foto tidak keluar dari sini. Yang membuatnya begitu adalah kelas
+        transformer yang berbeda dari endpoint detail, bukan sebuah penanda —
+        endpoint daftar tidak punya kodenya.
+      required: [id, type, status, awaits_review]
+      properties:
+        id: { type: integer }
+        type: { $ref: '#/components/schemas/VerificationType' }
+        status: { $ref: '#/components/schemas/VerificationStatus' }
+        awaits_review:
+          type: boolean
+          description: Masih menunggu keputusan. Inilah definisi antreannya.
+        has_id_card_photo: { type: boolean }
+        has_selfie_photo: { type: boolean }
+        face_match_score: { type: [number, 'null'] }
+        name_on_document: { type: [string, 'null'] }
+        bank_code: { type: [string, 'null'] }
+        submitted_at: { type: [string, 'null'], format: date-time }
+        reviewed_at: { type: [string, 'null'], format: date-time }
+        user: { $ref: '#/components/schemas/AdminUser' }
+    AdminVerificationDetail:
+      type: object
+      description: |
+        **SATU-SATUNYA tempat di seluruh API yang mengeluarkan NIK dan nomor
+        rekening dalam bentuk terbaca.**
+
+        Itu keputusan sadar: pekerjaan yang diminta dari pengelola adalah
+        memastikan nomor pada dokumen cocok dengan yang diketik pemiliknya, dan
+        tanpa nomornya pertanyaan itu hanya bisa dijawab dengan menebak.
+
+        Tiga hal yang membuatnya bisa dipertanggungjawabkan, dan ketiganya
+        harus tetap ada:
+
+        1. Hanya di endpoint ini, satu baris per permintaan — bukan di antrean.
+        2. Setiap pembacaan **menulis jejak** (`verification.viewed`): siapa
+           membuka data siapa, kapan, dari IP mana.
+        3. Tidak ikut ke log mana pun — body respons hanya dicatat untuk status
+           `>= 400`.
+
+        Yang tetap tidak keluar: hash NIK (bahan deteksi duplikat) dan path
+        foto — foto dibuka lewat signed URL yang memverifikasi pembacanya, dan
+        endpoint itu **belum ada**.
+      required: [id, type, status, awaits_review]
+      properties:
+        id: { type: integer }
+        type: { $ref: '#/components/schemas/VerificationType' }
+        status: { $ref: '#/components/schemas/VerificationStatus' }
+        awaits_review: { type: boolean }
+        has_id_card_photo: { type: boolean }
+        has_selfie_photo: { type: boolean }
+        face_match_score: { type: [number, 'null'] }
+        name_on_document: { type: [string, 'null'] }
+        birth_date_on_document: { type: [string, 'null'], format: date }
+        document_number:
+          type: [string, 'null']
+          description: 'NIK, didekripsi. Hanya untuk `type: identity`.'
+        bank_code: { type: [string, 'null'] }
+        account_holder_name: { type: [string, 'null'] }
+        account_number:
+          type: [string, 'null']
+          description: 'Nomor rekening, didekripsi. Hanya untuk `type: bank_account`.'
+        rejection_reason: { type: [string, 'null'] }
+        revoked_reason: { type: [string, 'null'] }
+        submitted_at: { type: [string, 'null'], format: date-time }
+        reviewed_at: { type: [string, 'null'], format: date-time }
+        reviewed_by: { $ref: '#/components/schemas/Admin' }
+        user: { $ref: '#/components/schemas/AdminUser' }
+    AdminPayment:
+      type: object
+      description: Satu tagihan di antrean konfirmasi transfer.
+      required: [id, status, amount, is_held, awaits_confirmation]
+      properties:
+        id: { type: string, description: ULID }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        amount:
+          type: integer
+          description: TOTAL seluruh pekerja. Angka inilah yang harus cocok dengan mutasi.
+        is_held: { type: boolean }
+        awaits_confirmation: { type: boolean }
+        reported_at: { type: [string, 'null'], format: date-time }
+        rejection_reason: { type: [string, 'null'] }
+        paid_at: { type: [string, 'null'], format: date-time }
+        held_at: { type: [string, 'null'], format: date-time }
+        released_at: { type: [string, 'null'], format: date-time }
+        task:
+          type: object
+          properties:
+            id: { type: string }
+            task_number: { type: string }
+            title: { type: string }
+            status: { $ref: '#/components/schemas/TaskStatus' }
+            workers_hired: { type: integer }
+            agreed_amount: { type: [integer, 'null'] }
+        payer: { $ref: '#/components/schemas/AdminUser' }
+        created_at: { type: [string, 'null'], format: date-time }
+    AdminLoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 180 }
+        password: { type: string }
+    CreateAdminRequest:
+      type: object
+      description: |
+        **Tidak ada field `role`.** Perannya dipaksa `admin` di sisi server —
+        kalau peran bisa dikirim klien, endpoint ini adalah jalan membuat
+        `super_admin` kedua, dan yang menahannya cuma aturan validasi.
+
+        Alamat pengelola yang pernah **dihapus** tetap terpakai: barisnya masih
+        dirujuk jejak audit, dan memberikan alamatnya kepada orang lain akan
+        membuat jejak lama terbaca sebagai perbuatan pemilik yang baru.
+      required: [name, email, password, password_confirmation]
+      properties:
+        name: { type: string, maxLength: 120 }
+        email: { type: string, format: email, maxLength: 180 }
+        password:
+          type: string
+          minLength: 12
+          description: |
+            Lebih ketat daripada sandi pengguna: minimum 12 karakter, campuran
+            huruf besar-kecil, angka, dan simbol, serta dicek terhadap basis
+            data kebocoran sandi publik.
+        password_confirmation: { type: string }
+    ReasonRequest:
+      type: object
+      description: |
+        Alasan wajib untuk setiap tindakan yang merugikan orang. `min: 10`
+        bukan formalitas — alasan ini dibaca ulang berbulan-bulan kemudian oleh
+        orang lain, dan oleh penggunanya sendiri.
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 10, maxLength: 500 }
 
     # ── katalog ──
     Category:
@@ -2021,6 +3264,20 @@ components:
         is_held:
           type: boolean
           description: Kunci yang menggerakkan UI — dana sudah ditahan atau belum.
+        awaits_confirmation:
+          type: boolean
+          description: |
+            Laporan transfer sedang menunggu pengelola. Bolanya bukan lagi di
+            tangan pemberi kerja.
+        reported_at:
+          type: [string, 'null']
+          format: date-time
+          description: |
+            Kapan pemberi kerja **mengaku** transfer — bukan kapan barisnya
+            dibuat. Baris tagihan sudah ada sejak pelamar pertama diterima.
+        rejection_reason:
+          type: [string, 'null']
+          description: Alasan laporan transfer sebelumnya ditolak pengelola.
         paid_at: { type: [string, 'null'], format: date-time }
         held_at: { type: [string, 'null'], format: date-time }
         released_at: { type: [string, 'null'], format: date-time }
@@ -2294,6 +3551,8 @@ components:
             - payment_not_held
             - invalid_status_transition
             - review_not_allowed
+            - admin_access_denied
+            - super_admin_protected
         context:
           type: object
           additionalProperties: true

@@ -54,6 +54,20 @@ final class RateLimitServiceProvider extends ServiceProvider
         // Penulisan yang bisa membanjiri feed (buat task, ajukan penawaran).
         RateLimiter::for('write', fn (Request $request): Limit => Limit::perMinute($limits['write'])
             ->by($request->user()?->getAuthIdentifier() ?? $request->ip()));
+
+        // Endpoint pengelola. Kuncinya diberi awalan `admin|` supaya kuota
+        // pengelola tidak pernah berbagi ember dengan kuota pengguna: id
+        // keduanya adalah bigint dari dua tabel berbeda, jadi admin id 7 dan
+        // user id 7 akan saling menghabiskan kuota tanpa ada yang tahu.
+        RateLimiter::for('admin', fn (Request $request): Limit => Limit::perMinute($limits['admin'])
+            ->by('admin|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
+        // Login pengelola: permukaan tebak-sandi yang paling berharga di
+        // aplikasi ini. Sama seperti login pengguna, kuncinya email + IP —
+        // per email saja berarti siapa pun bisa mengunci pengelola dari
+        // aplikasinya sendiri hanya dengan membanjiri percobaan gagal.
+        RateLimiter::for('admin_login', fn (Request $request): Limit => Limit::perMinute($limits['admin_login'])
+            ->by('admin|'.$this->identity($request).'|'.$request->ip()));
     }
 
     /** Identitas dari payload, dinormalkan sama seperti di DTO. */

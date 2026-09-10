@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\BidStatus;
+use App\Enums\TokenAbility;
 use App\Enums\UserActiveMode;
 use App\Enums\UserStatus;
 use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
 use App\Models\Concerns\HasUlid;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -50,6 +52,24 @@ class User extends Authenticatable
             'worker_rating_avg' => 'decimal:2',
             'poster_rating_avg' => 'decimal:2',
         ];
+    }
+
+    /**
+     * Ability yang dibawa token milik pengguna.
+     *
+     * Ada di model, bukan di TokenIssuer: sejak `admins` juga memegang token,
+     * penerbitnya harus bisa menerbitkan untuk dua jenis pemilik tanpa
+     * mencabang pada kelasnya. Yang menentukan "token ini boleh apa" adalah
+     * pemiliknya sendiri.
+     */
+    public function accessAbility(): TokenAbility
+    {
+        return TokenAbility::Access;
+    }
+
+    public function refreshAbility(): TokenAbility
+    {
+        return TokenAbility::Refresh;
     }
 
     /**
@@ -105,6 +125,17 @@ class User extends Authenticatable
     public function receivedReviews(): HasMany
     {
         return $this->hasMany(Review::class, 'reviewee_id');
+    }
+
+    /**
+     * Keyset ordering. `id` wajib sebagai tiebreaker — tanpa itu cursor
+     * bisa skip/ulang saat beberapa baris punya created_at sama.
+     *
+     * @param  Builder<$this>  $query
+     */
+    public function scopeLatestFirst(Builder $query): void
+    {
+        $query->orderByDesc('created_at')->orderByDesc('id');
     }
 
     /**

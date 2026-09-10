@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api\V1;
 
+use App\Models\Admin;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -20,6 +21,8 @@ final class MultiWorkerTaskTest extends TestCase
     use RefreshDatabase;
 
     private User $poster;
+
+    private ?Admin $admin = null;
 
     /** @var list<User> */
     private array $workers = [];
@@ -241,18 +244,91 @@ final class MultiWorkerTaskTest extends TestCase
         return $task;
     }
 
+    /**
+     * Pengelola yang mengonfirmasi transfer. Satu per test.
+     *
+     * `held` hanya bisa dicapai dari sisi pengelola, jadi setiap alur yang
+     * sampai ke activity lewat sini.
+     */
+    private function admin(): Admin
+    {
+        return $this->admin ??= $this->activeAdmin();
+    }
+
+    /**
+     * Dua langkah: pemberi kerja melapor, pengelola mengonfirmasi.
+     *
+     * @return list<string> id activity, URUT sesuai urutan $this->workers
+     */
+    private function confirmTransfer(string $task, int $workerCount): array
+    {
+        $payment = $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.payment.hold', $task))
+            ->assertOk()
+            ->assertJsonPath('data.awaits_confirmation', true)
+            ->json('data.id');
+
+        $this->asAdmin($this->admin())
+            ->postJson(route('v1.admin.payments.confirm', $payment))
+            ->assertOk()
+            ->assertJsonPath('data.is_held', true);
+
+        $ids = [];
+
+        foreach (array_slice($this->workers, 0, $workerCount) as $worker) {
+            $ids[] = $this->asUser($worker)
+                ->getJson(route('v1.activities.mine'))
+                ->assertOk()
+                ->json('data.0.id');
+        }
+
+        return $ids;
+    }
+
+    /** Laporan transfer TIDAK membuka apa pun, berapa pun jumlah pekerjanya. */
+    public function test_reporting_a_transfer_opens_nothing(): void
+    {
+        $task = $this->dealtTask(3);
+
+        $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.payment.hold', $task))
+            ->assertOk()
+            ->assertJsonPath('data.is_held', false);
+
+        foreach (array_slice($this->workers, 0, 3) as $worker) {
+            $this->asUser($worker)->getJson(route('v1.activities.mine'))
+                ->assertOk()
+                ->assertJsonCount(0, 'data');
+        }
+
+        $this->asUser($this->poster)->getJson(route('v1.tasks.show', $task))
+            ->assertOk()
+            ->assertJsonPath('data.status', 'dealt');
+    }
+
     public function test_one_transfer_opens_an_activity_for_every_worker(): void
     {
         $task = $this->dealtTask(3);
 
-        $activities = $this->asUser($this->poster)
-            ->postJson(route('v1.tasks.payment.hold', $task))
-            ->assertCreated()
-            ->assertJsonCount(3, 'data')
-            ->json('data');
+        $this->confirmTransfer($task, 3);
 
-        $this->assertSame([200_000, 210_000, 220_000], array_column($activities, 'agreed_amount'));
-        $this->assertSame(['open', 'open', 'open'], array_column($activities, 'status'));
+        $amounts = [];
+        $statuses = [];
+
+        foreach (array_slice($this->workers, 0, 3) as $worker) {
+            $activity = $this->asUser($worker)
+                ->getJson(route('v1.activities.mine'))
+                ->assertOk()
+                ->assertJsonCount(1, 'data')
+                ->json('data.0');
+
+            $amounts[] = $activity['agreed_amount'];
+            $statuses[] = $activity['status'];
+        }
+
+        // Harga PER ORANG, dari penawarannya sendiri — bukan total task.
+        $this->assertSame([200_000, 210_000, 220_000], $amounts);
+        $this->assertSame(['open', 'open', 'open'], $statuses);
 
         $this->asUser($this->poster)->getJson(route('v1.tasks.show', $task))
             ->assertOk()
@@ -262,9 +338,7 @@ final class MultiWorkerTaskTest extends TestCase
     public function test_each_worker_only_sees_and_drives_their_own_activity(): void
     {
         $task = $this->dealtTask(2);
-        $ids = $this->asUser($this->poster)
-            ->postJson(route('v1.tasks.payment.hold', $task))
-            ->assertCreated()->json('data.*.id');
+        $ids = $this->confirmTransfer($task, 2);
 
         // Pekerja kedua tidak boleh menyentuh pekerjaan pekerja pertama.
         $this->asUser($this->workers[1])
@@ -284,9 +358,7 @@ final class MultiWorkerTaskTest extends TestCase
     public function test_the_task_finishes_only_after_every_worker_is_approved(): void
     {
         $task = $this->dealtTask(2);
-        $ids = $this->asUser($this->poster)
-            ->postJson(route('v1.tasks.payment.hold', $task))
-            ->assertCreated()->json('data.*.id');
+        $ids = $this->confirmTransfer($task, 2);
 
         foreach ([0, 1] as $i) {
             $this->asUser($this->workers[$i])->postJson(route('v1.activities.start', $ids[$i]))->assertOk();
@@ -315,9 +387,7 @@ final class MultiWorkerTaskTest extends TestCase
     public function test_the_poster_reviews_each_worker_separately(): void
     {
         $task = $this->dealtTask(2);
-        $ids = $this->asUser($this->poster)
-            ->postJson(route('v1.tasks.payment.hold', $task))
-            ->assertCreated()->json('data.*.id');
+        $ids = $this->confirmTransfer($task, 2);
 
         foreach ([0, 1] as $i) {
             $this->asUser($this->workers[$i])->postJson(route('v1.activities.start', $ids[$i]))->assertOk();

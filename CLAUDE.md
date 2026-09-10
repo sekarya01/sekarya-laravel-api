@@ -33,10 +33,11 @@ Business logic lives **only** in Action classes. Never in Controllers, Models, R
 ## MySQL notes you must not forget
 
 - **`lockForUpdate()` works here.** InnoDB translates it to `SELECT ... FOR UPDATE`,
-  so the check-then-act in `AcceptBidAction` and `HoldPaymentAction` is genuinely
-  serialised. The DB-level unique indexes (`tasks.accepted_bid_id`,
-  `activities.payment_id`) are kept as the last line of defence anyway — a lock only
-  holds inside a transaction, and writes from other paths may not take one.
+  so the check-then-act in `AcceptBidAction`, `ConfirmPaymentAction` and
+  `ReviewVerificationAction` is genuinely serialised. The DB-level unique indexes
+  (`activities (task_id, worker_id)`, `admins.super_admin_lock`) are kept as the last
+  line of defence anyway — a lock only holds inside a transaction, and writes from other
+  paths may not take one.
 - **Keyword search uses a FULLTEXT index**, never `LIKE`. `MATCH()` must name exactly
   the columns of the composite index `tasks_fulltext (title, description)` — a
   mismatched column list silently skips the index.
@@ -132,12 +133,30 @@ Yang tidak boleh "dirapikan":
 - **Dana tidak bisa ditahan sebelum perekrutan selesai.** Tagihan sudah ada sejak pelamar
   pertama diterima, jadi tanpa penjaga itu pekerja yang direkrut belakangan tidak akan
   pernah punya activity.
+- **`held` HANYA bisa dicapai dari sisi pengelola.** Pemberi kerja memanggil
+  `POST /tasks/{task}/payment/hold` (→ `awaiting_confirmation`); yang menahan dana dan
+  membuka activity `POST /admin/payments/{payment}/confirm`. Dulu satu panggilan itu
+  mengerjakan keduanya, artinya pemberi kerja menyatakan sendiri uangnya sudah masuk —
+  dan pekerja yang menanggung kalau ternyata tidak. Jangan pernah menambahkan kembali
+  transisi `pending → held`; `PaymentStatus::canTransitionTo()` yang menjaganya, dan ada
+  test khusus untuk itu.
+- **Path `payment/hold` sengaja tidak diganti nama** walaupun ia tidak lagi menahan dana,
+  supaya klien yang sudah ada tidak perlu diubah. Karena itu controller-nya tetap
+  `HoldPaymentController` (mengikuti nama rute, seperti seluruh controller lain di
+  berkas rute), sedangkan Action-nya `ReportTransferAction` — nama kelas domain harus
+  menyebut apa yang benar-benar dikerjakannya. Kalau path ini suatu saat ikut diganti,
+  itu perubahan yang memutus klien dan harus diumumkan sebagai BREAKING CHANGE.
 - **`reviews` unique-nya `(task_id, reviewer_id, reviewee_id)`.** Dengan kunci lama,
   pemberi kerja yang merekrut 30 orang hanya bisa menilai satu dari mereka.
 - `POST /tasks/{task}/start` menurunkan target ke jumlah yang sudah diterima lalu menutup
   lelang — untuk pekerjaan bertanggal yang tidak mendapat pelamar sebanyak targetnya.
 
 ## Auth & security
+
+**Dua populasi pemilik token, bukan satu tabel dengan kolom peran.** Pengguna di
+`users` dengan guard `sanctum`; pengelola di `admins` dengan guard `admin`. Rinciannya
+di bagian **Pengelola** di bawah — termasuk mengapa `config/auth.php` HARUS menyebut
+`provider` setiap guard.
 
 Three layers, all declared in `routes/api.php` so the whole rule set reads in one file:
 
@@ -178,6 +197,102 @@ Things that must not be "tidied up":
   `supports_credentials` stays false — this API uses Bearer tokens, not cookies.
 - Login, resend-code and verify-email return **identical responses whether or not the
   email exists**. Otherwise they become account-enumeration tools.
+
+## Pengelola (super_admin & admin)
+
+Tabel `admins` sendiri, guard sendiri, ability token sendiri. **Bukan** `users` dengan
+kolom peran: `users` punya jalur tulis publik (pendaftaran, sunting profil, pemulihan
+sandi lewat alamat email), jadi kewenangan pengelola di tabel itu berarti setiap
+kebocoran mass-assignment di alur pengguna berpotensi jadi kenaikan hak akses. Tabel ini
+tidak punya satu pun jalur tulis publik.
+
+> **`config/auth.php` HARUS menyebut `provider` untuk guard `sanctum` DAN `admin`.**
+> Kalau guard `sanctum` tidak ada di berkas itu, Sanctum mendaftarkannya sendiri saat
+> runtime dengan `provider => null` (`SanctumServiceProvider::register`), dan
+> `Guard::hasValidProvider()` mengembalikan `true` tanpa memeriksa apa pun. Artinya guard
+> itu menerima pemilik token **jenis apa pun**: token pengelola sah di seluruh endpoint
+> pengguna, dan sebaliknya — tanpa galat, tanpa jejak, tanpa satu baris kode pun yang
+> salah. Selama hanya ada satu model bertoken, ini tidak terasa. Test
+> `AdminAuthApiTest` mencoba kedua arahnya.
+
+Empat lapis di `/admin`, satu lebih banyak daripada endpoint pengguna:
+
+1. `auth:admin` — token sah DAN milik `App\Models\Admin`
+2. `abilities:admin:access` — jenis access, bukan long_lived. Lapis kedua di belakang
+   guard: token pengguna tidak pernah membawa `admin:access`, jadi ia tetap ditolak
+   kalau lapis pertama suatu hari hilang.
+3. `admin.active` — status akun diperiksa **per permintaan**. Status tidak tersimpan di
+   dalam token dan token itu hidup delapan jam; tanpa lapis ini, pencabutan kewenangan
+   baru berlaku delapan jam kemudian.
+4. `throttle:admin`
+
+Dua peran. `AdminRole::canManageAdmins()` adalah SSOT-nya — dibaca middleware
+`admin.manages-admins` DAN `AdminRole::can()`, jadi penambahan peran ketiga tidak bisa
+memperbarui satu tempat saja.
+
+| Peran | Jumlah | Bisa dihapus | Boleh |
+|---|---|---|---|
+| `super_admin` | **tepat satu** | tidak | semuanya + kelola akun pengelola |
+| `admin` | berapa pun | ya | verifikasi, konfirmasi transfer, moderasi pengguna |
+
+Yang tidak boleh "dirapikan":
+
+- **`admins.role` default `admin`, `admins.status` default `suspended`, keduanya TIDAK
+  mass-assignable.** Dua aturan yang harus berlaku bersamaan, dan ini bug yang sudah
+  pernah terjadi sungguhan di `users`: nilai yang jatuh dari mass assignment hilang
+  **tanpa galat**, sehingga default kolom yang menentukan hasilnya. Dengan default
+  paling sedikit hak, kelalaian berakhir sebagai akun terkunci tanpa kewenangan — bukan
+  super_admin yang lahir sendiri.
+- **Satu super_admin dijamin BASIS DATA.** Kolom turunan `super_admin_lock` berisi `'s'`
+  hanya untuk baris super_admin dan NULL untuk sisanya; indeks unique atasnya menolak
+  baris kedua dengan `#1062`. Turunan (GENERATED), bukan kolom biasa yang diisi
+  aplikasi — kolom biasa bisa melenceng dari `role` lewat satu UPDATE di phpMyAdmin.
+- **super_admin tidak bisa dihapus, dan penjaganya hook `deleting` di model**, bukan
+  hanya Action yang melayani endpoint DELETE. Penghapusan bisa datang dari command,
+  tinker, atau Action lain yang belum ada. Ia juga tidak bisa dinonaktifkan: ia
+  satu-satunya yang bisa membuat pengelola baru.
+- **Tidak ada endpoint pendaftaran pengelola dan tidak ada seeder-nya.**
+  `database/seeders` dan `database/schema/sekarya-install.sql` sama-sama dilacak git,
+  jadi kredensial di dalamnya bisa dibaca siapa pun yang membuka repositori — pada akun
+  paling berhak di seluruh aplikasi. Akun pertama lahir dari
+  `php artisan sekarya:admin create`, yang menolak sandi contoh saat `APP_ENV=production`.
+- **Peran TIDAK boleh datang dari payload.** `CreateAdminData` tidak punya field `role`;
+  `CreateAdminAction` memaksanya `admin`. Kalau bisa dikirim klien, `POST /admin/admins`
+  adalah jalan membuat super_admin kedua, dan yang menahannya cuma aturan validasi.
+- **Gerbang peran memakai MIDDLEWARE, bukan `->can()`.** Penolakan lewat Policy keluar
+  sebagai `AccessDeniedHttpException` bawaan Laravel — `{"message": "This action is
+  unauthorized."}` tanpa kode mesin — sementara `CreateAdminAction` menolak hal yang
+  sama dengan `admin_access_denied`. Satu kegagalan logis dengan dua bentuk respons
+  memaksa klien bercabang pada `message`. (`->can()` tetap untuk aturan per-objek.)
+- **Moderasi pengguna MENCABUT TOKEN.** Kolom status saja tidak menghentikan siapa pun:
+  access token hidup delapan jam dan tidak menyimpan status di dalamnya. Tanpa
+  `TokenIssuer::revokeAll()`, akun yang di-ban tetap bisa menawar sampai tokennya
+  kedaluwarsa — long_lived-nya 30 hari.
+- **`reinstate` tidak selalu ke `active`.** Akun yang belum pernah memverifikasi email
+  kembali ke `pending_verification`. Kalau tidak, moderasi jadi jalan melewati
+  verifikasi email: suspend lalu pulihkan.
+- **`GET /admin/verifications/{verification}` menulis.** Detail itulah satu-satunya
+  tempat NIK dan nomor rekening keluar terbaca — **utuh, tidak dimasker**. Itu
+  keputusan pemilik proyek yang diambil eksplisit setelah opsi masker dan opsi
+  "tidak ditampilkan" ditawarkan; jangan mengubahnya tanpa menanyakan ulang, karena
+  yang hilang adalah satu-satunya cara verifikasi identitas bisa dikerjakan. Yang
+  mengimbanginya: setiap pembacaan mencatat `verification.viewed` di
+  `admin_audit_logs`. Keputusan bisa ditinjau dari statusnya;
+  pembacaan tidak meninggalkan bekas apa pun kalau tidak dicatat. Daftar antreannya
+  memakai **kelas Resource yang berbeda**, bukan penanda boolean — endpoint daftar
+  secara harfiah tidak punya kode untuk mengeluarkan NIK.
+- **Jejak audit ditulis DI DALAM transaksi Action-nya.** Kebalikan dari penghitung
+  percobaan kode verifikasi, yang harus di luar: percobaan itu benar-benar terjadi
+  walaupun permintaannya gagal, sedangkan jejak "pengelola menyetujui X" yang tertinggal
+  setelah X dibatalkan adalah jejak yang berbohong.
+- **`admin_audit_logs` append-only** (tidak ada `updated_at`) dan `admin_id`-nya
+  `restrictOnDelete` — jejak tidak boleh bisa dihapus dengan cara menghapus pelakunya.
+  Karena itu pula penghapusan pengelola adalah soft delete, dan alamat emailnya tetap
+  terpakai selamanya.
+
+Yang **belum** ada, dan sudah tercatat di `docs/API.md` bagian 14: endpoint membaca
+jejak audit, dan signed URL untuk melihat foto KTP/selfie (sampai itu ada, penilaian
+identitas hanya bertumpu pada data teks).
 
 ## Observability (Axiom)
 
@@ -240,16 +355,17 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
 ```bash
 # Sekali saat setup: buat database-nya lebih dulu
 #   CREATE DATABASE sekarya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-php artisan migrate:fresh --seed  # 13 tabel + kategori & skills
+php artisan migrate:fresh --seed  # 16 tabel + kategori & skills
+php artisan sekarya:admin create  # akun super_admin — SATU-SATUNYA cara membuatnya
 php artisan serve                 # http://localhost:8000
-php artisan test                  # 740 test, 2.442 asersi
+php artisan test                  # 887 test, 3.244 asersi
 composer test-report              # coverage/html + junit + testdox (lihat tests/README.md)
 php artisan sekarya:axiom --audit # buktikan penyaringan PII sebelum kirim apa pun
 php artisan test tests/Unit       # fast tier
 ./vendor/bin/pint                 # format (run before committing)
 php artisan route:list --path=api
 php artisan sekarya:demo --fresh     # seed fixtures + print dev tokens
-bash docs/smoke.sh                # 95 live HTTP assertions, self-hosting server
+bash docs/smoke.sh                # 132 live HTTP assertions, self-hosting server
 ```
 
 ## API contract

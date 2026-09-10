@@ -29,16 +29,21 @@ final class SecurityTest extends TestCase
      */
     public function test_every_app_route_has_all_three_protection_layers(): void
     {
+        // Satu-satunya rute yang boleh tanpa autentikasi: pintu masuk.
+        // `admin/auth/login` ada di sini untuk alasan yang sama seperti
+        // `auth/login` — belum ada token yang bisa dibawa.
         $expectedWithoutAuth = [
             'api/v1/auth/register',
             'api/v1/auth/verify-email',
             'api/v1/auth/resend-code',
             'api/v1/auth/login',
+            'api/v1/admin/auth/login',
         ];
 
         $withoutAuth = [];
         $withoutAbility = [];
         $withoutThrottle = [];
+        $adminWithoutActiveCheck = [];
 
         foreach (app('router')->getRoutes() as $route) {
             $uri = $route->uri();
@@ -52,7 +57,10 @@ final class SecurityTest extends TestCase
                 fn ($m) => is_string($m) && str_contains($m, $needle),
             );
 
-            if (! $has('auth:sanctum')) {
+            // Dua guard, dua populasi pemilik token. Rute pengelola memakai
+            // `auth:admin`, yang provider-nya `admins` — dan itulah yang
+            // membuat token pengguna ditolak di sana.
+            if (! $has('auth:sanctum') && ! $has('auth:admin')) {
                 $withoutAuth[] = $uri;
 
                 continue;
@@ -63,12 +71,32 @@ final class SecurityTest extends TestCase
             if (! $has('throttle:')) {
                 $withoutThrottle[] = $uri;
             }
+
+            // Lapis keempat, hanya untuk pengelola: status akun diperiksa per
+            // permintaan. Tanpa ini, pencabutan kewenangan baru berlaku
+            // delapan jam kemudian — selama token akses yang lama masih hidup.
+            if ($has('auth:admin') && ! $has('admin.active')) {
+                $adminWithoutActiveCheck[] = $uri;
+            }
         }
 
         $this->assertEqualsCanonicalizing($expectedWithoutAuth, array_unique($withoutAuth));
         // logout menerima kedua jenis token dengan sengaja.
-        $this->assertSame(['api/v1/auth/logout'], array_values(array_unique($withoutAbility)));
+        $this->assertEqualsCanonicalizing(
+            ['api/v1/auth/logout', 'api/v1/admin/auth/logout'],
+            array_values(array_unique($withoutAbility)),
+        );
         $this->assertSame([], array_unique($withoutThrottle));
+
+        // Dua pengecualian yang disengaja, dan keduanya punya alasan:
+        //  - logout: pengelola yang baru dinonaktifkan harus tetap bisa
+        //    mencabut tokennya sendiri.
+        //  - refresh: statusnya diperiksa di dalam RefreshAdminTokenAction,
+        //    karena di situlah keputusan "boleh diperpanjang" diambil.
+        $this->assertEqualsCanonicalizing(
+            ['api/v1/admin/auth/logout', 'api/v1/admin/auth/refresh'],
+            array_values(array_unique($adminWithoutActiveCheck)),
+        );
     }
 
     // ── pemisahan jenis token ───────────────────────────────────────────────

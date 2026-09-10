@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Api\V1;
 
 use App\Enums\TaskStatus;
+use App\Models\Admin;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,6 +22,8 @@ final class TaskLifecycleTest extends TestCase
 
     private User $stranger;
 
+    private ?Admin $admin = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -29,6 +32,17 @@ final class TaskLifecycleTest extends TestCase
         $this->poster = $this->activeUser();
         $this->worker = $this->activeUser();
         $this->stranger = $this->activeUser();
+    }
+
+    /**
+     * Pengelola yang mengonfirmasi transfer.
+     *
+     * Dibuat sekali per test: sejak `held` hanya bisa dicapai dari sisi
+     * pengelola, hampir setiap alur uang di kelas ini membutuhkannya.
+     */
+    private function admin(): Admin
+    {
+        return $this->admin ??= $this->activeAdmin();
     }
 
     private function payload(array $override = []): array
@@ -403,11 +417,27 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonPath('data.status', 'dealt')
             ->assertJsonPath('data.agreed_amount', 220_000);
 
-        // Satu transfer membuka satu activity PER pekerja, jadi responsnya
-        // daftar. Task ini satu orang, jadi elemen pertama.
-        $activity = $this->asUser($this->poster)
+        // Pemberi kerja MELAPOR sudah transfer. Ini tidak membuka apa pun —
+        // dan itu inti perubahannya: dulu langkah ini langsung memindahkan
+        // tagihan ke `held`, yang berarti pemberi kerja menyatakan sendiri
+        // uangnya sudah masuk.
+        $payment = $this->asUser($this->poster)
             ->postJson(route('v1.tasks.payment.hold', $task))
-            ->assertCreated()
+            ->assertOk()
+            ->assertJsonPath('data.status', 'awaiting_confirmation')
+            ->assertJsonPath('data.awaits_confirmation', true)
+            ->assertJsonPath('data.is_held', false)
+            ->json('data.id');
+
+        // Yang menahan dana — dan dengan itu membuka activity — pengelola.
+        $this->asAdmin($this->admin())
+            ->postJson(route('v1.admin.payments.confirm', $payment))
+            ->assertOk()
+            ->assertJsonPath('data.is_held', true);
+
+        $activity = $this->asUser($this->worker)
+            ->getJson(route('v1.activities.mine'))
+            ->assertOk()
             ->json('data.0.id');
 
         return [$task, $bid, $activity];
@@ -448,8 +478,9 @@ final class TaskLifecycleTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'pending')
             ->assertJsonPath('data.is_held', false)
-            ->assertJsonStructure(['data' => ['id', 'status', 'amount', 'is_held', 'paid_at', 'held_at',
-                'released_at', 'refunded_at', 'cancelled_at', 'created_at']]);
+            ->assertJsonStructure(['data' => ['id', 'status', 'amount', 'is_held',
+                'awaits_confirmation', 'reported_at', 'rejection_reason',
+                'paid_at', 'held_at', 'released_at', 'refunded_at', 'cancelled_at', 'created_at']]);
     }
 
     public function test_only_the_poster_can_pay(): void
@@ -462,7 +493,36 @@ final class TaskLifecycleTest extends TestCase
         $this->asUser($this->worker)->postJson(route('v1.tasks.payment.hold', $task))->assertForbidden();
     }
 
-    public function test_holding_opens_the_activity(): void
+    /**
+     * Pemberi kerja TIDAK bisa memanggil endpoint pengelola.
+     *
+     * 401, bukan 403: guard `admin` hanya menerima pemilik token dari tabel
+     * `admins`, jadi token pengguna gagal di autentikasi — bukan di otorisasi.
+     */
+    public function test_the_poster_cannot_confirm_their_own_transfer(): void
+    {
+        $task = $this->createTask();
+        $bid = $this->asUser($this->worker)
+            ->postJson(route('v1.tasks.bids.store', $task), ['amount' => 220_000])->json('data.id');
+        $this->asUser($this->poster)->postJson(route('v1.bids.accept', $bid))->assertOk();
+
+        $payment = $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.payment.hold', $task))
+            ->assertOk()
+            ->json('data.id');
+
+        $this->asUser($this->poster)
+            ->postJson(route('v1.admin.payments.confirm', $payment))
+            ->assertUnauthorized()
+            ->assertJsonPath('code', 'unauthenticated');
+
+        // Dan tidak ada apa pun yang terbuka.
+        $this->asUser($this->poster)->getJson(route('v1.tasks.payment.show', $task))
+            ->assertOk()
+            ->assertJsonPath('data.is_held', false);
+    }
+
+    public function test_confirming_opens_the_activity(): void
     {
         [$task, , $activity] = $this->throughToActivity();
 
@@ -477,7 +537,7 @@ final class TaskLifecycleTest extends TestCase
         $this->assertNotEmpty($task);
     }
 
-    public function test_holding_twice_is_rejected(): void
+    public function test_reporting_a_transfer_again_after_it_was_held_is_rejected(): void
     {
         [$task] = $this->throughToActivity();
 

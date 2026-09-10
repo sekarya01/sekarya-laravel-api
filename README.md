@@ -12,8 +12,8 @@ badan usaha. Semua pihak perseorangan.
 | Bahasa & framework | PHP `^8.3` (**pakai 8.4 di produksi**, lihat catatan di bawah) · Laravel `11.55.1` (dipin persis) |
 | Basis data | MySQL 8+ / InnoDB — **bukan** SQLite, lihat [Kenapa MySQL](#kenapa-mysql-bukan-sqlite) |
 | Autentikasi | Laravel Sanctum `^4.0`, sepasang token |
-| Test | PHPUnit `^11.5` — 740 test, 2.442 asersi, 44 berkas, coverage baris 99,75% |
-| Kontrak API | OpenAPI 3.1 di `docs/openapi.yaml` — 35 endpoint |
+| Test | PHPUnit `^11.5` — 887 test, 3.244 asersi, 56 berkas (ukur coverage: `composer test-report`) |
+| Kontrak API | OpenAPI 3.1 di `docs/openapi.yaml` — 57 endpoint (35 pengguna + 22 pengelola) |
 | Observability | Axiom (opsional, mati secara bawaan) |
 
 Diuji pada PHP 8.5.10, Laravel 11.55.1, MySQL 26.7 (Homebrew), Composer 2.10.
@@ -78,8 +78,16 @@ CREATE DATABASE sekarya_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 Isi kredensial basis data di `.env`, lalu:
 
 ```bash
-php artisan migrate --seed     # 19 migrasi -> 23 tabel, + kategori & keahlian
+php artisan migrate --seed     # 23 migrasi -> 25 tabel, + kategori & keahlian
 npm install && npm run build   # opsional, hanya untuk aset
+```
+
+Terakhir, buat akun pengelola. Ini **satu-satunya** caranya — tidak ada endpoint
+pendaftaran pengelola, dan seeder-nya sengaja tidak ada karena berkas seeder terlacak
+git:
+
+```bash
+php artisan sekarya:admin create      # kredensialnya dari SEKARYA_SUPER_ADMIN_* di .env
 ```
 
 Nama basis data test ada di `phpunit.xml`, **bukan** di `.env` — lihat
@@ -162,10 +170,10 @@ php artisan route:list --path=api
 ## Test
 
 ```bash
-php artisan test                  # 740 test, 2.442 asersi
+php artisan test                  # 887 test, 3.244 asersi
 php artisan test tests/Unit       # lapis cepat
 composer test-report              # + coverage/html, junit, testdox
-bash docs/smoke.sh                # 95 pemeriksaan HTTP sungguhan, server sendiri
+bash docs/smoke.sh                # 132 pemeriksaan HTTP sungguhan, server sendiri
 ./vendor/bin/pint                 # format — jalankan sebelum commit
 npx --yes -p @redocly/cli redocly lint docs/openapi.yaml
 ```
@@ -297,8 +305,16 @@ diterima — bukan batas pelamar. Lelangnya tetap terbuka, dan pemberi kerja mem
 berdasarkan harga penawaran. Status task mengikuti **agregat** seluruh pekerja: dana
 dilepas hanya ketika pekerja terakhir disetujui.
 
-**Tidak ada activity tanpa dana ditahan.** Ditegakkan oleh baris basis data, bukan
-disiplin kode.
+**Tidak ada activity tanpa dana ditahan**, dan **yang menyatakan dana diterima bukan
+pihak yang membayar.** Pemberi kerja hanya bisa *melapor* sudah transfer; yang
+memindahkan tagihan ke `held` — dan dengan itu membuka pekerjaan — adalah pengelola yang
+melihat mutasi rekening. Ditegakkan oleh baris basis data dan oleh aturan transisi
+status, bukan disiplin kode.
+
+**Pengelola adalah populasi pemilik token yang berbeda**, bukan pengguna dengan kolom
+peran: tabel sendiri (`admins`), guard sendiri, ability token sendiri. Token pengguna di
+`/admin` menghasilkan `401`, dan sebaliknya. Ada **tepat satu** `super_admin` — dijamin
+indeks unique di basis data — dan ia tidak bisa dihapus maupun dinonaktifkan.
 
 **Login, kirim ulang kode, dan verifikasi memberi jawaban identik** apakah emailnya ada
 atau tidak — kalau tidak, ketiganya menjadi alat pemetaan akun.
@@ -404,6 +420,9 @@ Paket itu menuntut PHPUnit 12, sementara Laravel 11 mentok di PHPUnit 11. Dampak
 kosmetik pada keluaran test.
 
 ### Yang TIDAK berubah
+
+*Angka di bawah adalah hasil pemeriksaan pada saat penurunan versi itu dilakukan, bukan
+jumlah test hari ini.*
 
 740 test lolos (2.442 asersi), 95/95 smoke check lolos, Pint bersih, dan
 `database/schema/sekarya-install.sql` identik byte-per-byte — **skema basis data tidak

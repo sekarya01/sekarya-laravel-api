@@ -270,6 +270,13 @@ Catatan yang menghemat waktu orang berikutnya:
   (`axiom.auth_routes`). Listener bawaan tetap dipasang untuk jalur berbasis
   guard yang mungkin ditambahkan nanti — jangan hapus jalur turunan itu dengan
   anggapan listener menggantikannya.
+
+  Konsekuensinya: **setiap alur masuk yang baru harus didaftarkan sendiri di
+  `axiom.auth_routes`**, atau ia tidak tercatat sama sekali. `AdminLoginAction`
+  ada di sana (`v1.admin.auth.*` → `admin.login`, `admin.login_failed`,
+  `admin.logout`, `admin.token_refreshed`, `admin.refresh_failed`) — dan justru
+  percobaan masuk yang gagal pada akun yang bisa menyetujui pembayaran adalah
+  event keamanan yang paling perlu terlihat.
 - **Path panggilan keluar bisa jadi rahasia itu sendiri.** Daftar host-nya di
   `axiom.redact_outbound_path_for`. Yang sekarang ada di sana ditemukan dengan
   MENJALANKAN pendaftaran sungguhan melalui penangkap payload, bukan dari

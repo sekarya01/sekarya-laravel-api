@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Admin;
 use App\Models\User;
 
 return [
@@ -37,10 +38,48 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | DUA POPULASI PEMILIK TOKEN — PROVIDER SETIAP GUARD WAJIB DISEBUT
+    |--------------------------------------------------------------------------
+    |
+    | Kalau guard `sanctum` TIDAK ada di berkas ini, Sanctum mendaftarkannya
+    | sendiri saat runtime dengan `provider => null`
+    | (SanctumServiceProvider::register). Dan dengan provider null,
+    | Laravel\Sanctum\Guard::hasValidProvider() mengembalikan true tanpa
+    | memeriksa apa pun:
+    |
+    |     if (is_null($this->provider)) { return true; }
+    |
+    | Artinya guard itu menerima pemilik token JENIS APA PUN. Selama hanya ada
+    | satu model bertoken (User) itu tidak terasa. Begitu ada `admins`, token
+    | pengelola langsung sah di seluruh endpoint pengguna, dan token pengguna
+    | sah di seluruh `/admin` — tanpa galat, tanpa jejak, tanpa satu baris kode
+    | pun yang salah.
+    |
+    | Dua blok di bawah inilah yang menutupnya, dan keduanya harus tetap
+    | menyebut `provider`. Lapis keduanya ada di ability token
+    | (`token:access` vs `admin:access`, lihat App\Enums\TokenAbility), supaya
+    | satu baris yang hilang di sini tidak langsung berarti kebocoran.
+    |
+    */
+
     'guards' => [
         'web' => [
             'driver' => 'session',
             'provider' => 'users',
+        ],
+
+        // Pengguna aplikasi. Hanya menerima token milik App\Models\User.
+        'sanctum' => [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+        ],
+
+        // Pengelola. Hanya menerima token milik App\Models\Admin.
+        'admin' => [
+            'driver' => 'sanctum',
+            'provider' => 'admins',
         ],
     ],
 
@@ -67,10 +106,12 @@ return [
             'model' => env('AUTH_MODEL', User::class),
         ],
 
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
+        // Pengelola. Tabel dan model terpisah — bukan `users` yang disaring
+        // peran, karena `users` punya jalur tulis publik dan tabel ini tidak.
+        'admins' => [
+            'driver' => 'eloquent',
+            'model' => Admin::class,
+        ],
     ],
 
     /*
