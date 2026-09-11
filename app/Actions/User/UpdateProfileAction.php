@@ -22,6 +22,8 @@ final class UpdateProfileAction
                 $user->fill($attributes)->save();
             }
 
+            $this->syncDisplayName($data, $user);
+
             // Keahlian kini relasi berindeks, bukan kolom JSON — jadi disinkronkan,
             // tidak ditimpa sebagai nilai.
             if ($data->skills !== null) {
@@ -32,5 +34,36 @@ final class UpdateProfileAction
 
             return $user->refresh()->load('skills');
         });
+    }
+
+    /**
+     * Jaga `name` tetap sinkron dengan depan+belakang.
+     *
+     * Warisan `name` saja (klien lama) dipecah: kata pertama jadi depan,
+     * sisanya jadi belakang. Field baru saja → `name` dirakit ulang.
+     */
+    private function syncDisplayName(UpdateProfileData $data, User $user): void
+    {
+        $touched = array_intersect($data->present, ['name', 'first_name', 'last_name']);
+
+        if ($touched === []) {
+            return;
+        }
+
+        $legacyOnly = $touched === ['name'];
+
+        if ($legacyOnly) {
+            $parts = preg_split('/\s+/', trim((string) $user->name), 2);
+            $user->forceFill([
+                'first_name' => $parts[0] !== '' ? $parts[0] : $user->name,
+                'last_name' => $parts[1] ?? null,
+            ])->save();
+
+            return;
+        }
+
+        $user->forceFill([
+            'name' => trim((string) $user->first_name.' '.((string) $user->last_name)),
+        ])->save();
     }
 }

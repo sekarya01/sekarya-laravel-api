@@ -16,6 +16,12 @@ final class UpdateProfileRequest extends FormRequest
     {
         return [
             'name' => ['sometimes', 'string', 'max:120'],
+            'first_name' => ['sometimes', 'string', 'max:60'],
+            'last_name' => ['sometimes', 'nullable', 'string', 'max:60'],
+            'username' => [
+                'sometimes', 'nullable', 'string', 'max:30', 'regex:/\A[A-Za-z0-9._]+\z/',
+                Rule::unique('users', 'username')->ignore($this->user()?->getKey()),
+            ],
             'gender' => ['sometimes', 'nullable', Rule::enum(Gender::class)],
 
             // Tanggal, BUKAN umur — umur dihitung darinya (User::age()).

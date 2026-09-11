@@ -30,6 +30,9 @@ final readonly class UpdateProfileData
      */
     public function __construct(
         public ?string $name = null,
+        public ?string $firstName = null,
+        public ?string $lastName = null,
+        public ?string $username = null,
         public ?Gender $gender = null,
         public ?CarbonImmutable $birthDate = null,
         public ?string $bio = null,
@@ -52,6 +55,11 @@ final readonly class UpdateProfileData
 
         return new self(
             name: $str('name'),
+            firstName: $str('first_name'),
+            lastName: $str('last_name'),
+            username: $request->has('username')
+                ? ($request->filled('username') ? mb_strtolower(trim($request->string('username')->value())) : null)
+                : null,
             gender: $request->filled('gender')
                 ? Gender::from($request->string('gender')->value())
                 : null,
@@ -88,6 +96,9 @@ final readonly class UpdateProfileData
      */
     private const array COLUMN_MAP = [
         'name' => 'name',
+        'first_name' => 'first_name',
+        'last_name' => 'last_name',
+        'username' => 'username',
         'gender' => 'gender',
         'birth_date' => 'birth_date',
         'bio' => 'bio',
@@ -110,6 +121,9 @@ final readonly class UpdateProfileData
     {
         $values = [
             'name' => $this->name,
+            'first_name' => $this->firstName,
+            'last_name' => $this->lastName,
+            'username' => $this->username,
             'gender' => $this->gender,
             'birth_date' => $this->birthDate,
             'bio' => $this->bio,

@@ -170,6 +170,21 @@ final class RedactorTest extends TestCase
         $this->assertSame('high', $out['name_of_queue']);
     }
 
+    public function test_identity_fields_are_pseudonymized(): void
+    {
+        $out = $this->redactor()->payload([
+            'first_name' => 'Budi',
+            'last_name' => 'Prasetyo',
+            'username' => 'budi.prasetyo',
+            'display_name' => 'Budi Tukang AC',
+        ]);
+
+        foreach (['first_name', 'last_name', 'username', 'display_name'] as $key) {
+            $this->assertArrayNotHasKey($key, $out);
+            $this->assertMatchesRegularExpression('/^[a-f0-9]{16}$/', $out[$key.'_sha']);
+        }
+    }
+
     public function test_pseudonymize_can_be_turned_off_entirely(): void
     {
         config()->set('axiom.privacy.pseudonymize', false);

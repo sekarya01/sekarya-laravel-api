@@ -281,7 +281,8 @@ return [
          | tidak sensitif dan justru dibutuhkan, jadi pencocokannya harus persis.
          */
         'pseudonymize_keys_exact' => [
-            'name', 'full_name', 'ip', 'ip_address', 'client_ip',
+            'name', 'full_name', 'first_name', 'last_name', 'username',
+            'display_name', 'ip', 'ip_address', 'client_ip',
         ],
 
         /*

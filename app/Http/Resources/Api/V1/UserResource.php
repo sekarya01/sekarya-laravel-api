@@ -25,6 +25,9 @@ final class UserResource extends BaseResource
         return [
             'id' => $this->ulid,
             'name' => $this->name,
+            'first_name' => $this->first_name,
+            'last_name' => $this->last_name,
+            'username' => $this->username,
             'gender' => $this->gender?->value,
             // Tanggal lahir keluar UTUH hanya di profil sendiri. Yang dilihat
             // orang lain cuma `age` — lihat PublicUserResource.

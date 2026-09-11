@@ -58,7 +58,9 @@ kodenya masuk ke `storage/logs/laravel.log` sehingga bisa dibaca tanpa mailbox n
 curl -s -X POST "$BASE/auth/register" \
   -H 'Accept: application/json' -H 'Content-Type: application/json' \
   -d '{
-    "name":"Budi Prasetyo",
+    "first_name":"Budi",
+    "last_name":"Prasetyo",
+    "username":"budi.prasetyo",
     "email":"budi@sekarya.test",
     "phone":"+628111222333",
     "password":"RahasiaKuat2026",
@@ -86,6 +88,13 @@ curl -s -X POST "$BASE/auth/register" \
 - **Tidak ada token di respons ini.** Itu inti langkahnya — mengembalikan token di sini
   akan membuat verifikasi email jadi tanpa arti.
 - `status` = `pending_verification`. Akun belum bisa apa-apa.
+- Wajib: `first_name`, `email`, `password` (+`password_confirmation`).
+  Opsional: `last_name`, `username` (huruf/angka/titik/garis bawah, unik),
+  `phone` (boleh kosong; format `+628…`, unik bila diisi), `city`, `province`.
+- `name` lama masih diterima sebagai alias (dipecah jadi depan/belakang) agar
+  klien lama tidak putus — klien baru wajib kirim `first_name`.
+- Kolom `name` di database disinkron dari depan+belakang, jadi seluruh
+  pembaca lama (profil, notifikasi, admin) tidak berubah.
 - Kata sandi diperiksa terhadap **basis data kebocoran publik**; kata sandi yang pernah
   bocor ditolak `422` walaupun panjangnya cukup.
 
