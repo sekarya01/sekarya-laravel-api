@@ -11,7 +11,7 @@ final readonly class LoginData
     public function __construct(
         public string $password,
         public ?string $email = null,
-        public ?string $phone = null,
+        public ?string $username = null,
     ) {}
 
     public static function fromRequest(LoginRequest $request): self
@@ -21,8 +21,8 @@ final readonly class LoginData
             email: $request->filled('email')
                 ? mb_strtolower(trim($request->string('email')->value()))
                 : null,
-            phone: $request->filled('phone')
-                ? (preg_replace('/\s+/', '', $request->string('phone')->value()) ?? null)
+            username: $request->filled('username')
+                ? mb_strtolower(trim($request->string('username')->value()))
                 : null,
         );
     }

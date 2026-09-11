@@ -24,6 +24,7 @@ final class LoginActionTest extends TestCase
     {
         return $this->activeUser([
             'email' => 'budi@sekarya.test',
+            'username' => 'budi.prasetyo',
             'phone' => '+628111222333',
             'password' => Hash::make('RahasiaKuat2026'),
             ...$override,
@@ -41,12 +42,12 @@ final class LoginActionTest extends TestCase
         $this->assertSame([TokenAbility::Refresh->value], $result['long_lived']->accessToken->abilities);
     }
 
-    public function test_login_by_phone_works_too(): void
+    public function test_login_by_username_works_too(): void
     {
         $this->user();
 
         $result = app(LoginAction::class)
-            ->handle(new LoginData('RahasiaKuat2026', phone: '+628111222333'));
+            ->handle(new LoginData('RahasiaKuat2026', username: 'budi.prasetyo'));
 
         $this->assertSame('budi@sekarya.test', $result['user']->email);
     }

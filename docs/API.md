@@ -1395,7 +1395,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
-| `POST` | `/auth/login` | — | `login` | Masuk. Balasan sama untuk kata sandi salah maupun email tak dikenal. |
+| `POST` | `/auth/login` | — | `login` | Masuk via email atau username. Balasan sama untuk kata sandi salah maupun identitas tak dikenal. |
 | `POST` | `/auth/logout` | kedua token | `api` | Keluar. Mencabut **kedua** token, termasuk yang berumur panjang. |
 | `POST` | `/auth/refresh` | long_lived | `refresh` | Tukar `long_lived` jadi `access` baru. Access token lama langsung mati. |
 | `POST` | `/auth/register` | — | `register` | Daftar akun. `202`, **tanpa token** — akun belum aktif. |

@@ -13,8 +13,8 @@ final class LoginRequest extends FormRequest
     {
         return [
             // Salah satu wajib ada, tidak boleh dua-duanya kosong.
-            'email' => ['required_without:phone', 'nullable', 'email', 'max:180'],
-            'phone' => ['required_without:email', 'nullable', 'string', 'max:20'],
+            'email' => ['required_without:username', 'nullable', 'email', 'max:180'],
+            'username' => ['required_without:email', 'nullable', 'string', 'max:30'],
             'password' => ['required', 'string'],
         ];
     }
@@ -23,8 +23,8 @@ final class LoginRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.required_without' => 'Masukkan email atau nomor HP.',
-            'phone.required_without' => 'Masukkan email atau nomor HP.',
+            'email.required_without' => 'Masukkan email atau username.',
+            'username.required_without' => 'Masukkan email atau username.',
         ];
     }
 }
