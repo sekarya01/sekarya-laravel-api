@@ -269,10 +269,10 @@ paths:
     post:
       tags: [Auth]
       operationId: login
-      summary: Masuk dengan email atau nomor HP
+      summary: Masuk dengan email atau username
       security: []
       description: |
-        Kirim `email` **atau** `phone`, bersama `password`.
+        Kirim `email` **atau** `username`, bersama `password`.
 
         Balasan untuk email tak terdaftar dan kata sandi salah **identik** —
         termasuk waktu responsnya — agar endpoint ini tidak bisa dipakai
@@ -286,8 +286,8 @@ paths:
             examples:
               email:
                 value: { email: budi@example.com, password: RahasiaKuat2026 }
-              phone:
-                value: { phone: '+628111222333', password: RahasiaKuat2026 }
+              username:
+                value: { username: budi.prasetyo, password: RahasiaKuat2026 }
       responses:
         '200':
           $ref: '#/components/responses/TokenPair'
@@ -3638,10 +3638,10 @@ components:
     LoginRequest:
       type: object
       required: [password]
-      description: Kirim `email` **atau** `phone`, tidak boleh dua-duanya kosong.
+      description: Kirim `email` **atau** `username`, tidak boleh dua-duanya kosong.
       properties:
         email: { type: [string, 'null'], format: email }
-        phone: { type: [string, 'null'] }
+        username: { type: [string, 'null'], maxLength: 30 }
         password: { type: string }
       additionalProperties: false
     UpdateProfileRequest:

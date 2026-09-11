@@ -36,6 +36,7 @@ final class VerificationCodeNotification extends Notification
             code: $this->code,
             name: (string) $notifiable->name,
             ttlMinutes: $this->ttlMinutes,
+            email: (string) $notifiable->email,
         );
     }
 }

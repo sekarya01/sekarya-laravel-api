@@ -47,6 +47,9 @@ final class RegisterRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'email.unique' => 'Email sudah terdaftar. Masuk atau pakai email lain.',
+            'username.unique' => 'Username sudah dipakai. Pilih username lain.',
+            'phone.unique' => 'Nomor HP sudah terdaftar. Masuk atau pakai nomor lain.',
             'phone.regex' => 'Nomor HP harus angka, boleh diawali +, panjang 9-19 digit.',
             'username.regex' => 'Username hanya boleh huruf, angka, titik, dan garis bawah.',
             'password.uncompromised' => 'Kata sandi ini pernah muncul di kebocoran data. Pilih yang lain.',

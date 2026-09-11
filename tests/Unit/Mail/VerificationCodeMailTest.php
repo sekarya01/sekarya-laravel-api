@@ -13,14 +13,25 @@ final class VerificationCodeMailTest extends TestCase
 {
     public function test_the_subject_carries_the_code(): void
     {
-        $mail = new VerificationCodeMail('123456', 'Budi Prasetyo', 15);
+        $mail = new VerificationCodeMail('123456', 'Budi Prasetyo', 15, 'budi@sekarya.test');
 
         $this->assertSame('Kode verifikasi Sekarya: 123456', $mail->envelope()->subject);
+
+        $recipients = array_map(
+            fn ($address): string => match (true) {
+                $address instanceof \Illuminate\Mail\Mailables\Address => $address->address,
+                $address instanceof \Symfony\Component\Mime\Address => $address->getAddress(),
+                default => (string) $address,
+            },
+            (array) $mail->envelope()->to,
+        );
+
+        $this->assertContains('budi@sekarya.test', $recipients);
     }
 
     public function test_the_rendered_html_embeds_the_logo_and_shows_the_code(): void
     {
-        $html = (new VerificationCodeMail('123456', 'Budi Prasetyo', 15))->render();
+        $html = (new VerificationCodeMail('123456', 'Budi Prasetyo', 15, 'budi@sekarya.test'))->render();
 
         // Logo di-embed (CID), bukan URL luar.
         $this->assertStringContainsString('cid:', $html);

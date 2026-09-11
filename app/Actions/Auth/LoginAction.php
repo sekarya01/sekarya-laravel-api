@@ -27,7 +27,7 @@ final class LoginAction
         return $this->db->transaction(function () use ($data): array {
             $user = User::query()
                 ->when($data->email !== null, fn ($q) => $q->where('email', $data->email))
-                ->when($data->phone !== null, fn ($q) => $q->where('phone', $data->phone))
+                ->when($data->username !== null, fn ($q) => $q->where('username', $data->username))
                 ->first();
 
             // Hash dummy tetap diperiksa saat user tidak ada, supaya waktu

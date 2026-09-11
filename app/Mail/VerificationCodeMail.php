@@ -25,11 +25,13 @@ final class VerificationCodeMail extends Mailable
         public readonly string $code,
         public readonly string $name,
         public readonly int $ttlMinutes,
+        public readonly string $email,
     ) {}
 
     public function envelope(): Envelope
     {
         return new Envelope(
+            to: $this->email,
             subject: 'Kode verifikasi Sekarya: '.$this->code,
         );
     }

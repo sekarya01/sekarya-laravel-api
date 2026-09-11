@@ -105,6 +105,37 @@ final class AuthFlowTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors(['phone']);
     }
 
+    /** Duplikat ditolak dengan pesan spesifik per field. */
+    public function test_register_duplicate_errors_name_the_field(): void
+    {
+        Notification::fake();
+        $this->postJson(route('v1.auth.register'), self::PAYLOAD)->assertAccepted();
+
+        $this->postJson(route('v1.auth.register'), [
+            ...self::PAYLOAD,
+            'phone' => '+628999999999',
+            'username' => 'orang.lain',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['email'])
+            ->assertJsonPath('errors.email.0', 'Email sudah terdaftar. Masuk atau pakai email lain.');
+
+        $this->postJson(route('v1.auth.register'), [
+            ...self::PAYLOAD,
+            'email' => 'lain@sekarya.test',
+            'phone' => '+628999999999',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['username'])
+            ->assertJsonPath('errors.username.0', 'Username sudah dipakai. Pilih username lain.');
+
+        $this->postJson(route('v1.auth.register'), [
+            ...self::PAYLOAD,
+            'email' => 'lain2@sekarya.test',
+            'username' => 'orang.lain2',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['phone'])
+            ->assertJsonPath('errors.phone.0', 'Nomor HP sudah terdaftar. Masuk atau pakai nomor lain.');
+    }
+
     public function test_register_normalises_the_email_to_lowercase(): void
     {
         Notification::fake();
@@ -307,6 +338,7 @@ final class AuthFlowTest extends TestCase
     {
         return $this->activeUser([
             'email' => 'budi@sekarya.test',
+            'username' => 'budi.prasetyo',
             'phone' => '+628111222333',
             'password' => Hash::make('RahasiaKuat2026'),
         ]);
@@ -321,19 +353,19 @@ final class AuthFlowTest extends TestCase
             ->assertJsonStructure(['data' => ['access_token', 'long_lived_token']]);
     }
 
-    public function test_login_with_phone(): void
+    public function test_login_with_username(): void
     {
         $this->verifiedUser();
 
-        $this->postJson(route('v1.auth.login'), ['phone' => '+628111222333', 'password' => 'RahasiaKuat2026'])
+        $this->postJson(route('v1.auth.login'), ['username' => 'budi.prasetyo', 'password' => 'RahasiaKuat2026'])
             ->assertOk();
     }
 
-    public function test_login_requires_email_or_phone(): void
+    public function test_login_requires_email_or_username(): void
     {
         $this->postJson(route('v1.auth.login'), ['password' => 'x'])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['email', 'phone']);
+            ->assertJsonValidationErrors(['email', 'username']);
     }
 
     public function test_login_rejects_a_wrong_password(): void
