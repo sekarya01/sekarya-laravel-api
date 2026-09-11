@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\V1\Admin\Verification\ListVerificationQueueControll
 use App\Http\Controllers\Api\V1\Admin\Verification\RejectVerificationController;
 use App\Http\Controllers\Api\V1\Admin\Verification\RevokeVerificationController;
 use App\Http\Controllers\Api\V1\Admin\Verification\ShowVerificationController;
+use App\Http\Controllers\Api\V1\Auth\CheckAvailabilityController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\RefreshTokenController;
@@ -88,6 +89,9 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
     Route::prefix('auth')->name('auth.')->group(function (): void {
         Route::post('register', RegisterController::class)
             ->middleware('throttle:register')->name('register');
+
+        Route::post('check-availability', CheckAvailabilityController::class)
+            ->middleware('throttle:availability')->name('check-availability');
 
         Route::post('verify-email', VerifyEmailController::class)
             ->middleware('throttle:verify')->name('verify-email');

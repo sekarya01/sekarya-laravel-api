@@ -5,7 +5,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 | | |
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
-| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 57 operation cocok dengan 57 rute nyata |
+| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 58 operation cocok dengan 58 rute nyata |
 | **Uji otomatis** | `bash docs/smoke.sh` — 162 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
@@ -97,6 +97,27 @@ curl -s -X POST "$BASE/auth/register" \
   pembaca lama (profil, notifikasi, admin) tidak berubah.
 - Kata sandi diperiksa terhadap **basis data kebocoran publik**; kata sandi yang pernah
   bocor ditolak `422` walaupun panjangnya cukup.
+
+### 1a. Pra-cek ketersediaan (dipakai langkah 1 form daftar)
+
+```bash
+curl -s -X POST "$BASE/auth/check-availability" \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"email":"budi@sekarya.test","username":"budi.prasetyo","phone":"+628111222333"}' \
+  -w '\nstatus=%{http_code}\n'
+```
+
+`200 OK` bila semuanya bebas dipakai:
+
+```json
+{ "message": "Data tersedia untuk dipakai.", "data": { "available": true } }
+```
+
+Bila ada yang sudah dipakai → `422` dengan `errors` per field (bentuk sama
+seperti register), mis. `{"message":"...","errors":{"email":["Email sudah terdaftar. ..."]}}`.
+Minimal satu dari `email`/`username`/`phone` harus diisi; field yang dikosongkan
+tidak ikut dinilai. Aturan uniknya cermin register, jadi hasil pra-cek sama
+dengan hasil validasi register.
 
 Coba login sekarang — ditolak:
 
@@ -1112,6 +1133,7 @@ Percobaan ke-6 → `429` dengan `Retry-After`.
 | Endpoint aplikasi | 120 | pengguna |
 | `login` | 5 | **email + IP** |
 | `register` | 5 | IP |
+| `availability` | 10 | IP |
 | `verify-email` | 6 | email + IP |
 | `resend-code` | 3 | email |
 | `refresh` | 10 | pengguna |
@@ -1377,7 +1399,7 @@ ORDER BY l.created_at DESC LIMIT 20;
 
 ## Ringkasan endpoint
 
-**60 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**61 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1399,6 +1421,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/auth/logout` | kedua token | `api` | Keluar. Mencabut **kedua** token, termasuk yang berumur panjang. |
 | `POST` | `/auth/refresh` | long_lived | `refresh` | Tukar `long_lived` jadi `access` baru. Access token lama langsung mati. |
 | `POST` | `/auth/register` | — | `register` | Daftar akun. `202`, **tanpa token** — akun belum aktif. |
+| `POST` | `/auth/check-availability` | — | `availability` | Pra-cek unik email/username/phone. `200` bila bebas, `422` per field bila dipakai. |
 | `POST` | `/auth/resend-code` | — | `resend` | Kirim ulang kode. Balasan sama untuk email dikenal maupun tidak. |
 | `POST` | `/auth/verify-email` | — | `verify` | Masukkan kode dari email. Satu-satunya jalan ke `active` + pasangan token. |
 
