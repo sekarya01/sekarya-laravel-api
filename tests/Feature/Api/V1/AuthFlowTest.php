@@ -18,7 +18,9 @@ final class AuthFlowTest extends TestCase
     use RefreshDatabase;
 
     private const PAYLOAD = [
-        'name' => 'Budi Prasetyo',
+        'first_name' => 'Budi',
+        'last_name' => 'Prasetyo',
+        'username' => 'budi.prasetyo',
         'email' => 'budi@sekarya.test',
         'phone' => '+628111222333',
         'password' => 'RahasiaKuat2026',
@@ -54,7 +56,7 @@ final class AuthFlowTest extends TestCase
     {
         $this->postJson(route('v1.auth.register'), [])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['name', 'email', 'phone', 'password']);
+            ->assertJsonValidationErrors(['first_name', 'email', 'password']);
     }
 
     public function test_register_requires_password_confirmation(): void
@@ -110,6 +112,74 @@ final class AuthFlowTest extends TestCase
         $this->postJson(route('v1.auth.register'), [...self::PAYLOAD, 'email' => 'BUDI@Sekarya.Test'])
             ->assertAccepted()
             ->assertJsonPath('data.email', 'budi@sekarya.test');
+    }
+
+    public function test_register_accepts_a_missing_phone_last_name_and_username(): void
+    {
+        Notification::fake();
+
+        $payload = self::PAYLOAD;
+        unset($payload['phone'], $payload['last_name'], $payload['username']);
+
+        $this->postJson(route('v1.auth.register'), $payload)->assertAccepted();
+
+        $user = User::query()->where('email', 'budi@sekarya.test')->sole();
+
+        $this->assertSame('Budi', $user->first_name);
+        $this->assertNull($user->last_name);
+        $this->assertNull($user->username);
+        $this->assertNull($user->phone);
+        // Tampilan warisan tetap terisi dari nama depan saja.
+        $this->assertSame('Budi', $user->name);
+    }
+
+    public function test_register_syncs_the_display_name(): void
+    {
+        Notification::fake();
+
+        $this->postJson(route('v1.auth.register'), self::PAYLOAD)->assertAccepted();
+
+        $user = User::query()->where('email', 'budi@sekarya.test')->sole();
+
+        $this->assertSame('Budi Prasetyo', $user->name);
+        $this->assertSame('budi.prasetyo', $user->username);
+    }
+
+    public function test_register_rejects_a_duplicate_or_malformed_username(): void
+    {
+        Notification::fake();
+        $this->postJson(route('v1.auth.register'), self::PAYLOAD)->assertAccepted();
+
+        $this->postJson(route('v1.auth.register'), [
+            ...self::PAYLOAD,
+            'email' => 'lain@sekarya.test',
+            'phone' => '+628999999999',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['username']);
+
+        $this->postJson(route('v1.auth.register'), [
+            ...self::PAYLOAD,
+            'email' => 'lain2@sekarya.test',
+            'phone' => '+628999999998',
+            'username' => 'tidak boleh ada spasi!',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['username']);
+    }
+
+    /** Klien lama yang masih mengirim `name` tidak boleh putus. */
+    public function test_register_still_accepts_the_legacy_name_field(): void
+    {
+        Notification::fake();
+
+        $payload = self::PAYLOAD;
+        unset($payload['first_name'], $payload['last_name']);
+        $payload['name'] = 'Budi Prasetyo';
+
+        $this->postJson(route('v1.auth.register'), $payload)->assertAccepted();
+
+        $user = User::query()->where('email', 'budi@sekarya.test')->sole();
+
+        $this->assertSame('Budi', $user->first_name);
+        $this->assertSame('Prasetyo', $user->last_name);
+        $this->assertSame('Budi Prasetyo', $user->name);
     }
 
     // ── verify ──────────────────────────────────────────────────────────────

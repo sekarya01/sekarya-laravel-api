@@ -149,7 +149,9 @@ paths:
             schema:
               $ref: '#/components/schemas/RegisterRequest'
             example:
-              name: Budi Prasetyo
+              first_name: Budi
+              last_name: Prasetyo
+              username: budi.prasetyo
               email: budi@example.com
               phone: '+628111222333'
               password: RahasiaKuat2026
@@ -3595,15 +3597,25 @@ components:
     # ── request ──
     RegisterRequest:
       type: object
-      required: [name, email, phone, password, password_confirmation]
+      required: [first_name, email, password, password_confirmation]
       properties:
-        name: { type: string, maxLength: 120 }
+        first_name: { type: string, maxLength: 60 }
+        last_name: { type: [string, 'null'], maxLength: 60 }
+        username:
+          type: [string, 'null']
+          maxLength: 30
+          pattern: '^[A-Za-z0-9._]+$'
+          description: Huruf, angka, titik, garis bawah. Unik.
+        name:
+          type: [string, 'null']
+          maxLength: 120
+          description: Alias warisan untuk klien lama (dipecah jadi depan/belakang). Klien baru pakai `first_name`.
         email: { type: string, format: email, maxLength: 180 }
         phone:
-          type: string
+          type: [string, 'null']
           maxLength: 20
           pattern: '^\+?[0-9]{9,19}$'
-          description: Angka, boleh diawali `+`. Unik.
+          description: Opsional. Angka, boleh diawali `+`. Unik bila diisi.
         password:
           type: string
           minLength: 8

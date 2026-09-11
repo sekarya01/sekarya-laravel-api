@@ -28,6 +28,9 @@ final class AdminUserResource extends BaseResource
         return [
             'id' => $this->ulid,
             'name' => $this->name,
+            'first_name' => $this->first_name,
+            'last_name' => $this->last_name,
+            'username' => $this->username,
             'gender' => $this->gender?->value,
             // Pengelola melihat tanggalnya, bukan hanya umurnya: verifikasi
             // identitas mencocokkan tanggal lahir dengan yang tertera di KTP,

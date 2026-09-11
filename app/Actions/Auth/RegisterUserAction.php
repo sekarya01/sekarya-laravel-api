@@ -29,7 +29,13 @@ final class RegisterUserAction
     {
         return $this->db->transaction(function () use ($data, $ip): User {
             $user = new User([
-                'name' => $data->name,
+                // `name` DISINKRON dari depan+belakang, bukan input bebas:
+                // seluruh pembaca lama (Resource, notifikasi, klien mobile)
+                // tetap melihat satu nama tampilan yang sama.
+                'name' => $data->displayName(),
+                'first_name' => $data->firstName,
+                'last_name' => $data->lastName,
+                'username' => $data->username,
                 'email' => $data->email,
                 'phone' => $data->phone,
                 'password' => Hash::make($data->password),

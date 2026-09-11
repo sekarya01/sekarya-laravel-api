@@ -102,7 +102,9 @@ final class AxiomObservabilityTest extends TestCase
     private function registrationPayload(): array
     {
         return [
-            'name' => self::NAME,
+            'first_name' => 'Budi',
+            'last_name' => 'Prasetyo',
+            'username' => 'budi.prasetyo',
             'email' => self::EMAIL,
             'phone' => self::PHONE,
             'password' => self::PASSWORD,
@@ -167,7 +169,9 @@ final class AxiomObservabilityTest extends TestCase
         $this->assertSame('Jakarta', $body['city']);
         $this->assertArrayHasKey('email_sha', $body);
         $this->assertSame('contoh.test', $body['email_domain']);
-        $this->assertArrayHasKey('name_sha', $body);
+        $this->assertArrayHasKey('first_name_sha', $body);
+        $this->assertArrayHasKey('last_name_sha', $body);
+        $this->assertArrayHasKey('username_sha', $body);
     }
 
     // ── Token dan header otorisasi ──────────────────────────────────────────

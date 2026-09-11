@@ -146,4 +146,29 @@ final class OptionalFieldsTest extends TestCase
             ->assertJsonPath('data.avatar_url', fn (?string $url): bool => $url !== null
                 && str_contains($url, 'avatars/budi.jpg'));
     }
+
+    public function test_updating_identity_fields_syncs_the_display_name(): void
+    {
+        $user = $this->activeUser();
+
+        $this->asUser($user)
+            ->patchJson(route('v1.me.update'), [
+                'first_name' => 'Budi',
+                'last_name' => 'Prasetyo',
+                'username' => 'budi.prasetyo',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Budi Prasetyo')
+            ->assertJsonPath('data.first_name', 'Budi')
+            ->assertJsonPath('data.last_name', 'Prasetyo')
+            ->assertJsonPath('data.username', 'budi.prasetyo');
+
+        // Warisan `name` saja dipecah, bukan ditumpuk.
+        $this->asUser($user)
+            ->patchJson(route('v1.me.update'), ['name' => 'Budi Santoso'])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Budi Santoso')
+            ->assertJsonPath('data.first_name', 'Budi')
+            ->assertJsonPath('data.last_name', 'Santoso');
+    }
 }

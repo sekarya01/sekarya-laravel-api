@@ -222,7 +222,7 @@ final class SecurityTest extends TestCase
 
         for ($i = 0; $i < $limit; $i++) {
             $this->postJson(route('v1.auth.register'), [
-                'name' => "T{$i}",
+                'first_name' => "T{$i}",
                 'email' => "t{$i}@sekarya.test",
                 'phone' => '+62811100'.str_pad((string) $i, 4, '0', STR_PAD_LEFT),
                 'password' => 'RahasiaKuat2026',
@@ -231,7 +231,7 @@ final class SecurityTest extends TestCase
         }
 
         $this->postJson(route('v1.auth.register'), [
-            'name' => 'Lebih',
+            'first_name' => 'Lebih',
             'email' => 'lebih@sekarya.test',
             'phone' => '+628111009999',
             'password' => 'RahasiaKuat2026',

@@ -24,11 +24,17 @@ class UserFactory extends Factory
     /** @return array<string, mixed> */
     public function definition(): array
     {
+        $first = fake()->firstName();
+        $last = fake()->lastName();
+
         return [
             // ulid diisi eksplisit di sini, bukan hanya mengandalkan hook `creating`:
             // hook mati kalau model event dinonaktifkan, dan kolomnya NOT NULL unique.
             'ulid' => (string) Str::ulid(),
-            'name' => fake()->name(),
+            'name' => "$first $last",
+            'first_name' => $first,
+            'last_name' => $last,
+            'username' => fake()->unique()->userName(),
             'gender' => fake()->randomElement(Gender::cases()),
             // Rentang umur yang sah menurut aturan validasi (17-100 tahun),
             // supaya data buatan factory tidak pernah jadi data yang API-nya

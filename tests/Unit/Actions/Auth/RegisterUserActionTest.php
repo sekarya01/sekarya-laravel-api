@@ -23,9 +23,12 @@ final class RegisterUserActionTest extends TestCase
     private function data(array $override = []): RegisterData
     {
         return new RegisterData(
-            name: $override['name'] ?? 'Budi Prasetyo',
+            firstName: $override['first_name'] ?? 'Budi',
+            lastName: $override['last_name'] ?? 'Prasetyo',
+            username: $override['username'] ?? 'budi.prasetyo',
             email: $override['email'] ?? 'budi@sekarya.test',
-            phone: $override['phone'] ?? '+628111222333',
+            // `??` menelan null eksplisit — untuk phone, null adalah nilai uji.
+            phone: array_key_exists('phone', $override) ? $override['phone'] : '+628111222333',
             password: $override['password'] ?? 'RahasiaKuat2026',
             city: $override['city'] ?? 'Jakarta',
             province: $override['province'] ?? 'DKI Jakarta',
@@ -60,6 +63,27 @@ final class RegisterUserActionTest extends TestCase
 
         $this->assertSame(UserStatus::PendingVerification->value, $stored);
         $this->assertNotSame(UserStatus::Active->value, $stored);
+    }
+
+    public function test_it_syncs_the_display_name_from_first_and_last(): void
+    {
+        Notification::fake();
+
+        $user = app(RegisterUserAction::class)->handle($this->data());
+
+        $this->assertSame('Budi', $user->first_name);
+        $this->assertSame('Prasetyo', $user->last_name);
+        $this->assertSame('budi.prasetyo', $user->username);
+        $this->assertSame('Budi Prasetyo', $user->name);
+    }
+
+    public function test_phone_is_optional(): void
+    {
+        Notification::fake();
+
+        $user = app(RegisterUserAction::class)->handle($this->data(['phone' => null]));
+
+        $this->assertNull($user->phone);
     }
 
     public function test_it_hashes_the_password(): void

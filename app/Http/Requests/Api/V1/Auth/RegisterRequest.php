@@ -13,7 +13,16 @@ final class RegisterRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:120'],
+            // Kanonik baru: `first_name`. `name` tetap diterima sebagai alias
+            // warisan agar klien lama tidak putus — dipecah jadi depan/belakang
+            // di RegisterData::fromRequest().
+            'first_name' => ['required_without:name', 'nullable', 'string', 'max:60'],
+            'name' => ['required_without:first_name', 'nullable', 'string', 'max:120'],
+            'last_name' => ['nullable', 'string', 'max:60'],
+            'username' => [
+                'nullable', 'string', 'max:30', 'regex:/\A[A-Za-z0-9._]+\z/',
+                'unique:users,username',
+            ],
             'email' => [
                 'required',
                 // Cek DNS dapat dimatikan per lingkungan — lihat config/sekarya.php.
@@ -21,7 +30,7 @@ final class RegisterRequest extends FormRequest
                 'max:180',
                 'unique:users,email',
             ],
-            'phone' => ['required', 'string', 'max:20', 'regex:/^\+?[0-9]{9,19}$/', 'unique:users,phone'],
+            'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9]{9,19}$/', 'unique:users,phone'],
             'password' => [
                 'required',
                 'confirmed',
@@ -39,6 +48,7 @@ final class RegisterRequest extends FormRequest
     {
         return [
             'phone.regex' => 'Nomor HP harus angka, boleh diawali +, panjang 9-19 digit.',
+            'username.regex' => 'Username hanya boleh huruf, angka, titik, dan garis bawah.',
             'password.uncompromised' => 'Kata sandi ini pernah muncul di kebocoran data. Pilih yang lain.',
         ];
     }
