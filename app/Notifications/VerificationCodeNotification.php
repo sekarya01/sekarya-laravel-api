@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Notifications;
 
+use App\Mail\VerificationCodeMail;
 use Illuminate\Bus\Queueable;
-use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Contracts\Mail\Mailable;
 use Illuminate\Notifications\Notification;
 
 final class VerificationCodeNotification extends Notification
@@ -29,14 +30,12 @@ final class VerificationCodeNotification extends Notification
         return ['mail'];
     }
 
-    public function toMail(object $notifiable): MailMessage
+    public function toMail(object $notifiable): Mailable
     {
-        return (new MailMessage)
-            ->subject('Kode verifikasi Sekarya: '.$this->code)
-            ->greeting('Halo '.$notifiable->name.',')
-            ->line('Masukkan kode berikut untuk mengaktifkan akun Sekarya Anda:')
-            ->line('**'.$this->code.'**')
-            ->line("Kode berlaku {$this->ttlMinutes} menit.")
-            ->line('Jika Anda tidak merasa mendaftar, abaikan email ini — akun tidak akan aktif tanpa kode.');
+        return new VerificationCodeMail(
+            code: $this->code,
+            name: (string) $notifiable->name,
+            ttlMinutes: $this->ttlMinutes,
+        );
     }
 }
