@@ -8,7 +8,6 @@ use App\Actions\Auth\ResetPasswordAction;
 use App\Exceptions\Domain\InvalidPasswordResetTokenException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 
 /**
@@ -39,11 +38,20 @@ final class PasswordResetController
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:180'],
             'token' => ['required', 'string'],
-            // Aturan yang sama seperti pendaftaran: panjang, campuran
-            // huruf/angka, dicek ke basis data kebocoran kata sandi publik.
-            'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()->uncompromised()],
+            // Aturan disamakan dengan aplikasi mobile (SekaryaValidators):
+            // min 8, ada angka, dan (huruf kapital ATAU karakter unik).
+            // Satu pesan untuk ketiganya, sama seperti di mobile.
+            'password' => [
+                'required',
+                'confirmed',
+                'min:8',
+                'regex:/[0-9]/',
+                'regex:/([A-Z]|[^A-Za-z0-9])/',
+            ],
         ], [
-            'password.uncompromised' => 'Kata sandi ini pernah muncul di kebocoran data. Pilih yang lain.',
+            'password.min' => 'Password min. 8 karakter, ada angka, dan (huruf kapital atau karakter unik).',
+            'password.regex' => 'Password min. 8 karakter, ada angka, dan (huruf kapital atau karakter unik).',
+            'password.confirmed' => 'Konfirmasi password tidak sama.',
         ]);
 
         try {
