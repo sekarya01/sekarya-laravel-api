@@ -11,13 +11,10 @@
         <td align="center">
             <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;overflow:hidden;">
                 <tr>
-                    <td align="center" style="background-color:#163c68;padding:28px 24px 20px;">
-                        <img src="{{ $message->embed(public_path('images/logo-sekarya.png')) }}"
-                             alt="Sekarya" width="72"
-                             style="display:block;width:72px;height:auto;border:0;border-radius:16px;">
-                        <p style="margin:12px 0 0;color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:0.5px;">
-                            Sekarya
-                        </p>
+                    <td align="center" style="background-color:#ffffff;padding:28px 24px 8px;">
+                        <img src="{{ $message->embed(public_path('images/logo-sekarya-wordmark.png')) }}"
+                             alt="Sekarya" width="144"
+                             style="display:block;width:144px;height:auto;border:0;">
                     </td>
                 </tr>
                 <tr>
