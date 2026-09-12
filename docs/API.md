@@ -1136,6 +1136,8 @@ Percobaan ke-6 → `429` dengan `Retry-After`.
 | `availability` | 10 | IP |
 | `verify-email` | 6 | email + IP |
 | `resend-code` | 3 | email |
+| `forgot-password` | 3 | email |
+| `reset-password` (web) | 6 | email + IP |
 | `refresh` | 10 | pengguna |
 | Buat task & penawaran | 30 | pengguna |
 | Endpoint `/admin` | 240 | pengelola |
@@ -1399,7 +1401,7 @@ ORDER BY l.created_at DESC LIMIT 20;
 
 ## Ringkasan endpoint
 
-**61 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**62 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1408,7 +1410,7 @@ Semua di bawah `/api/v1`. Kolom **Token**: `access` = token pendek 8 jam, `long_
 token 30 hari yang HANYA bisa refresh, `admin` = token pengelola, `—` = tanpa token.
 Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya.php`.
 
-> [!important] 38 endpoint pertama untuk PENGGUNA, 22 terakhir untuk PENGELOLA, dan
+> [!important] 40 endpoint pertama untuk PENGGUNA, 22 terakhir untuk PENGELOLA, dan
 > tokennya **tidak bisa ditukar**. Akun pengelola ada di tabelnya sendiri dengan
 > guard-nya sendiri: token pengguna di `/admin` menghasilkan `401`, dan token pengelola
 > di endpoint pengguna juga `401`. Lihat bagian **Pengelola** di bawah.
@@ -1423,6 +1425,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/auth/register` | — | `register` | Daftar akun. `202`, **tanpa token** — akun belum aktif. |
 | `POST` | `/auth/check-availability` | — | `availability` | Pra-cek unik email/username/phone. `200` bila bebas, `422` per field bila dipakai. |
 | `POST` | `/auth/resend-code` | — | `resend` | Kirim ulang kode. Balasan sama untuk email dikenal maupun tidak. |
+| `POST` | `/auth/forgot-password` | — | `forgot` | Kirim tautan reset sekali pakai. `422 email_not_registered` bila email tidak terdaftar. |
 | `POST` | `/auth/verify-email` | — | `verify` | Masukkan kode dari email. Satu-satunya jalan ke `active` + pasangan token. |
 
 **Katalog & akun**

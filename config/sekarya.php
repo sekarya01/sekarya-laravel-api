@@ -169,6 +169,14 @@ return [
         // Minta kirim ulang kode, per email.
         'resend' => (int) env('SEKARYA_RL_RESEND', 3),
 
+        // Minta tautan reset kata sandi, per email. Sama ketatnya dengan
+        // resend: mencegah pembanjiran inbox orang lain dari banyak IP.
+        'forgot' => (int) env('SEKARYA_RL_FORGOT', 3),
+
+        // Memakai tautan reset (buka form maupun submit), per email + IP.
+        // Longgar seperti verify: pemilik sah boleh salah ketik beberapa kali.
+        'reset' => (int) env('SEKARYA_RL_RESET', 6),
+
         // Tukar long_lived token jadi access token baru, per pengguna.
         'refresh' => (int) env('SEKARYA_RL_REFRESH', 10),
 

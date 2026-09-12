@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Web\PasswordResetController;
 use App\Http\Controllers\Web\SuperAdmin\AdminAccountController;
 use App\Http\Controllers\Web\SuperAdmin\AuditLogController;
 use App\Http\Controllers\Web\SuperAdmin\AuthController;
@@ -16,6 +17,23 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+/*
+ * Reset kata sandi pengguna lewat tautan sekali pakai dari email.
+ *
+ * Tautan kedaluwarsa oleh DUA kondisi: lewat 60 menit (standar broker
+ * `auth.passwords.users.expire`) atau sudah terpakai (token dihapus saat
+ * reset berhasil). Keduanya menampilkan halaman `expired` yang sama.
+ *
+ * `success` didaftarkan SEBELUM `{token}` supaya tidak ditangkap sebagai
+ * token. Nama `password.reset` dipakai notifikasi email untuk membangun URL.
+ */
+Route::get('reset-password/success', [PasswordResetController::class, 'success'])
+    ->name('password.reset.success');
+Route::get('reset-password/{token}', [PasswordResetController::class, 'show'])
+    ->name('password.reset');
+Route::post('reset-password', [PasswordResetController::class, 'store'])
+    ->middleware('throttle:reset')->name('password.reset.store');
 
 /*
  * Dasbor pengelola super_admin (server-rendered, sesi `admin_web`).

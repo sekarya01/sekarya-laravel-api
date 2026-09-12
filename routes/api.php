@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\V1\Admin\Verification\RejectVerificationController;
 use App\Http\Controllers\Api\V1\Admin\Verification\RevokeVerificationController;
 use App\Http\Controllers\Api\V1\Admin\Verification\ShowVerificationController;
 use App\Http\Controllers\Api\V1\Auth\CheckAvailabilityController;
+use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\RefreshTokenController;
@@ -98,6 +99,9 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
 
         Route::post('resend-code', ResendCodeController::class)
             ->middleware('throttle:resend')->name('resend-code');
+
+        Route::post('forgot-password', ForgotPasswordController::class)
+            ->middleware('throttle:forgot')->name('forgot-password');
 
         Route::post('login', LoginController::class)
             ->middleware('throttle:login')->name('login');

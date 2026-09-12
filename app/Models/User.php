@@ -12,6 +12,7 @@ use App\Enums\UserStatus;
 use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
 use App\Models\Concerns\HasUlid;
+use App\Notifications\ResetPasswordNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -111,6 +112,20 @@ class User extends Authenticatable
     public function refreshAbility(): TokenAbility
     {
         return TokenAbility::Refresh;
+    }
+
+    /**
+     * Tautan reset memakai notifikasi sendiri (bahasa Indonesia, gaya email
+     * Sekarya) alih-alih bawaan Laravel. URL-nya menunjuk ke form web
+     * sekali pakai `password.reset`, bukan ke endpoint API.
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotification(
+            $token,
+            $this->email,
+            (int) config('auth.passwords.users.expire'),
+        ));
     }
 
     /**

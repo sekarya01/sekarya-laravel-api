@@ -53,6 +53,18 @@ final class RateLimitServiceProvider extends ServiceProvider
         RateLimiter::for('resend', fn (Request $request): Limit => Limit::perMinute($limits['resend'])
             ->by($this->identity($request)));
 
+        // Minta tautan reset kata sandi: per email, alasan yang sama seperti
+        // resend. Endpoint ini SENGAJA menjawab eksplisit bila email tidak
+        // terdaftar, jadi pembatas inilah yang meredam pemindaian akun.
+        RateLimiter::for('forgot', fn (Request $request): Limit => Limit::perMinute($limits['forgot'])
+            ->by($this->identity($request)));
+
+        // Memakai tautan reset: per email + IP seperti verify. Kunci ganda
+        // supaya penyerang tidak bisa mengunci pemilik sah dari tautannya
+        // sendiri hanya dengan membanjiri percobaan.
+        RateLimiter::for('reset', fn (Request $request): Limit => Limit::perMinute($limits['reset'])
+            ->by($this->identity($request).'|'.$request->ip()));
+
         RateLimiter::for('refresh', fn (Request $request): Limit => Limit::perMinute($limits['refresh'])
             ->by($request->user()?->getAuthIdentifier() ?? $request->ip()));
 
