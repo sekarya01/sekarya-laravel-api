@@ -34,8 +34,10 @@ final class SecurityTest extends TestCase
         // `auth/login` — belum ada token yang bisa dibawa.
         $expectedWithoutAuth = [
             'api/v1/auth/register',
+            'api/v1/auth/check-availability',
             'api/v1/auth/verify-email',
             'api/v1/auth/resend-code',
+            'api/v1/auth/forgot-password',
             'api/v1/auth/login',
             'api/v1/admin/auth/login',
         ];

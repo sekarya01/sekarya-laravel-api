@@ -83,6 +83,8 @@ info:
     | `register` | 5 | IP |
     | `verify-email` | 6 | email + IP |
     | `resend-code` | 3 | email |
+    | `forgot-password` | 3 | email |
+    | `reset-password` (web) | 6 | email + IP |
     | `refresh` | 10 | pengguna |
     | Buat task & penawaran | 30 | pengguna |
     | Endpoint `/admin` | 240 | pengelola |
@@ -299,6 +301,66 @@ paths:
         '429':
           description: |
             Cooldown belum lewat (`resend_too_soon`, dengan
+            `context.retry_after_seconds`), atau rate limit terlampaui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Tunggu 42 detik sebelum meminta kode lagi.
+                code: resend_too_soon
+                context: { retry_after_seconds: 42 }
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      operationId: forgotPassword
+      summary: Kirim tautan reset kata sandi
+      security: []
+      description: |
+        Mengirim tautan reset sekali pakai ke email. Email diperiksa dulu:
+        tidak terdaftar → `422 email_not_registered`.
+
+        Tautan kedaluwarsa oleh **dua** kondisi: lewat 60 menit (standar),
+        atau sudah terpakai (token dihapus saat reset berhasil). Isi tautan
+        adalah form web: kata sandi baru + konfirmasi + tombol
+        "Perbarui Password". Berhasil → redirect ke halaman sukses, dan
+        tautan yang sama langsung hangus.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+            example: { email: budi@example.com }
+      responses:
+        '202':
+          description: Diterima. Tautan dikirim ke email.
+          content:
+            application/json:
+              example:
+                message: Tautan reset dikirim ke email Anda bila terdaftar.
+                data:
+                  email: budi@example.com
+                  reset_expires_in_minutes: 60
+                  next_step: Buka tautan di email, isi kata sandi baru, tekan Perbarui Password.
+        '422':
+          description: |
+            Email tidak terdaftar (`email_not_registered`), atau bentuk
+            request salah.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Email tidak terdaftar. Periksa kembali atau daftar akun baru.
+                code: email_not_registered
+        '429':
+          description: |
+            Throttle broker belum lewat (`resend_too_soon`, dengan
             `context.retry_after_seconds`), atau rate limit terlampaui.
           content:
             application/json:
@@ -3980,6 +4042,8 @@ components:
             - account_not_active
             - invalid_verification_code
             - resend_too_soon
+            - email_not_registered
+            - invalid_reset_token
             - task_not_found
             - task_not_biddable
             - cannot_bid_own_task
