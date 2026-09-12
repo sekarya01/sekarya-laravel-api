@@ -160,6 +160,9 @@ return [
         // Pendaftaran, per IP.
         'register' => (int) env('SEKARYA_RL_REGISTER', 5),
 
+        // Cek ketersediaan email/username/phone sebelum daftar, per IP.
+        'availability' => (int) env('SEKARYA_RL_AVAILABILITY', 10),
+
         // Memasukkan kode verifikasi, per email + IP.
         'verify' => (int) env('SEKARYA_RL_VERIFY', 6),
 

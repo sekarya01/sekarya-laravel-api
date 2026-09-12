@@ -36,6 +36,11 @@ final class RateLimitServiceProvider extends ServiceProvider
         RateLimiter::for('register', fn (Request $request): Limit => Limit::perMinute($limits['register'])
             ->by((string) $request->ip()));
 
+        // Cek ketersediaan sebelum daftar, per IP seperti register.
+        // Longgar (10/mnt) karena dipanggil per langkah form, bukan per submit.
+        RateLimiter::for('availability', fn (Request $request): Limit => Limit::perMinute($limits['availability'])
+            ->by((string) $request->ip()));
+
         // Memasukkan kode verifikasi: inilah permukaan tebak-kode. Selain
         // batas ini, kode itu sendiri punya batas percobaan di database —
         // dua lapis, karena rate limit berbasis IP bisa dihindari dengan

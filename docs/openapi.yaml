@@ -131,6 +131,50 @@ tags:
 paths:
 
   # ─────────────────────────────── AUTH ───────────────────────────────
+  /auth/check-availability:
+    post:
+      tags: [Auth]
+      operationId: checkAvailability
+      summary: Pra-cek ketersediaan email/username/phone
+      security: []
+      description: |
+        Menilai aturan unik email/username/phone SEBELUM akun dibuat
+        (dipakai langkah 1 form daftar). Tidak membuat apa pun.
+
+        Minimal satu field harus diisi; field yang dikosongkan tidak
+        ikut dinilai. Aturan uniknya cermin register.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                username:
+                  type: string
+                phone:
+                  type: string
+            example:
+              email: budi@example.com
+              username: budi.prasetyo
+              phone: '+628111222333'
+      responses:
+        '200':
+          description: Semua data yang diisi bebas dipakai.
+          content:
+            application/json:
+              example:
+                message: Data tersedia untuk dipakai.
+                data:
+                  available: true
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /auth/register:
     post:
       tags: [Auth]
