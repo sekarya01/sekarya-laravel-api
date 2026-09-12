@@ -17,6 +17,10 @@
         .eye { position: absolute; right: .75rem; top: 50%; transform: translateY(-50%);
             padding: .25rem; border-radius: 999px; color: #94A3B8; }
         .eye.on { color: #163C68; }
+        .field-error { border-color: #DC2626 !important; }
+        .inline-error { display: none; margin-top: .375rem; font-size: .75rem; color: #DC2626; }
+        .inline-error.show { display: block; }
+        .submit-btn:disabled { opacity: .45; cursor: not-allowed; }
     </style>
 </head>
 <body class="min-h-screen bg-white flex items-center justify-center p-4 sm:p-6 text-slate-800">
@@ -52,6 +56,7 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12 C5 7 8 5 12 5 C16 5 19 7 22 12 C19 17 16 19 12 19 C8 19 5 17 2 12 Z M12 15 A3 3 0 1 0 12 9 A3 3 0 1 0 12 15 Z"/></svg>
                     </button>
                 </div>
+                <p id="password-error" class="inline-error">Password min. 8 karakter, ada angka, dan (huruf kapital atau karakter unik).</p>
             </div>
             <div>
                 <label for="password_confirmation" class="block text-xs font-bold text-slate-600 mb-1.5">KONFIRMASI KATA SANDI</label>
@@ -62,9 +67,10 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12 C5 7 8 5 12 5 C16 5 19 7 22 12 C19 17 16 19 12 19 C8 19 5 17 2 12 Z M12 15 A3 3 0 1 0 12 9 A3 3 0 1 0 12 15 Z"/></svg>
                     </button>
                 </div>
+                <p id="password-confirmation-error" class="inline-error">Konfirmasi password tidak sama.</p>
             </div>
-            <button class="w-full rounded-xl py-3 text-sm font-bold text-white"
-                    style="background: #F97316;">
+            <button id="submit-btn" class="submit-btn w-full rounded-xl py-3 text-sm font-bold text-white"
+                    style="background: #F97316;" disabled>
                 Perbarui Password
             </button>
         </form>
@@ -81,6 +87,40 @@
                 btn.classList.toggle('on', show);
             });
         });
+
+        // Validasi inline seperti layar password mobile (RegisterPasswordScreen):
+        // - password salah aturan -> pesan passwordWeak (setelah diketik/submit)
+        // - konfirmasi beda -> pesan passwordMismatch
+        // - tombol mati sampai password valid DAN konfirmasi terisi.
+        var pw = document.getElementById('password');
+        var cf = document.getElementById('password_confirmation');
+        var pwErr = document.getElementById('password-error');
+        var cfErr = document.getElementById('password-confirmation-error');
+        var submitBtn = document.getElementById('submit-btn');
+        var submitted = false;
+
+        function isValidPassword(v) {
+            return v.length >= 8 && /[0-9]/.test(v) && (/[A-Z]/.test(v) || /[^A-Za-z0-9]/.test(v));
+        }
+
+        function validate() {
+            var pwBad = (submitted || pw.value !== '') && !isValidPassword(pw.value);
+            var cfBad = (submitted || cf.value !== '') && cf.value !== pw.value;
+            pw.classList.toggle('field-error', pwBad);
+            cf.classList.toggle('field-error', cfBad);
+            pwErr.classList.toggle('show', pwBad);
+            cfErr.classList.toggle('show', cfBad);
+            submitBtn.disabled = !(isValidPassword(pw.value) && cf.value !== '');
+        }
+
+        pw.addEventListener('input', validate);
+        cf.addEventListener('input', validate);
+        document.querySelector('form').addEventListener('submit', function (e) {
+            submitted = true;
+            validate();
+            if (submitBtn.disabled) e.preventDefault();
+        });
+        validate();
     </script>
 </body>
 </html>
