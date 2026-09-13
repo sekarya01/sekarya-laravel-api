@@ -37,6 +37,8 @@ final class TaskActionsTest extends TestCase
             title: $override['title'] ?? 'Cuci AC 2 unit',
             description: $override['description'] ?? 'Servis AC split dan cuci evaporator.',
             budgetMin: $override['budgetMin'] ?? 150_000,
+            city: $override['city'] ?? 'Jakarta',
+            neededAt: $override['neededAt'] ?? now()->addDays(3)->toIso8601String(),
             budgetMax: $override['budgetMax'] ?? null,
             options: $override['options'] ?? [],
             skillSlugs: $override['skillSlugs'] ?? [],

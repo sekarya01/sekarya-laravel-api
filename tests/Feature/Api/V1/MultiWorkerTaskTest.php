@@ -44,6 +44,8 @@ final class MultiWorkerTaskTest extends TestCase
             'title' => 'Bersih-bersih gudang',
             'description' => 'Butuh beberapa orang untuk merapikan gudang dalam sehari.',
             'budget_min' => 150_000,
+            'city' => 'Jakarta',
+            'needed_at' => now()->addDays(3)->toIso8601String(),
             'publish_now' => true,
             ...$override,
         ];

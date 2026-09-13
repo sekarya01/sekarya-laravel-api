@@ -17,17 +17,17 @@ final readonly class CreateTaskData
         public string $title,
         public string $description,
         public int $budgetMin,
+        public string $city,
+        public string $neededAt,
         public ?int $budgetMax = null,
         public array $options = [],
         public array $photos = [],
         public ?string $locationText = null,
-        public ?string $city = null,
         public ?float $latitude = null,
         public ?float $longitude = null,
         public bool $isRemote = false,
         /** Jumlah pekerja yang dibutuhkan; juga kuota pelamar. */
         public int $workersNeeded = 1,
-        public ?string $neededAt = null,
         public ?string $biddingClosesAt = null,
         public bool $publishNow = false,
         /** @var list<string> slug keahlian yang dibutuhkan */
@@ -41,6 +41,8 @@ final readonly class CreateTaskData
             title: trim($request->string('title')->value()),
             description: trim($request->string('description')->value()),
             budgetMin: $request->integer('budget_min'),
+            city: trim($request->string('city')->value()),
+            neededAt: $request->string('needed_at')->value(),
             // Sengaja tetap null kalau tidak dikirim — max itu opsional.
             budgetMax: $request->filled('budget_max') ? $request->integer('budget_max') : null,
             options: $request->array('options'),
@@ -48,14 +50,12 @@ final readonly class CreateTaskData
             locationText: $request->filled('location_text')
                 ? trim($request->string('location_text')->value())
                 : null,
-            city: $request->filled('city') ? trim($request->string('city')->value()) : null,
             latitude: $request->filled('latitude') ? $request->float('latitude') : null,
             longitude: $request->filled('longitude') ? $request->float('longitude') : null,
             isRemote: $request->boolean('is_remote'),
             workersNeeded: $request->filled('workers_needed')
                 ? $request->integer('workers_needed')
                 : 1,
-            neededAt: $request->filled('needed_at') ? $request->string('needed_at')->value() : null,
             biddingClosesAt: $request->filled('bidding_closes_at')
                 ? $request->string('bidding_closes_at')->value()
                 : null,

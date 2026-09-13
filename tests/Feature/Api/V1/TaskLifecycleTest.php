@@ -53,6 +53,7 @@ final class TaskLifecycleTest extends TestCase
             'description' => 'Servis AC split, freon dan cuci evaporator.',
             'budget_min' => 150_000,
             'city' => 'Jakarta',
+            'needed_at' => now()->addDays(3)->toIso8601String(),
             'publish_now' => true,
             ...$override,
         ];
@@ -101,7 +102,7 @@ final class TaskLifecycleTest extends TestCase
         $this->asUser($this->poster)
             ->postJson(route('v1.tasks.store'), [])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['category_id', 'title', 'description', 'budget_min']);
+            ->assertJsonValidationErrors(['category_id', 'title', 'description', 'budget_min', 'city', 'needed_at']);
     }
 
     public function test_budget_max_below_min_is_rejected(): void

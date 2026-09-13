@@ -59,6 +59,8 @@ final class OptionalFieldsTest extends TestCase
                 'title' => 'Input data',
                 'description' => 'Bisa dikerjakan dari mana saja.',
                 'budget_min' => 100_000,
+                'city' => 'Jakarta',
+                'needed_at' => now()->addDays(3)->toIso8601String(),
                 'is_remote' => true,
                 'publish_now' => true,
             ])
@@ -77,6 +79,8 @@ final class OptionalFieldsTest extends TestCase
             'title' => 'Cuci AC',
             'description' => 'Servis.',
             'budget_min' => 150_000,
+            'city' => 'Jakarta',
+            'needed_at' => now()->addDays(3)->toIso8601String(),
             'publish_now' => true,
         ])->json('data.id');
 
@@ -107,6 +111,8 @@ final class OptionalFieldsTest extends TestCase
             'title' => 'Cuci AC',
             'description' => 'Servis.',
             'budget_min' => 150_000,
+            'city' => 'Jakarta',
+            'needed_at' => now()->addDays(3)->toIso8601String(),
             'publish_now' => true,
         ])->json('data.id');
 

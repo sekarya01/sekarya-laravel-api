@@ -292,6 +292,8 @@ final class SecurityTest extends TestCase
             'title' => 'Cuci AC',
             'description' => 'Servis.',
             'budget_min' => 150_000,
+            'city' => 'Jakarta',
+            'needed_at' => now()->addDays(3)->toIso8601String(),
             'publish_now' => true,
         ])->assertCreated()->json('data.id');
 
@@ -315,6 +317,8 @@ final class SecurityTest extends TestCase
             'title' => 'Cuci AC',
             'description' => 'Servis.',
             'budget_min' => 150_000,
+            'city' => 'Jakarta',
+            'needed_at' => now()->addDays(3)->toIso8601String(),
             'publish_now' => true,
         ])->json('data.id');
 

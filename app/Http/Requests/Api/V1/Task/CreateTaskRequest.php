@@ -27,7 +27,7 @@ final class CreateTaskRequest extends FormRequest
             'photos.*' => ['string', 'max:255'],
 
             'location_text' => ['nullable', 'string', 'max:255'],
-            'city' => ['nullable', 'string', 'max:80'],
+            'city' => ['required', 'string', 'max:80'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'is_remote' => ['sometimes', 'boolean'],
@@ -38,7 +38,7 @@ final class CreateTaskRequest extends FormRequest
             // dan mengubah kuota lamaran menjadi tak berbatas.
             'workers_needed' => ['sometimes', 'integer', 'min:1', 'max:500'],
 
-            'needed_at' => ['nullable', 'date', 'after:now'],
+            'needed_at' => ['required', 'date', 'after:now'],
             'bidding_closes_at' => ['nullable', 'date', 'after:now'],
 
             // Keahlian yang dibutuhkan — slug, dicek keberadaannya.
