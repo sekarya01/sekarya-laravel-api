@@ -58,6 +58,7 @@ use App\Http\Controllers\Api\V1\Task\ListOpenTasksController;
 use App\Http\Controllers\Api\V1\Task\PublishTaskController;
 use App\Http\Controllers\Api\V1\Task\ShowTaskController;
 use App\Http\Controllers\Api\V1\Task\StartTaskController;
+use App\Http\Controllers\Api\V1\Upload\StoreUploadController;
 use App\Http\Controllers\Api\V1\User\ListVerificationsController;
 use App\Http\Controllers\Api\V1\User\ListWorkersController;
 use App\Http\Controllers\Api\V1\User\ShowMeController;
@@ -151,6 +152,12 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // task. Cursor pagination, berangkat dari `user_workers` supaya
         // urutannya "yang baru siap bekerja", bukan "yang baru mendaftar".
         Route::get('workers', ListWorkersController::class)->name('workers.index');
+
+        // Unggah gambar (foto task, avatar). Satu berkas per panggilan —
+        // mobile mengunggah tiap foto lalu memakai `path` yang dikembalikan
+        // di `photos[]` saat buat task.
+        Route::post('uploads', StoreUploadController::class)
+            ->middleware('throttle:write')->name('uploads.store');
 
         // Task
         Route::get('tasks', ListOpenTasksController::class)->name('tasks.index');
