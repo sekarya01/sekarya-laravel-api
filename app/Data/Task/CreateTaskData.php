@@ -19,6 +19,8 @@ final readonly class CreateTaskData
         public int $budgetMin,
         public string $city,
         public string $neededAt,
+        /** Jadwal selesai opsional — estimasi, bukan batas keras. */
+        public ?string $endAt = null,
         public ?int $budgetMax = null,
         public array $options = [],
         public array $photos = [],
@@ -43,6 +45,10 @@ final readonly class CreateTaskData
             budgetMin: $request->integer('budget_min'),
             city: trim($request->string('city')->value()),
             neededAt: $request->string('needed_at')->value(),
+            // Sengaja tetap null kalau tidak dikirim — selesai itu opsional.
+            endAt: $request->filled('end_at')
+                ? $request->string('end_at')->value()
+                : null,
             // Sengaja tetap null kalau tidak dikirim — max itu opsional.
             budgetMax: $request->filled('budget_max') ? $request->integer('budget_max') : null,
             options: $request->array('options'),

@@ -3578,6 +3578,10 @@ components:
             dari angka ini: satu task 30 orang akan menggeser median kategori
             tiga puluh kali lipat.
         needed_at: { type: [string, 'null'], format: date-time }
+        end_at:
+          type: [string, 'null']
+          format: date-time
+          description: Jadwal selesai (estimasi). Opsional; bila diisi harus setelah `needed_at`.
         bidding_closes_at: { type: [string, 'null'], format: date-time }
         dealt_at: { type: [string, 'null'], format: date-time }
         completed_at: { type: [string, 'null'], format: date-time }
@@ -3941,6 +3945,10 @@ components:
             Mengisi slot ke-30 menutup lelang; sisa pelamar otomatis `rejected`.
           examples: [30]
         needed_at: { type: [string, 'null'], format: date-time }
+        end_at:
+          type: [string, 'null']
+          format: date-time
+          description: Jadwal selesai (estimasi). Opsional; bila diisi harus setelah `needed_at`.
         bidding_closes_at: { type: [string, 'null'], format: date-time }
         publish_now:
           type: boolean

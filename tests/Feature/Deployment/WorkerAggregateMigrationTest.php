@@ -29,8 +29,14 @@ use Tests\TestCase;
  */
 final class WorkerAggregateMigrationTest extends TestCase
 {
-    /** Migrasi yang dipasang paling akhir, yang harus dimundurkan bersama. */
-    private const int STEPS = 3;
+    /**
+     * Migrasi yang dipasang paling akhir, yang harus dimundurkan bersama.
+     *
+     * Tambah 1 setiap ada migrasi baru di belakangnya — kalau tidak,
+     * rollback berhenti DI ATAS titik perpindahan dan kolom lama seperti
+     * `bids_won` sudah terlanjur hilang saat data lama ditulis.
+     */
+    private const int STEPS = 4;
 
     private string $database = '';
 
