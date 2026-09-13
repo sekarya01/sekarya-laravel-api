@@ -44,6 +44,7 @@ final class CreateTaskAction
                 'is_remote' => $data->isRemote,
                 'workers_needed' => $data->workersNeeded,
                 'needed_at' => $data->neededAt,
+                'end_at' => $data->endAt,
                 'bidding_closes_at' => $data->biddingClosesAt,
                 'status' => $status,
             ]);

@@ -336,6 +336,7 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   `longitude` decimal(10,7) DEFAULT NULL,
   `is_remote` tinyint(1) NOT NULL DEFAULT '0',
   `needed_at` timestamp NULL DEFAULT NULL,
+  `end_at` timestamp NULL DEFAULT NULL,
   `bidding_closes_at` timestamp NULL DEFAULT NULL,
   `status` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft',
   `workers_needed` int unsigned NOT NULL DEFAULT '1',
@@ -658,5 +659,6 @@ INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (24, '2026_0
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (25, '2026_09_10_100001_create_user_workers_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (26, '2026_09_10_100002_move_worker_aggregates_to_user_workers', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (28, '2026_09_10_110000_rename_user_verifications_to_user_worker_verifications', 2);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (29, '2026_09_13_000001_add_end_at_to_tasks_table', 2);
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -39,6 +39,9 @@ final class CreateTaskRequest extends FormRequest
             'workers_needed' => ['sometimes', 'integer', 'min:1', 'max:500'],
 
             'needed_at' => ['required', 'date', 'after:now'],
+            // Jadwal selesai opsional dari aplikasi (estimasi pengerjaan).
+            // Harus setelah mulai, bukan sekadar setelah sekarang.
+            'end_at' => ['nullable', 'date', 'after:needed_at'],
             'bidding_closes_at' => ['nullable', 'date', 'after:now'],
 
             // Keahlian yang dibutuhkan — slug, dicek keberadaannya.
@@ -54,6 +57,7 @@ final class CreateTaskRequest extends FormRequest
     {
         return [
             'budget_max.gte' => 'Budget maksimum tidak boleh lebih kecil dari budget minimum.',
+            'end_at.after' => 'Jadwal selesai harus setelah jadwal mulai.',
             'workers_needed.min' => 'Jumlah pekerja minimal 1 orang.',
             'workers_needed.max' => 'Jumlah pekerja maksimal 500 orang untuk satu pekerjaan.',
         ];

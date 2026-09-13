@@ -30,7 +30,7 @@ final class Task extends Model
         'poster_id', 'category_id', 'title', 'description', 'options', 'photos',
         'budget_min', 'budget_max', 'ref_price_median',
         'location_text', 'city', 'latitude', 'longitude', 'is_remote',
-        'needed_at', 'bidding_closes_at', 'status', 'workers_needed',
+        'needed_at', 'end_at', 'bidding_closes_at', 'status', 'workers_needed',
     ];
 
     protected static function booted(): void
@@ -88,6 +88,7 @@ final class Task extends Model
             'is_remote' => 'boolean',
             'status' => TaskStatus::class,
             'needed_at' => 'datetime',
+            'end_at' => 'datetime',
             'bidding_closes_at' => 'datetime',
             'dealt_at' => 'datetime',
             'completed_at' => 'datetime',

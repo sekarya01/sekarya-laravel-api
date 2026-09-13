@@ -77,13 +77,14 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonPath('data.status', 'open')
             ->assertJsonPath('data.budget.min', 150_000)
             ->assertJsonPath('data.budget.max', null)
+            ->assertJsonPath('data.end_at', null)
             ->assertJsonPath('data.skills.0.slug', 'cuci-ac')
             ->assertJsonStructure([
                 'data' => [
                     'id', 'task_number', 'title', 'description', 'status', 'options', 'photos',
                     'budget' => ['min', 'max', 'reference_median'],
                     'location' => ['text', 'city', 'latitude', 'longitude', 'is_remote'],
-                    'bids_count', 'agreed_amount', 'skills', 'category', 'poster',
+                    'bids_count', 'agreed_amount', 'end_at', 'skills', 'category', 'poster',
                     'created_at', 'updated_at',
                 ],
             ]);
@@ -151,6 +152,36 @@ final class TaskLifecycleTest extends TestCase
             ->postJson(route('v1.tasks.store'), $this->payload(['needed_at' => now()->subDay()->toIso8601String()]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['needed_at']);
+    }
+
+    public function test_end_at_is_saved_when_given(): void
+    {
+        $needed = now()->addDays(3);
+        $end = $needed->copy()->addHours(2);
+
+        $id = $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.store'), $this->payload([
+                'needed_at' => $needed->toIso8601String(),
+                'end_at' => $end->toIso8601String(),
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('data.end_at', $end->toIso8601String())
+            ->json('data.id');
+
+        $this->assertNotNull(Task::query()->where('ulid', $id)->value('end_at'));
+    }
+
+    public function test_end_at_before_needed_at_is_rejected(): void
+    {
+        $needed = now()->addDays(3);
+
+        $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.store'), $this->payload([
+                'needed_at' => $needed->toIso8601String(),
+                'end_at' => $needed->copy()->subHour()->toIso8601String(),
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['end_at']);
     }
 
     public function test_options_require_a_label(): void

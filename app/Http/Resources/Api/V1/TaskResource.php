@@ -49,6 +49,7 @@ final class TaskResource extends BaseResource
             // `activities.agreed_amount`.
             'agreed_amount' => $this->agreed_amount,
             'needed_at' => $this->iso($this->needed_at),
+            'end_at' => $this->iso($this->end_at),
             'bidding_closes_at' => $this->iso($this->bidding_closes_at),
             'dealt_at' => $this->iso($this->dealt_at),
             'completed_at' => $this->iso($this->completed_at),

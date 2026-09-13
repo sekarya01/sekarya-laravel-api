@@ -1401,7 +1401,7 @@ ORDER BY l.created_at DESC LIMIT 20;
 
 ## Ringkasan endpoint
 
-**62 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**63 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1410,7 +1410,7 @@ Semua di bawah `/api/v1`. Kolom **Token**: `access` = token pendek 8 jam, `long_
 token 30 hari yang HANYA bisa refresh, `admin` = token pengelola, `—` = tanpa token.
 Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya.php`.
 
-> [!important] 40 endpoint pertama untuk PENGGUNA, 22 terakhir untuk PENGELOLA, dan
+> [!important] 41 endpoint pertama untuk PENGGUNA, 22 terakhir untuk PENGELOLA, dan
 > tokennya **tidak bisa ditukar**. Akun pengelola ada di tabelnya sendiri dengan
 > guard-nya sendiri: token pengguna di `/admin` menghasilkan `401`, dan token pengelola
 > di endpoint pengguna juga `401`. Lihat bagian **Pengelola** di bawah.
@@ -1441,6 +1441,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/me/verifications` | access | `api` | Ajukan verifikasi identitas (KTP, selfie, rekening). |
 | `GET` | `/skills` | access | `api` | Katalog keahlian. |
 | `GET` | `/workers` | access | `api` | Daftar pekerja. Filter: `city`, `province`, `gender`, `ready_to_work`. Cursor. |
+| `POST` | `/uploads` | access | `write` | Unggah gambar (foto task, avatar). Maks 10 MB; balasannya `path` untuk `photos[]`. |
 
 **Task**
 

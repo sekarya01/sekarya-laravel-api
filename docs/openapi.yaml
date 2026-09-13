@@ -885,6 +885,44 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
 
   # ─────────────────────────────── TASK ───────────────────────────────
+  /uploads:
+    post:
+      tags: [Task]
+      operationId: uploadImage
+      summary: Unggah gambar (foto task, avatar)
+      description: |
+        Satu berkas per panggilan. Mobile mengunggah tiap foto lebih dulu,
+        lalu memakai `data.path` yang dikembalikan di `photos[]` saat
+        `POST /tasks`. Maksimal 10 MB; hanya jpg/jpeg/png/webp.
+
+        Dokumen identitas (KTP/selfie) **tidak boleh** lewat sini — ia tidak
+        boleh bisa diakses publik.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Berkas gambar, maksimal 10 MB.
+                purpose:
+                  type: string
+                  enum: [task, avatar]
+                  default: task
+      responses:
+        '201':
+          $ref: '#/components/responses/SingleUpload'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /tasks:
     get:
       tags: [Task]
@@ -2892,6 +2930,16 @@ components:
             properties:
               data:
                 $ref: '#/components/schemas/Task'
+    SingleUpload:
+      description: Hasil unggahan satu berkas.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                $ref: '#/components/schemas/Upload'
     TaskPage:
       description: Halaman task, cursor-paginated.
       content:
@@ -3578,6 +3626,10 @@ components:
             dari angka ini: satu task 30 orang akan menggeser median kategori
             tiga puluh kali lipat.
         needed_at: { type: [string, 'null'], format: date-time }
+        end_at:
+          type: [string, 'null']
+          format: date-time
+          description: Jadwal selesai (estimasi). Opsional; bila diisi harus setelah `needed_at`.
         bidding_closes_at: { type: [string, 'null'], format: date-time }
         dealt_at: { type: [string, 'null'], format: date-time }
         completed_at: { type: [string, 'null'], format: date-time }
@@ -3606,6 +3658,18 @@ components:
           items: { $ref: '#/components/schemas/Activity' }
         created_at: { type: [string, 'null'], format: date-time }
         updated_at: { type: [string, 'null'], format: date-time }
+    Upload:
+      type: object
+      required: [path, url]
+      properties:
+        path:
+          type: string
+          description: Path relatif di disk publik — nilai untuk `photos[]`.
+          examples: [uploads/tasks/aB3dE5fG7hJ9kL2mN4pQ6r.jpg]
+        url:
+          type: string
+          format: uri
+          description: URL publik untuk pratinjau langsung.
     Bid:
       type: object
       required: [id, amount, status]
@@ -3941,6 +4005,10 @@ components:
             Mengisi slot ke-30 menutup lelang; sisa pelamar otomatis `rejected`.
           examples: [30]
         needed_at: { type: [string, 'null'], format: date-time }
+        end_at:
+          type: [string, 'null']
+          format: date-time
+          description: Jadwal selesai (estimasi). Opsional; bila diisi harus setelah `needed_at`.
         bidding_closes_at: { type: [string, 'null'], format: date-time }
         publish_now:
           type: boolean
