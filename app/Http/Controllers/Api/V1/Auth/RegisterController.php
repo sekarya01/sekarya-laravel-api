@@ -26,6 +26,13 @@ final class RegisterController
             'data' => [
                 'email' => $user->email,
                 'status' => $user->status->value,
+                // Dipantulkan kembali supaya klien bisa memastikan apa yang
+                // tersimpan tanpa menunggu verifikasi email selesai — sebelum
+                // itu tidak ada token, jadi `GET /me` belum bisa dipanggil.
+                // `null` di sini berarti tidak diisi, bukan gagal disimpan.
+                'gender' => $user->gender?->value,
+                'city' => $user->city,
+                'province' => $user->province,
                 'code_expires_in_minutes' => (int) config('sekarya.verification.ttl_minutes'),
                 'next_step' => 'POST /api/v1/auth/verify-email',
             ],

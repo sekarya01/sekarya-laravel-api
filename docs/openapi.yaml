@@ -207,7 +207,13 @@ paths:
               province: DKI Jakarta
       responses:
         '202':
-          description: Akun dibuat, kode dikirim.
+          description: |
+            Akun dibuat, kode dikirim.
+
+            `gender`, `city`, dan `province` dipantulkan kembali seperti yang
+            tersimpan (`null` bila tidak diisi). Sebelum verifikasi email
+            selesai belum ada token, jadi `GET /me` belum bisa dipanggil untuk
+            memeriksanya.
           content:
             application/json:
               example:
@@ -215,6 +221,9 @@ paths:
                 data:
                   email: budi@example.com
                   status: pending_verification
+                  gender: prefer_not_to_say
+                  city: Jakarta
+                  province: DKI Jakarta
                   code_expires_in_minutes: 15
                   next_step: POST /api/v1/auth/verify-email
         '422':

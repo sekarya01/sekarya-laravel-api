@@ -48,10 +48,9 @@ final class RegisterGenderProvinceTest extends TestCase
     #[\PHPUnit\Framework\Attributes\DataProvider('genderProvider')]
     public function test_register_persists_each_accepted_gender(string $gender): void
     {
-        // Respons pendaftaran sengaja minimal (tanpa token, tanpa profil),
-        // jadi yang diperiksa kolomnya — bukan badan respons.
         $this->postJson(route('v1.auth.register'), [...self::PAYLOAD, 'gender' => $gender])
-            ->assertAccepted();
+            ->assertAccepted()
+            ->assertJsonPath('data.gender', $gender);
 
         // Baris yang benar-benar tertulis, bukan model hasil create().
         $this->assertDatabaseHas('users', [
@@ -67,7 +66,7 @@ final class RegisterGenderProvinceTest extends TestCase
         $this->postJson(route('v1.auth.register'), [
             ...self::PAYLOAD,
             'gender' => Gender::PreferNotToSay->value,
-        ])->assertAccepted();
+        ])->assertAccepted()->assertJsonPath('data.gender', 'prefer_not_to_say');
 
         $user = User::query()->where('email', 'budi@sekarya.test')->firstOrFail();
 
@@ -87,7 +86,12 @@ final class RegisterGenderProvinceTest extends TestCase
 
     public function test_gender_is_optional_and_stays_null_when_omitted(): void
     {
-        $this->postJson(route('v1.auth.register'), self::PAYLOAD)->assertAccepted();
+        $this->postJson(route('v1.auth.register'), self::PAYLOAD)
+            ->assertAccepted()
+            // Kuncinya HARUS ada dan bernilai null: assertJsonPath(..., null)
+            // sendirian juga lulus saat kuncinya hilang sama sekali.
+            ->assertJsonStructure(['data' => ['gender', 'city', 'province']])
+            ->assertJsonPath('data.gender', null);
 
         $this->assertDatabaseHas('users', [
             'email' => 'budi@sekarya.test',
@@ -104,7 +108,8 @@ final class RegisterGenderProvinceTest extends TestCase
     public function test_empty_string_gender_is_treated_as_not_answered(): void
     {
         $this->postJson(route('v1.auth.register'), [...self::PAYLOAD, 'gender' => ''])
-            ->assertAccepted();
+            ->assertAccepted()
+            ->assertJsonPath('data.gender', null);
 
         $this->assertDatabaseHas('users', [
             'email' => 'budi@sekarya.test',
@@ -128,7 +133,10 @@ final class RegisterGenderProvinceTest extends TestCase
 
     public function test_province_is_persisted_like_city(): void
     {
-        $this->postJson(route('v1.auth.register'), self::PAYLOAD)->assertAccepted();
+        $this->postJson(route('v1.auth.register'), self::PAYLOAD)
+            ->assertAccepted()
+            ->assertJsonPath('data.city', 'Jakarta Selatan')
+            ->assertJsonPath('data.province', 'DKI Jakarta');
 
         $this->assertDatabaseHas('users', [
             'email' => 'budi@sekarya.test',
