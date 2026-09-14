@@ -6,7 +6,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
 | **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 58 operation cocok dengan 58 rute nyata |
-| **Uji otomatis** | `bash docs/smoke.sh` — 162 pemeriksaan |
+| **Uji otomatis** | `bash docs/smoke.sh` — 165 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
 
@@ -21,10 +21,10 @@ bash docs/smoke.sh
 ```
 
 Menjalankan server sendiri, mereset database, mendaftar akun lewat alur auth yang
-sebenarnya, menjalankan 162 pemeriksaan, lalu membereskan diri. Keluaran akhir:
+sebenarnya, menjalankan 165 pemeriksaan, lalu membereskan diri. Keluaran akhir:
 
 ```
-SEMUA LULUS  132/162 pemeriksaan
+SEMUA LULUS  135/165 pemeriksaan
 ```
 
 Kalau mau memakai server yang sudah jalan: `bash docs/smoke.sh 8000`.
@@ -65,7 +65,9 @@ curl -s -X POST "$BASE/auth/register" \
     "phone":"+628111222333",
     "password":"RahasiaKuat2026",
     "password_confirmation":"RahasiaKuat2026",
-    "city":"Jakarta"
+    "gender":"prefer_not_to_say",
+    "city":"Jakarta",
+    "province":"DKI Jakarta"
   }' -w '\nstatus=%{http_code}\n' | python3 -m json.tool
 ```
 
@@ -77,6 +79,9 @@ curl -s -X POST "$BASE/auth/register" \
   "data": {
     "email": "budi@sekarya.test",
     "status": "pending_verification",
+    "gender": "prefer_not_to_say",
+    "city": "Jakarta",
+    "province": "DKI Jakarta",
     "code_expires_in_minutes": 15,
     "next_step": "POST /api/v1/auth/verify-email"
   }
@@ -88,6 +93,14 @@ curl -s -X POST "$BASE/auth/register" \
 - **Tidak ada token di respons ini.** Itu inti langkahnya — mengembalikan token di sini
   akan membuat verifikasi email jadi tanpa arti.
 - `status` = `pending_verification`. Akun belum bisa apa-apa.
+- `gender`, `city`, dan `province` **opsional** dan dipantulkan kembali apa adanya
+  (`null` bila tidak diisi). Dipantulkan karena di titik ini belum ada token, jadi
+  `GET /me` belum bisa dipakai untuk memastikan apa yang tersimpan.
+- `gender` menerima `male`, `female`, atau `prefer_not_to_say`. Tidak mengirimnya —
+  atau mengirim string kosong — tersimpan `null`, dan `null` **bukan** hal yang sama
+  dengan `prefer_not_to_say`: `null` berarti belum pernah ditanya, sedangkan
+  `prefer_not_to_say` berarti sudah ditanya dan menolak menjawab. Hanya yang `null`
+  dianggap identitasnya belum lengkap.
 - Wajib: `first_name`, `email`, `password` (+`password_confirmation`).
   Opsional: `last_name`, `username` (huruf/angka/titik/garis bawah, unik),
   `phone` (boleh kosong; format `+628…`, unik bila diisi), `city`, `province`.
@@ -1587,7 +1600,7 @@ jadi sumber kebenaran.
 php artisan route:list --path=api    # rute + middleware
 php artisan about --only=environment
 tail -f storage/logs/laravel.log     # termasuk kode verifikasi saat MAIL_MAILER=log
-bash docs/smoke.sh                   # 162 pemeriksaan
+bash docs/smoke.sh                   # 165 pemeriksaan
 ```
 
 Audit lapisan pengamanan — daftar yang keluar harus kosong atau bisa dijelaskan:
