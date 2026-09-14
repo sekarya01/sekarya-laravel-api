@@ -16,7 +16,9 @@ final class ListActivitiesAction
     {
         return Activity::query()
             ->where('worker_id', $worker->getKey())
-            ->with(['task.category', 'task.poster', 'payment'])
+            // worker wajib: mobile memakai worker.name sebagai syarat
+            // tampil stepper status pengerjaan di detail.
+            ->with(['worker', 'task.category', 'task.poster', 'payment'])
             ->latestFirst()
             ->cursorPaginate($page->perPage);
     }

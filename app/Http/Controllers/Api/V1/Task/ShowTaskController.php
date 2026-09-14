@@ -13,7 +13,9 @@ final class ShowTaskController
     public function __invoke(Request $request, Task $task): TaskResource
     {
         return TaskResource::make(
-            $task->load(['category', 'poster', 'workers', 'skills', 'payment', 'activities']),
+            // activities.worker wajib: mobile memakai worker.name untuk
+            // kartu mitra + syarat tampil stepper status pengerjaan.
+            $task->load(['category', 'poster', 'workers', 'skills', 'payment', 'activities.worker']),
         );
     }
 }
