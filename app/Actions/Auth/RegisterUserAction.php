@@ -40,6 +40,7 @@ final class RegisterUserAction
                 'phone' => $data->phone,
                 'password' => Hash::make($data->password),
                 'active_mode' => UserActiveMode::Hiring,
+                'gender' => $data->gender,
                 'city' => $data->city,
                 'province' => $data->province,
             ]);

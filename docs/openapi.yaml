@@ -202,6 +202,7 @@ paths:
               phone: '+628111222333'
               password: RahasiaKuat2026
               password_confirmation: RahasiaKuat2026
+              gender: prefer_not_to_say
               city: Jakarta
               province: DKI Jakarta
       responses:
@@ -3237,10 +3238,16 @@ components:
         muncul di `GET /workers` padahal haknya sudah dicabut.
     Gender:
       type: [string, 'null']
-      enum: [male, female, null]
+      enum: [male, female, prefer_not_to_say, null]
       description: |
-        Dua nilai, mengikuti yang tercetak di KTP. `null` untuk akun yang belum
-        pernah mengisinya — pendaftaran tidak menanyakannya.
+        Dua nilai yang tercetak di KTP, plus `prefer_not_to_say` untuk yang
+        memilih tidak menjawab.
+
+        `null` dan `prefer_not_to_say` BUKAN hal yang sama: `null` berarti
+        belum pernah ditanya (akun lama, atau pendaftar yang melewatkan field
+        opsional ini), sedangkan `prefer_not_to_say` berarti sudah ditanya dan
+        menolak menjawab. Hanya yang `null` dianggap identitasnya belum
+        lengkap — `prefer_not_to_say` sudah cukup untuk jadi pekerja.
     WorkArea:
       type: object
       description: |
@@ -3793,6 +3800,11 @@ components:
             Minimal 8 karakter, harus memuat huruf dan angka, dan **dicek
             terhadap basis data kebocoran kata sandi publik**.
         password_confirmation: { type: string }
+        gender:
+          allOf: [{ $ref: '#/components/schemas/Gender' }]
+          description: |
+            Opsional, seperti `city`/`province`. Dihilangkan atau dikirim
+            string kosong sama dengan belum menjawab (tersimpan `null`).
         city: { type: [string, 'null'], maxLength: 80 }
         province: { type: [string, 'null'], maxLength: 80 }
       additionalProperties: false

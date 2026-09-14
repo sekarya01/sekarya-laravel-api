@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Auth;
 
+use App\Enums\Gender;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 final class RegisterRequest extends FormRequest
@@ -38,6 +40,10 @@ final class RegisterRequest extends FormRequest
                 // dicek terhadap basis data kebocoran kata sandi publik.
                 Password::min(8)->letters()->numbers()->uncompromised(),
             ],
+            // Opsional seperti city/province: pendaftar boleh melewatkannya.
+            // Yang melewatkan tersimpan `null` (belum ditanya); yang memilih
+            // `prefer_not_to_say` tersimpan sebagai nilai itu — lihat Gender.
+            'gender' => ['nullable', Rule::enum(Gender::class)],
             'city' => ['nullable', 'string', 'max:80'],
             'province' => ['nullable', 'string', 'max:80'],
         ];
@@ -52,6 +58,7 @@ final class RegisterRequest extends FormRequest
             'phone.unique' => 'Nomor HP sudah terdaftar. Masuk atau pakai nomor lain.',
             'phone.regex' => 'Nomor HP harus angka, boleh diawali +, panjang 9-19 digit.',
             'username.regex' => 'Username hanya boleh huruf, angka, titik, dan garis bawah.',
+            'gender.Illuminate\\Validation\\Rules\\Enum' => 'Jenis kelamin harus male, female, atau prefer_not_to_say.',
             'password.uncompromised' => 'Kata sandi ini pernah muncul di kebocoran data. Pilih yang lain.',
         ];
     }
