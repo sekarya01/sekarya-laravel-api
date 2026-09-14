@@ -111,6 +111,10 @@ deployment:
     # storage:link berhenti dengan "Call to undefined function exec()".
     # Dibutuhkan karena avatar disajikan lewat Storage::disk('public')->url().
     - '/bin/ln -sfn "$APP_ROOT/storage/app/public" "$DOCROOT/storage"'
+    # -d menembus symlink, jadi ini ikut menangkap symlink menggantung (target
+    # terhapus/ganti nama). Tanpa penjaga ini kegagalannya senyap - unggahan
+    # tetap sukses, path tetap masuk basis data, hanya gambarnya yang 404.
+    - '[ -d "$DOCROOT/storage" ] || { echo "GAGAL - symlink storage tidak terbentuk di $DOCROOT"; exit 1; }'
 
     # --force wajib di produksi, tanpanya artisan bertanya dan deploy menggantung.
     # Pemasangan pertama lewat sekarya-install.sql, jadi biasanya "Nothing to migrate".

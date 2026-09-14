@@ -79,8 +79,21 @@ Isi kredensial basis data di `.env`, lalu:
 
 ```bash
 php artisan migrate --seed     # 26 migrasi -> 26 tabel, + kategori & keahlian
+php artisan storage:link       # wajib, lihat di bawah
 npm install && npm run build   # opsional, hanya untuk aset
 ```
+
+`storage:link` **wajib** dan mudah terlewat. Unggahan disimpan di
+`storage/app/public/`, sementara yang dilayani web adalah `public/`; symlink
+`public/storage` itulah jembatannya. Tanpa symlink, unggahan tetap berhasil dan
+path-nya tetap tersimpan di basis data — tapi setiap permintaan ke
+`/storage/...` membalas 404, jadi gambarnya tidak pernah bisa ditampilkan dan
+tidak ada satu pun galat yang muncul untuk menjelaskannya.
+
+Symlink ini sengaja tidak terlacak git (`/public/storage` di `.gitignore`):
+isinya path absolut milik mesin yang membuatnya, jadi kalau ikut ter-commit ia
+akan menunjuk ke direktori yang tidak ada di mesin lain. Karena itu ia dibuat
+ulang per-lingkungan — di produksi oleh langkah `ln -sfn` dalam `.cpanel.yml`.
 
 Terakhir, buat akun pengelola. Ini **satu-satunya** caranya — tidak ada endpoint
 pendaftaran pengelola, dan seeder-nya sengaja tidak ada karena berkas seeder terlacak
