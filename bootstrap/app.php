@@ -15,6 +15,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
 
@@ -24,6 +25,10 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        // Tanpa grup middleware apa pun (terutama tanpa sesi) — lihat berkasnya.
+        then: function (): void {
+            Route::group([], __DIR__.'/../routes/storage.php');
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // CORS: middleware HandleCors sudah ada di tumpukan global Laravel;
