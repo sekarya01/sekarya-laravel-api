@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Data\Auth;
 
+use App\Enums\Gender;
 use App\Http\Requests\Api\V1\Auth\RegisterRequest;
 
 final readonly class RegisterData
@@ -15,6 +16,7 @@ final readonly class RegisterData
         public string $email,
         public ?string $phone,
         public string $password,
+        public ?Gender $gender = null,
         public ?string $city = null,
         public ?string $province = null,
     ) {}
@@ -55,6 +57,9 @@ final readonly class RegisterData
             email: mb_strtolower(trim($request->string('email')->value())),
             phone: $phone !== '' ? $phone : null,
             password: $request->string('password')->value(),
+            gender: $request->filled('gender')
+                ? Gender::from($request->string('gender')->value())
+                : null,
             city: $request->filled('city') ? trim($request->string('city')->value()) : null,
             province: $request->filled('province') ? trim($request->string('province')->value()) : null,
         );

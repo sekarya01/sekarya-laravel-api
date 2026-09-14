@@ -371,8 +371,21 @@ b = date(1995, 3, 2); t = date.today()
 print(t.year - b.year - ((t.month, t.day) < (b.month, b.day)))")" \
     -X PATCH "${AUTH[@]}" -H "$CT" -d '{"age":99}' "$BASE/me"
 
-check "gender di luar dua nilai ditolak" 422 "'gender' in d['errors']" 'true' \
+check "gender di luar nilai yang dikenal ditolak" 422 "'gender' in d['errors']" 'true' \
     -X PATCH "${AUTH[@]}" -H "$CT" -d '{"gender":"laki-laki"}' "$BASE/me"
+
+# Nilai ketiga: 17 karakter, dan kolomnya pernah VARCHAR(6). Kalau kolom di
+# lingkungan ini belum dilebarkan, nilainya terpotong jadi "prefer" dan
+# pembacaan berikutnya melempar — jadi yang diperiksa hasil BACA, bukan tulis.
+check "gender prefer_not_to_say tersimpan utuh" 200 "d['data']['gender']" '"prefer_not_to_say"' \
+    -X PATCH "${AUTH[@]}" -H "$CT" -d '{"gender":"prefer_not_to_say"}' "$BASE/me"
+
+check "gender dikembalikan utuh saat dibaca ulang" 200 "d['data']['gender']" '"prefer_not_to_say"' \
+    "${AUTH[@]}" "$BASE/me"
+
+# Dikembalikan ke nilai semula supaya pemeriksaan berikutnya tidak terpengaruh.
+check "gender dikembalikan ke male" 200 "d['data']['gender']" '"male"' \
+    -X PATCH "${AUTH[@]}" -H "$CT" -d '{"gender":"male"}' "$BASE/me"
 
 check "umur di bawah batas minimum ditolak" 422 "'birth_date' in d['errors']" 'true' \
     -X PATCH "${AUTH[@]}" -H "$CT" \
@@ -495,7 +508,7 @@ check "daftar pekerja tidak membocorkan tanggal lahir" 200 \
     "[k for k in d['data'][0] if k in ('birth_date','email','phone')]" '[]' \
     "${AUTH[@]}" "$BASE/workers"
 
-check "gender di luar dua nilai ditolak di daftar" 422 "'gender' in d['errors']" 'true' \
+check "gender di luar nilai yang dikenal ditolak di daftar" 422 "'gender' in d['errors']" 'true' \
     "${AUTH[@]}" "$BASE/workers?gender=perempuan"
 
 check "per_page di atas maksimum ditolak di daftar pekerja" 422 "'per_page' in d['errors']" 'true' \

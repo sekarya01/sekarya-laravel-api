@@ -115,8 +115,11 @@
                 <label class="label-dark" for="f-gender">Jenis kelamin</label>
                 <select id="f-gender" name="gender" class="field-dark">
                     <option value="">Semua</option>
-                    <option value="male" @selected($filterGender === 'male')>Laki-laki</option>
-                    <option value="female" @selected($filterGender === 'female')>Perempuan</option>
+                    {{-- Dibangun dari enum supaya nilai baru tidak perlu
+                         ditambahkan manual di dua halaman terpisah. --}}
+                    @foreach (\App\Enums\Gender::cases() as $g)
+                        <option value="{{ $g->value }}" @selected($filterGender === $g->value)>{{ $g->label() }}</option>
+                    @endforeach
                 </select>
             </div>
         </div>
