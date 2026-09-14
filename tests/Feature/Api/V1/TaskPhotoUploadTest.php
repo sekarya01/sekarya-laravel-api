@@ -45,6 +45,48 @@ final class TaskPhotoUploadTest extends TestCase
         Storage::disk('public')->assertExists($path);
     }
 
+    /**
+     * Penulisan yang gagal HARUS terlihat. Sebelumnya disk `public` memakai
+     * `throw => false`: `store()` mengembalikan false, `(string) false`
+     * menjadi "", dan endpoint membalas 201 dengan `path` kosong. Mobile lalu
+     * membuat task seolah fotonya tersimpan, padahal tidak ada berkas apa pun.
+     *
+     * Kegagalan disimulasikan dengan folder tujuan yang SUDAH ADA tapi baca-saja,
+     * memakai konfigurasi disk `public` yang ASLI — hanya root-nya yang
+     * diganti — supaya yang diuji benar-benar setelan `throw` milik aplikasi.
+     *
+     * Foldernya harus sudah ada: kalau yang gagal pembuatan folder, Flysystem
+     * melempar UnableToCreateDirectory tanpa peduli `throw`, dan test ini
+     * lulus walau bug-nya masih ada. Yang senyap hanya penulisan BERKAS.
+     */
+    public function test_upload_fails_loudly_when_the_file_cannot_be_written(): void
+    {
+        $root = sys_get_temp_dir().'/sekarya-readonly-'.bin2hex(random_bytes(4));
+        mkdir($root.'/uploads/tasks', 0755, true);
+        chmod($root.'/uploads/tasks', 0555);
+
+        try {
+            Storage::set('public', Storage::build([
+                ...config('filesystems.disks.public'),
+                'root' => $root,
+            ]));
+
+            $response = $this->asUser($this->poster)
+                ->postJson(route('v1.uploads.store'), [
+                    'file' => UploadedFile::fake()->image('foto.jpg')->size(300),
+                ]);
+
+            $response->assertStatus(500);
+            $this->assertNull($response->json('data.path'), 'path tidak boleh dikembalikan');
+            $this->assertSame([], glob($root.'/uploads/tasks/*') ?: [], 'tidak boleh ada berkas tertulis');
+        } finally {
+            chmod($root.'/uploads/tasks', 0755);
+            rmdir($root.'/uploads/tasks');
+            rmdir($root.'/uploads');
+            rmdir($root);
+        }
+    }
+
     public function test_uploaded_path_can_be_used_as_a_task_photo(): void
     {
         Storage::fake('public');
