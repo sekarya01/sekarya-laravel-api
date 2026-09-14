@@ -43,7 +43,17 @@ return [
             'root' => storage_path('app/public'),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
-            'throw' => false,
+            // WAJIB true. Dengan false, penulisan yang gagal (izin folder,
+            // kuota hosting penuh) membuat `store()` mengembalikan false tanpa
+            // galat dan tanpa log: endpoint unggah membalas 201 dengan `path`
+            // kosong, dan mobile membuat task seolah fotonya tersimpan.
+            // Dengan true, kegagalan menjadi 500 yang tercatat.
+            //
+            // Aman untuk pemakaian disk ini sekarang: `url()` tidak menyentuh
+            // disk, dan ShowPublicUploadController memanggil `exists()` sebelum
+            // membaca. Kalau menambah pembacaan baru, periksa berkasnya dulu.
+            // Dijaga oleh TaskPhotoUploadTest.
+            'throw' => true,
             'report' => false,
         ],
 
