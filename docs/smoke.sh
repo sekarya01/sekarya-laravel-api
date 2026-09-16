@@ -42,6 +42,13 @@ trap cleanup EXIT
 ACC='Accept: application/json'
 CT='Content-Type: application/json'
 
+# `needed_at` wajib dan harus SESUDAH sekarang, jadi ia tidak bisa ditulis
+# sebagai tanggal tetap di dalam skrip: literal apa pun akan lewat suatu hari
+# dan seluruh pembuatan task mulai dijawab 422 tanpa ada yang menyentuh kode.
+NEEDED_AT="$(python3 -c "
+from datetime import datetime, timedelta, timezone
+print((datetime.now(timezone.utc) + timedelta(days=3)).strftime('%Y-%m-%dT%H:%M:%SZ'))")"
+
 # ── helper ───────────────────────────────────────────────────────────────────
 
 # check <label> <status> <ekspresi|-> <nilai|-> <argumen curl...>
@@ -133,8 +140,21 @@ signup() {
         return 1
     fi
 
+    # Kode dibaca dari BARIS SUBJEK, bukan dari badan emailnya.
+    #
+    # Pola lamanya `**123456**` mencari markdown tebal, dan itu berhenti cocok
+    # sejak surat verifikasi menjadi HTML: di badan HTML angkanya duduk di
+    # dalam <span> bergaya, dan quoted-printable memotongnya di tengah dengan
+    # soft line break (`846` di satu baris, `072` di baris berikutnya). Yang
+    # terlihat saat itu terjadi bukan "pola tidak cocok" melainkan FATAL
+    # "kode verifikasi tidak ditemukan" di langkah pertama.
+    #
+    # Subjeknya satu baris utuh dan memang memuat kodenya — lihat
+    # App\Mail\VerificationCodeMail. (Itu pula sebabnya subjek email TIDAK
+    # PERNAH dikirim ke Axiom: ia berisi kredensialnya. Lihat
+    # docs/OBSERVABILITY.md.)
     local code
-    code="$(grep -oE '\*\*[0-9]{6}\*\*' "$LOG" | head -1 | tr -d '*')"
+    code="$(grep -oE 'Kode verifikasi Sekarya: [0-9]{6}' "$LOG" | head -1 | grep -oE '[0-9]{6}')"
 
     if [[ -z "$code" ]]; then
         bad "signup <$2>: kode verifikasi tidak terbaca dari ${LOG} (MAIL_MAILER harus 'log')" >&2
@@ -218,7 +238,9 @@ check "login sebelum verifikasi ditolak" 403 "d['code']" '"email_not_verified"' 
     -X POST "$BASE/auth/login" -H "$ACC" -H "$CT" \
     -d '{"email":"budi@sekarya.test","password":"RahasiaKuat2026"}'
 
-VERIF_CODE="$(grep -oE '\*\*[0-9]{6}\*\*' "$LOG" | head -1 | tr -d '*')"
+# Dari baris subjek, alasan yang sama seperti di signup(). `head -1` tetap:
+# yang dicari kode milik budi, yang mendaftar lebih dulu.
+VERIF_CODE="$(grep -oE 'Kode verifikasi Sekarya: [0-9]{6}' "$LOG" | head -1 | grep -oE '[0-9]{6}')"
 [[ -z "$VERIF_CODE" ]] && { echo "${R}FATAL${N} kode verifikasi tidak ditemukan di ${LOG}"; exit 1; }
 
 check "kode salah menurunkan sisa percobaan" 422 "d['context']['attempts_left']" '4' \
@@ -542,7 +564,7 @@ TASK_JSON="$(curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "category_id":2,
   "title":"Cuci AC 2 unit di rumah",
   "description":"Servis AC split, freon dan cuci evaporator.",
-  "budget_min":150000,
+  "needed_at":"'"$NEEDED_AT"'","budget_min":150000,
   "city":"Jakarta","latitude":-6.1754,"longitude":106.8272,
   "skills":["cuci-ac"],"publish_now":true,
   "options":[{"label":"Bawa alat sendiri","value":true}]
@@ -650,7 +672,8 @@ CREW_JSON="$(curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "category_id":2,
   "title":"Bersih-bersih gudang sehari",
   "description":"Butuh beberapa orang untuk merapikan gudang dalam satu hari.",
-  "budget_min":100000,
+  "needed_at":"'"$NEEDED_AT"'","budget_min":100000,
+  "city":"Jakarta",
   "workers_needed":2,
   "publish_now":true
 }')"
@@ -726,7 +749,8 @@ SHORT_JSON="$(curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "category_id":2,
   "title":"Angkut barang pindahan",
   "description":"Butuh 5 orang, tapi tanggalnya tidak bisa mundur.",
-  "budget_min":100000,
+  "needed_at":"'"$NEEDED_AT"'","budget_min":100000,
+  "city":"Jakarta",
   "workers_needed":5,
   "publish_now":true
 }')"
@@ -864,23 +888,138 @@ check "yang dihapus tidak muncul lagi di daftar" 200 \
     "[a['email'] for a in d['data'] if a['email'] == 'verif3@sekarya.test']" '[]' \
     "${ADMIN[@]}" "$BASE/admin/admins"
 
+# ── 9c. saldo ────────────────────────────────────────────────────────────────
+#
+# Yang dibuktikan di sini bukan "endpointnya menjawab 200", melainkan ke mana
+# uangnya bergerak — dan kapan ia TIDAK bergerak. Tiga pernyataan yang paling
+# mahal kalau salah:
+#
+#   1. melapor isi saldo tidak menambah apa pun sampai pengelola mengonfirmasi,
+#   2. meminta penarikan LANGSUNG memotong saldo, dan
+#   3. penolakan penarikan mengembalikan potongan itu.
+echo
+echo "${Y}==>${N} Saldo: upah masuk, isi ulang, penarikan"
+
+# Siti memenangkan lelang di 210.000 dan hasilnya sudah disetujui di bagian 7,
+# jadi upahnya seharusnya sudah ada di dompetnya — tanpa ia meminta apa pun.
+check "upah pekerja masuk saldo saat dana dilepas" 200 "d['data']['balance']" '210000' \
+    "${W[@]}" "$BASE/me/wallet"
+check "riwayatnya menyebut sebabnya, bukan cuma angkanya" 200 \
+    "[d['data'][0]['type'], d['data'][0]['direction'], d['data'][0]['balance_after']]" \
+    '["earning", "credit", 210000]' \
+    "${W[@]}" "$BASE/me/wallet/entries"
+check "id internal kejadian TIDAK ikut keluar" 200 "'reference_id' in d['data'][0]" 'false' \
+    "${W[@]}" "$BASE/me/wallet/entries"
+check "saldo ikut di profil sendiri" 200 "d['data']['wallet']['balance']" '210000' \
+    "${W[@]}" "$BASE/me"
+
+# Pemberi kerja belum pernah menyentuh saldo: dompetnya belum ada, dan
+# membacanya tidak boleh membuatnya.
+check "membaca saldo tidak membuat baris dompet" 200 \
+    "[d['data']['id'], d['data']['balance']]" '[null, 0]' \
+    "${AUTH[@]}" "$BASE/me/wallet"
+
+check "nominal isi saldo di bawah minimum ditolak validasi" 422 "'amount' in d['errors']" 'true' \
+    -X POST "$BASE/me/wallet/topups" "${AUTH[@]}" -H "$CT" -d '{"amount":1000}'
+
+TOPUP="$(json "$(curl -s -X POST "$BASE/me/wallet/topups" "${AUTH[@]}" -H "$CT" \
+    -d '{"amount":300000,"sender_note":"BCA 1234 a.n. Budi Prasetyo","status":"confirmed"}')" \
+    "d['data']['id']")"
+check "melapor isi saldo TIDAK menambah saldo" 200 "d['data']['balance']" '0' \
+    "${AUTH[@]}" "$BASE/me/wallet"
+check "status tidak bisa diselundupkan lewat payload" 200 \
+    "d['data'][0]['status']" '"awaiting_confirmation"' \
+    "${AUTH[@]}" "$BASE/me/wallet/topups"
+check "permintaannya muncul di antrean pengelola" 200 \
+    "[t['sender_note'] for t in d['data'] if t['id'] == '$TOPUP']" \
+    '["BCA 1234 a.n. Budi Prasetyo"]' \
+    "${ADMIN[@]}" "$BASE/admin/wallet/topups"
+check "pengguna tidak bisa mengonfirmasi isi saldonya sendiri" 401 "d['code']" '"unauthenticated"' \
+    -X POST "$BASE/admin/wallet/topups/$TOPUP/confirm" "${AUTH[@]}"
+check "pengelola mengonfirmasi — DI SINI saldo bertambah" 200 "d['data']['status']" '"confirmed"' \
+    -X POST "$BASE/admin/wallet/topups/$TOPUP/confirm" "${ADMIN[@]}"
+check "saldonya naik sejumlah yang dikonfirmasi" 200 "d['data']['balance']" '300000' \
+    "${AUTH[@]}" "$BASE/me/wallet"
+check "mengonfirmasi dua kali tidak menggandakan uang" 422 "d['code']" '"wallet_request_not_pending"' \
+    -X POST "$BASE/admin/wallet/topups/$TOPUP/confirm" "${ADMIN[@]}"
+check "dan saldonya tetap" 200 "d['data']['balance']" '300000' \
+    "${AUTH[@]}" "$BASE/me/wallet"
+
+# Penarikan: rekening dulu, dan identitas terverifikasi TIDAK menggantikannya.
+check "menarik tanpa rekening terverifikasi ditolak" 422 "d['code']" '"bank_account_not_verified"' \
+    -X POST "$BASE/me/wallet/withdrawals" "${W[@]}" -H "$CT" -d '{"amount":100000}'
+
+curl -s -X POST "$BASE/me/verifications" "${W[@]}" -H "$CT" -d '{
+  "type":"bank_account",
+  "bank_code":"BCA",
+  "account_number":"1234567890",
+  "account_holder_name":"Siti Penerima"
+}' -o /dev/null
+
+BANK_VER="$(json "$(curl -s "$BASE/admin/verifications?type=bank_account" "${ADMIN[@]}")" \
+    "d['data'][0]['id']")"
+check "pengelola menyetujui rekening" 200 "d['data']['status']" '"verified"' \
+    -X POST "$BASE/admin/verifications/$BANK_VER/approve" "${ADMIN[@]}"
+
+check "menarik lebih dari saldo ditolak, kekurangannya disebut" 422 \
+    "[d['code'], d['context']['shortfall']]" '["insufficient_balance", 90000]' \
+    -X POST "$BASE/me/wallet/withdrawals" "${W[@]}" -H "$CT" -d '{"amount":300000}'
+
+WD="$(json "$(curl -s -X POST "$BASE/me/wallet/withdrawals" "${W[@]}" -H "$CT" \
+    -d '{"amount":200000}')" "d['data']['id']")"
+check "meminta penarikan LANGSUNG memotong saldo" 200 "d['data']['balance']" '10000' \
+    "${W[@]}" "$BASE/me/wallet"
+check "saldo yang sama tidak bisa ditarik dua kali" 422 "d['code']" '"insufficient_balance"' \
+    -X POST "$BASE/me/wallet/withdrawals" "${W[@]}" -H "$CT" -d '{"amount":200000}'
+check "antrean pencairan TIDAK membawa nomor rekening" 200 \
+    "'1234567890' in json.dumps(d)" 'false' \
+    "${ADMIN[@]}" "$BASE/admin/wallet/withdrawals"
+check "tapi cukup untuk menyaring: bank & atas nama siapa" 200 \
+    "[w['destination']['bank_code'] for w in d['data'] if w['id'] == '$WD']" '["BCA"]' \
+    "${ADMIN[@]}" "$BASE/admin/wallet/withdrawals"
+check "menolak pencairan butuh alasan" 422 "'reason' in d['errors']" 'true' \
+    -X POST "$BASE/admin/wallet/withdrawals/$WD/reject" "${ADMIN[@]}" -H "$CT" -d '{}'
+check "pencairan ditolak" 200 "d['data']['status']" '"rejected"' \
+    -X POST "$BASE/admin/wallet/withdrawals/$WD/reject" "${ADMIN[@]}" -H "$CT" \
+    -d '{"reason":"Nama pemilik rekening tidak cocok dengan KTP."}'
+check "penolakan MENGEMBALIKAN dana yang tadi ditahan" 200 "d['data']['balance']" '210000' \
+    "${W[@]}" "$BASE/me/wallet"
+check "pengembaliannya baris baru, bukan baris lama yang dihapus" 200 \
+    "d['data'][0]['type']" '"withdrawal_reversal"' \
+    "${W[@]}" "$BASE/me/wallet/entries"
+
+# Dan yang dicairkan sungguhan tidak memotong lagi.
+WD2="$(json "$(curl -s -X POST "$BASE/me/wallet/withdrawals" "${W[@]}" -H "$CT" \
+    -d '{"amount":210000}')" "d['data']['id']")"
+check "pencairan ditandai selesai" 200 \
+    "[d['data']['status'], d['data']['transfer_reference']]" '["completed", "TRX-99887766"]' \
+    -X POST "$BASE/admin/wallet/withdrawals/$WD2/complete" "${ADMIN[@]}" -H "$CT" \
+    -d '{"transfer_reference":"TRX-99887766"}'
+check "menyelesaikan TIDAK memotong saldo lagi" 200 "d['data']['balance']" '0' \
+    "${W[@]}" "$BASE/me/wallet"
+check "yang sudah dicairkan tidak bisa ditolak" 422 "d['code']" '"wallet_request_not_pending"' \
+    -X POST "$BASE/admin/wallet/withdrawals/$WD2/reject" "${ADMIN[@]}" -H "$CT" \
+    -d '{"reason":"Berubah pikiran setelah transfer terkirim."}'
+check "milik orang lain tidak bisa dibatalkan" 403 - - \
+    -X POST "$BASE/me/wallet/withdrawals/$WD2/cancel" "${AUTH[@]}"
+
 # ── 10. feed & filter ────────────────────────────────────────────────────────
 echo
 echo "${Y}==>${N} Feed pencari kerja & filter"
 
 curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "category_id":2,"title":"Bersihkan kamar mandi","description":"Kamar mandi berkerak, disikat bersih.",
-  "budget_min":120000,"city":"Jakarta","latitude":-6.2088,"longitude":106.8456,
+  "needed_at":"'"$NEEDED_AT"'","budget_min":120000,"city":"Jakarta","latitude":-6.2088,"longitude":106.8456,
   "skills":["bersih-kamar-mandi"],"publish_now":true}' -o /dev/null
 curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "category_id":3,"title":"Jaga kucing 3 hari","description":"Titip 2 kucing persia, beri makan pagi sore.",
-  "budget_min":200000,"city":"Bandung","latitude":-6.9175,"longitude":107.6191,
+  "needed_at":"'"$NEEDED_AT"'","budget_min":200000,"city":"Bandung","latitude":-6.9175,"longitude":107.6191,
   "skills":["jaga-kucing"],"publish_now":true}' -o /dev/null
 # Judul ini yang menguji dua kelemahan FULLTEXT: kata dua huruf ("AC") dan
 # bentuk berimbuhan ("Membersihkan" dicari dengan "bersih").
 curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "category_id":2,"title":"Membersihkan AC ruang kerja","description":"Unit split, freon dicek.",
-  "budget_min":180000,"city":"Jakarta","publish_now":true}' -o /dev/null
+  "needed_at":"'"$NEEDED_AT"'","budget_min":180000,"city":"Jakarta","publish_now":true}' -o /dev/null
 
 check "feed tidak memuat task sendiri" 200 "len(d['data'])" '0' \
     "${AUTH[@]}" "$BASE/tasks"

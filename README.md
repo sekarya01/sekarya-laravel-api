@@ -12,8 +12,8 @@ badan usaha. Semua pihak perseorangan.
 | Bahasa & framework | PHP `^8.3` (**pakai 8.4 di produksi**, lihat catatan di bawah) · Laravel `11.55.1` (dipin persis) |
 | Basis data | MySQL 8+ / InnoDB — **bukan** SQLite, lihat [Kenapa MySQL](#kenapa-mysql-bukan-sqlite) |
 | Autentikasi | Laravel Sanctum `^4.0`, sepasang token |
-| Test | PHPUnit `^11.5` — 957 test, 3.507 asersi, 61 berkas (ukur coverage: `composer test-report`) |
-| Kontrak API | OpenAPI 3.1 di `docs/openapi.yaml` — 57 endpoint (35 pengguna + 22 pengelola) |
+| Test | PHPUnit `^11.5` — 1.137 test, 4.254 asersi, 79 berkas (ukur coverage: `composer test-report`) |
+| Kontrak API | OpenAPI 3.1 di `docs/openapi.yaml` — 77 endpoint (49 pengguna + 28 pengelola) |
 | Observability | Axiom (opsional, mati secara bawaan) |
 
 Diuji pada PHP 8.5.10, Laravel 11.55.1, MySQL 26.7 (Homebrew), Composer 2.10.
@@ -78,7 +78,7 @@ CREATE DATABASE sekarya_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 Isi kredensial basis data di `.env`, lalu:
 
 ```bash
-php artisan migrate --seed     # 26 migrasi -> 26 tabel, + kategori & keahlian
+php artisan migrate --seed     # 32 migrasi -> 30 tabel, + kategori & keahlian
 php artisan storage:link       # wajib, lihat di bawah
 npm install && npm run build   # opsional, hanya untuk aset
 ```
@@ -134,6 +134,9 @@ SEKARYA_LONG_LIVED_TTL_DAYS=30      # umur token refresh
 SEKARYA_VERIFICATION_TTL_MINUTES=15
 SEKARYA_RL_LOGIN=5                  # batas laju login per menit
 SEKARYA_VALIDATE_EMAIL_DNS=false    # nyalakan di produksi
+SEKARYA_WALLET_MIN_TOPUP=10000      # batas nominal saldo, rupiah bulat
+SEKARYA_WALLET_MIN_WITHDRAWAL=50000
+SEKARYA_WALLET_MAX_PENDING=3        # permintaan saldo menggantung per orang
 ```
 
 `SEKARYA_VALIDATE_EMAIL_DNS` dimatikan di lokal supaya domain uji seperti `.test` bisa
@@ -183,10 +186,10 @@ php artisan route:list --path=api
 ## Test
 
 ```bash
-php artisan test                  # 957 test, 3.507 asersi
+php artisan test                  # 1.137 test, 4.254 asersi
 php artisan test tests/Unit       # lapis cepat
 composer test-report              # + coverage/html, junit, testdox
-bash docs/smoke.sh                # 162 pemeriksaan HTTP sungguhan, server sendiri
+bash docs/smoke.sh                # 194 pemeriksaan HTTP sungguhan, server sendiri
 ./vendor/bin/pint                 # format — jalankan sebelum commit
 npx --yes -p @redocly/cli redocly lint docs/openapi.yaml
 ```
@@ -329,6 +332,16 @@ peran: tabel sendiri (`admins`), guard sendiri, ability token sendiri. Token pen
 `/admin` menghasilkan `401`, dan sebaliknya. Ada **tepat satu** `super_admin` — dijamin
 indeks unique di basis data — dan ia tidak bisa dihapus maupun dinonaktifkan.
 
+**Saldo adalah agregat yang di-cache dari buku besar, bukan kolom yang berdiri sendiri.**
+`wallets.balance` menjawab *berapa*; `wallet_entries` yang menjawab *kenapa* — append-only,
+satu baris per kejadian, masing-masing membawa saldo sesudahnya. Hanya
+`App\Support\WalletLedger` yang boleh mengubah saldo, dan ia selalu mengunci baris
+dompetnya lebih dulu. Dua arah yang tidak boleh dibaca terbalik: **melapor isi saldo tidak
+menambah apa pun** sampai pengelola mengonfirmasi (kalau tidak, siapa pun bisa mengisi
+dompetnya sendiri lewat satu permintaan HTTP), dan **meminta penarikan langsung memotong
+saldo** (kalau menunggu pencairan, saldo yang sama bisa diminta berkali-kali). Karena itu
+penolakan dan pembatalan penarikan **wajib** mengembalikan dana yang ditahan.
+
 **Profil pekerja ada di tabelnya sendiri, dan kolomnya PELENGKAP — bukan salinan.**
 `users` menyimpan orangnya (termasuk `gender` dan `birth_date`); `user_workers` menyimpan
 sisi pekerjanya — nama tampilan, kontak, alamat kerja, lokasi, dan seluruh reputasi
@@ -359,7 +372,7 @@ ada setelan MySQL yang perlu diminta ke penyedia hosting.
   akan mengotori setiap respons JSON — rinciannya di
   [Konsekuensi memakai Laravel 11](#konsekuensi-memakai-laravel-11).
 - Basis data dipasang sekali lewat
-  [`database/schema/sekarya-install.sql`](database/schema/sekarya-install.sql): 26 tabel
+  [`database/schema/sekarya-install.sql`](database/schema/sekarya-install.sql): 30 tabel
   beserta indeks dan foreign key, data acuan, dan riwayat migrasi supaya
   `php artisan migrate` tahu semuanya sudah dijalankan. Tanpa data pengguna. Tabelnya urut
   menurut ketergantungan dan tidak menghapus apa pun, jadi bisa diimpor lewat phpMyAdmin

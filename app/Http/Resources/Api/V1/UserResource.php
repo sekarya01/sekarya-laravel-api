@@ -63,6 +63,16 @@ final class UserResource extends BaseResource
                 'rating_count' => $this->poster_rating_count,
                 'tasks_posted' => $this->tasks_posted,
             ],
+            // Saldo ikut di profil sendiri: hampir setiap layar yang
+            // membuka akun juga menampilkannya, dan memaksa klien memanggil
+            // GET /me/wallet hanya untuk satu angka berarti dua permintaan
+            // untuk satu layar. Riwayat dan permintaan isi/tarik tetap di
+            // endpoint saldo — yang di sini cuma angkanya.
+            //
+            // `walletOrNew()`, jadi membaca profil tidak membuat baris dompet.
+            'wallet' => [
+                'balance' => $this->resource->walletBalance(),
+            ],
             'cancellations' => $this->cancellations,
             'created_at' => $this->iso($this->created_at),
         ];

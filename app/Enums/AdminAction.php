@@ -32,6 +32,13 @@ enum AdminAction: string
     case PaymentConfirmed = 'payment.confirmed';
     case PaymentRejected = 'payment.rejected';
 
+    case WalletTopupConfirmed = 'wallet_topup.confirmed';
+    case WalletTopupRejected = 'wallet_topup.rejected';
+
+    /** Uang benar-benar keluar dari rekening perusahaan pada tindakan ini. */
+    case WalletWithdrawalCompleted = 'wallet_withdrawal.completed';
+    case WalletWithdrawalRejected = 'wallet_withdrawal.rejected';
+
     case UserSuspended = 'user.suspended';
     case UserBanned = 'user.banned';
     case UserReinstated = 'user.reinstated';
@@ -56,6 +63,12 @@ enum AdminAction: string
 
             self::PaymentConfirmed,
             self::PaymentRejected => 'payment',
+
+            self::WalletTopupConfirmed,
+            self::WalletTopupRejected => 'wallet_topup',
+
+            self::WalletWithdrawalCompleted,
+            self::WalletWithdrawalRejected => 'wallet_withdrawal',
 
             self::UserSuspended,
             self::UserBanned,
@@ -88,6 +101,8 @@ enum AdminAction: string
             self::VerificationRejected,
             self::VerificationRevoked,
             self::PaymentRejected,
+            self::WalletTopupRejected,
+            self::WalletWithdrawalRejected,
             self::UserSuspended,
             self::UserBanned => true,
             default => false,

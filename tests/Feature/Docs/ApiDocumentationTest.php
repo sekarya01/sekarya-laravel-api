@@ -222,4 +222,51 @@ final class ApiDocumentationTest extends TestCase
             $guide,
         );
     }
+
+    /**
+     * Angka di KEPALA panduan juga, bukan hanya di tabel ringkasan.
+     *
+     * Lubang yang sudah pernah kejadian: seluruh test di kelas ini lulus —
+     * setiap rute terdokumentasi, spec tidak menjanjikan yang tidak ada,
+     * hitungan di tabel ringkasan benar — sementara baris pertama dokumen
+     * masih berbunyi "58 operation cocok dengan 58 rute nyata" padahal
+     * rutenya sudah 77.
+     *
+     * Itu angka yang paling dulu dibaca orang, dan satu-satunya yang tidak
+     * dijaga apa pun. Sebuah panduan yang salah di kalimat pembukanya
+     * merusak kepercayaan pada seluruh isinya — termasuk bagian yang benar.
+     */
+    public function test_the_guide_header_states_the_right_operation_count(): void
+    {
+        $guide = (string) file_get_contents(base_path('docs/API.md'));
+        $count = count($this->apiRoutes());
+
+        $this->assertStringContainsString(
+            sprintf('%d operation cocok dengan %d rute nyata', $count, $count),
+            $guide,
+            sprintf(
+                "Kepala docs/API.md tidak menyebut %d operation/rute.\n"
+                ."Baris itu yang pertama dibaca orang, dan angkanya harus ikut setiap kali\n"
+                .'rute bertambah atau berkurang.',
+                $count,
+            ),
+        );
+    }
+
+    /*
+     * TIDAK ADA test yang menjaga angka "194 pemeriksaan" di docs/API.md,
+     * dan itu keputusan — bukan kelalaian.
+     *
+     * Sempat ditulis dengan menghitung panggilan `check`/`ok`/`bad` di
+     * docs/smoke.sh secara statis. Hasilnya 201, sementara jalan sungguhannya
+     * melaporkan 194: sebagian `ok`/`bad` hanya dieksekusi di cabang
+     * KEGAGALAN, jadi jumlah yang benar cuma diketahui oleh skrip yang
+     * benar-benar berjalan — dan skrip itu butuh server hidup serta mereset
+     * basis data, jadi ia tidak boleh dipanggil dari dalam suite.
+     *
+     * Sebuah regex yang mendekati-tapi-meleset lebih buruk daripada tidak ada
+     * pemeriksaan sama sekali: ia akan gagal pada dokumen yang benar, lalu
+     * "diperbaiki" dengan mengubah dokumennya menjadi salah. Angka itu
+     * diperbarui manual setiap kali bagian baru ditambahkan ke smoke.sh.
+     */
 }

@@ -192,6 +192,60 @@ class User extends Authenticatable
         return $this->hasMany(UserVerification::class);
     }
 
+    /**
+     * Saldo orang ini — nol atau satu baris.
+     *
+     * @return HasOne<Wallet, $this>
+     */
+    public function wallet(): HasOne
+    {
+        return $this->hasOne(Wallet::class);
+    }
+
+    /**
+     * Dompet yang pasti ADA DI MEMORI, tanpa menulis apa pun. Jalur BACA.
+     *
+     * Aturan yang sama dengan `workerProfileOrNew()`: sebuah GET yang membuat
+     * baris berarti sekadar membuka layar saldo sudah menambah baris di basis
+     * data, dan permintaan yang seharusnya aman jadi punya efek samping.
+     * Instance yang dikembalikan bersaldo nol — yang memang benar untuk orang
+     * yang belum pernah menerima atau mengisi apa pun.
+     *
+     * Jalur TULIS memakai `App\Support\WalletLedger::walletFor()`.
+     */
+    public function walletOrNew(): Wallet
+    {
+        $wallet = $this->relationLoaded('wallet')
+            ? $this->getRelation('wallet')
+            : $this->wallet()->first();
+
+        $wallet ??= new Wallet(['user_id' => $this->getKey()]);
+        $wallet->setRelation('user', $this);
+
+        return $wallet;
+    }
+
+    /** Saldo terpakai, dalam satuan terkecil. Nol kalau dompetnya belum ada. */
+    public function walletBalance(): int
+    {
+        return (int) $this->walletOrNew()->balance;
+    }
+
+    /**
+     * Rekening yang sudah disetujui pengelola, kalau ada.
+     *
+     * Dipakai gerbang penarikan saldo. TIDAK ikut menentukan `readyToWork()`:
+     * rekening adalah syarat untuk DIBAYAR, bukan untuk boleh bekerja.
+     */
+    public function verifiedBankAccount(): ?UserVerification
+    {
+        return $this->verifications()
+            ->where('type', VerificationType::BankAccount)
+            ->where('status', VerificationStatus::Verified)
+            ->latest('id')
+            ->first();
+    }
+
     /** Task yang dia posting (sebagai pemberi kerja). @return HasMany<Task, $this> */
     public function postedTasks(): HasMany
     {

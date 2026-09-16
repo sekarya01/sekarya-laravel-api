@@ -120,6 +120,11 @@ tags:
     description: Penawaran dari penerima kerja, sampai deal.
   - name: Uang
     description: Transfer dan dana yang ditahan. **Stub** — menunggu riset.
+  - name: Saldo
+    description: |
+      Dompet yang menempel pada akun. Uang masuk dari tiga arah — isi ulang,
+      pengembalian dana task yang batal, dan upah pekerja — dan keluar lewat
+      satu pintu: penarikan ke rekening yang sudah diverifikasi.
   - name: Activity
     description: Eksekusi pekerjaan, dibuka oleh transfer.
   - name: Penilaian
@@ -895,6 +900,355 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
 
   # ─────────────────────────────── TASK ───────────────────────────────
+  # ─────────────────────────────── SALDO ──────────────────────────────
+  /me/wallet:
+    get:
+      tags: [Saldo]
+      operationId: showWallet
+      summary: Saldo sendiri
+      description: |
+        Membacanya **tidak membuat baris dompet**. Orang yang belum pernah
+        menerima atau mengisi apa pun mendapat bentuk yang sama dengan yang
+        sudah — `balance: 0` dan `id: null` — jadi klien tidak perlu punya dua
+        cabang untuk satu layar.
+
+        Angkanya juga ikut di `GET /me` sebagai `wallet.balance`, supaya layar
+        profil tidak perlu dua permintaan.
+      responses:
+        '200':
+          description: Saldo terpakai.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Wallet'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /me/wallet/entries:
+    get:
+      tags: [Saldo]
+      operationId: listWalletEntries
+      summary: Riwayat mutasi saldo
+      description: |
+        Buku besar milik sendiri, terbaru di depan. Setiap baris membawa
+        `balance_after`, sehingga riwayatnya terbaca seperti rekening koran —
+        bukan daftar angka lepas yang harus dijumlahkan klien.
+
+        Id internal kejadian penyebabnya **tidak** ikut keluar; yang ada hanya
+        `reference_type` (slug tabelnya) dan `type`.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - name: type
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/WalletEntryType'
+        - name: direction
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/WalletEntryDirection'
+      responses:
+        '200':
+          description: Satu halaman mutasi.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/WalletEntry' }
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /me/wallet/topups:
+    get:
+      tags: [Saldo]
+      operationId: listTopups
+      summary: Permintaan isi saldo saya
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/WalletTopupStatus'
+      responses:
+        '200':
+          description: Satu halaman permintaan isi saldo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/WalletTopup' }
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+    post:
+      tags: [Saldo]
+      operationId: requestTopup
+      summary: Lapor sudah transfer untuk isi saldo
+      description: |
+        **Panggilan ini TIDAK menambah saldo.** Ia hanya menaruh permintaan di
+        antrean pengelola, persis seperti `POST /tasks/{task}/payment/hold`
+        pada pembayaran task. Yang menambah saldo hanya
+        `POST /admin/wallet/topups/{topup}/confirm`, dipanggil orang yang
+        melihat mutasi rekening.
+
+        Kalau panggilan ini menambah saldo, siapa pun bisa mengisi dompetnya
+        sendiri dengan satu permintaan HTTP — dan menariknya ke rekening.
+
+        `sender_note` bukan hiasan: itulah satu-satunya petunjuk yang dipakai
+        pengelola untuk menemukan transfernya di mutasi.
+
+        Batas nominalnya di `config/sekarya.php` → `wallet`. Jumlah permintaan
+        yang boleh menggantung sekaligus juga dibatasi — lihat
+        `too_many_pending_wallet_requests`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTopupRequest'
+            example:
+              amount: 250000
+              sender_note: BCA 1234 a.n. Budi Prasetyo
+      responses:
+        '201':
+          description: Permintaan dibuat. Saldo **belum** bertambah.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WalletTopup'
+              example:
+                data:
+                  id: 01M2WALLETTOPUP00000000001
+                  amount: 250000
+                  status: awaiting_confirmation
+                  awaits_confirmation: true
+                  sender_note: BCA 1234 a.n. Budi Prasetyo
+                  rejection_reason: null
+                  confirmed_at: null
+                  rejected_at: null
+                  cancelled_at: null
+                  created_at: '2026-09-16T09:12:00+00:00'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          description: |
+            Nominal di luar batas (`{message, errors}`), atau terlalu banyak
+            permintaan yang masih menggantung (`{message, code}`).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationError'
+                  - $ref: '#/components/schemas/DomainError'
+              examples:
+                pending:
+                  summary: Antreannya sudah penuh
+                  value:
+                    message: Masih ada 3 permintaan isi saldo yang menunggu konfirmasi (maksimum 3).
+                    code: too_many_pending_wallet_requests
+                    context: { subject: topup, pending: 3, max: 3 }
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /me/wallet/topups/{topup}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/WalletTopupUlid'
+    post:
+      tags: [Saldo]
+      operationId: cancelTopup
+      summary: Batalkan permintaan isi saldo
+      description: |
+        Tidak menyentuh saldo — permintaan yang belum dikonfirmasi memang belum
+        pernah menambah apa pun. Yang dibebaskan adalah kuota permintaan
+        menunggu.
+
+        Bandingkan dengan `POST /me/wallet/withdrawals/{withdrawal}/cancel`,
+        yang **mengembalikan** dana: penarikan sudah memotong saldo sejak
+        diminta.
+      responses:
+        '200':
+          description: Permintaan dibatalkan.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WalletTopup'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Permintaannya sudah diputuskan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Permintaan isi saldo ini sudah berstatus "confirmed" dan tidak bisa diubah lagi.
+                code: wallet_request_not_pending
+                context: { subject: isi saldo, status: confirmed }
+
+  /me/wallet/withdrawals:
+    get:
+      tags: [Saldo]
+      operationId: listWithdrawals
+      summary: Permintaan penarikan saya
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/WalletWithdrawalStatus'
+      responses:
+        '200':
+          description: Satu halaman permintaan penarikan.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/WalletWithdrawal' }
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+    post:
+      tags: [Saldo]
+      operationId: requestWithdrawal
+      summary: Tarik saldo ke rekening
+      description: |
+        **SALDONYA LANGSUNG BERKURANG di sini**, bukan saat pengelola
+        mencairkan. Kalau pemotongan menunggu pencairan, saldo yang sama bisa
+        diminta berkali-kali selama antrean pengelola belum tersentuh — dan
+        ketiga permintaannya terlihat sah saat dibuka satu per satu.
+
+        Konsekuensinya: penolakan dan pembatalan **mengembalikan** dana itu
+        sebagai baris `withdrawal_reversal`.
+
+        **Rekening tujuan tidak dikirim klien.** Ia diambil dari verifikasi
+        rekening yang sudah disetujui pengelola. Tanpa satu pun,
+        `bank_account_not_verified`. Verifikasi *identitas* tidak membuka
+        endpoint ini — keduanya jenis pengajuan yang berbeda.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWithdrawalRequest'
+            example:
+              amount: 200000
+      responses:
+        '201':
+          description: Penarikan diminta; saldo sudah ditahan.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WalletWithdrawal'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          description: |
+            Nominal di luar batas, rekening belum terverifikasi, saldo tidak
+            cukup, atau terlalu banyak permintaan menggantung.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ValidationError'
+                  - $ref: '#/components/schemas/DomainError'
+              examples:
+                noAccount:
+                  summary: Belum ada rekening terverifikasi
+                  value:
+                    message: Rekening bank belum terverifikasi. Ajukan lewat POST /me/verifications dan tunggu persetujuan pengelola sebelum menarik saldo.
+                    code: bank_account_not_verified
+                insufficient:
+                  summary: Saldo kurang
+                  value:
+                    message: Saldo tidak cukup. Tersedia Rp60.000, diminta Rp100.000.
+                    code: insufficient_balance
+                    context: { balance: 60000, requested: 100000, shortfall: 40000 }
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+  /me/wallet/withdrawals/{withdrawal}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/WalletWithdrawalUlid'
+    post:
+      tags: [Saldo]
+      operationId: cancelWithdrawal
+      summary: Batalkan permintaan penarikan
+      description: |
+        **Mengembalikan dana yang tadi ditahan** sebagai baris
+        `withdrawal_reversal`. Ini bukan kebalikan dari pembatalan isi saldo:
+        di sana tidak ada yang perlu dikembalikan, di sini ada.
+      responses:
+        '200':
+          description: Dibatalkan; saldo kembali.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WalletWithdrawal'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Sudah dicairkan atau sudah final.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Permintaan penarikan saldo ini sudah berstatus "completed" dan tidak bisa diubah lagi.
+                code: wallet_request_not_pending
+                context: { subject: withdrawal, status: completed }
+
   /uploads:
     post:
       tags: [Task]
@@ -2295,6 +2649,281 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationFailed'
 
+  # ───────────────────── PENGELOLA: antrean saldo ──────────────────────
+  /admin/wallet/topups:
+    get:
+      tags: [Pengelola]
+      operationId: listTopupQueue
+      summary: Antrean isi saldo
+      security:
+        - adminAccessToken: []
+      description: |
+        Bawaannya `awaiting_confirmation` — satu-satunya status yang menunggu
+        tindakan manusia. Paling lama menunggu di depan.
+
+        `sender_note` ikut karena itulah satu-satunya petunjuk untuk menemukan
+        transfernya di mutasi rekening.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/WalletTopupStatus'
+      responses:
+        '200':
+          description: Satu halaman antrean.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminWalletTopup' }
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /admin/wallet/topups/{topup}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/WalletTopupUlid'
+    post:
+      tags: [Pengelola]
+      operationId: confirmTopup
+      summary: Konfirmasi isi saldo — SALDO BERTAMBAH DI SINI
+      security:
+        - adminAccessToken: []
+      description: |
+        **Satu-satunya jalan saldo bisa bertambah dari isi ulang**, sederajat
+        dengan `POST /admin/payments/{payment}/confirm` sebagai satu-satunya
+        jalan menuju `held`. Jalan ini sengaja tidak dimiliki penggunanya
+        sendiri: pernyataan "saya sudah transfer" dan fakta "dananya ada"
+        adalah dua hal berbeda.
+
+        Menekan dua kali tidak menggandakan uang. Yang menjaganya dua lapis:
+        kunci baris di dalam transaksi, dan indeks unique
+        `(reference_type, reference_id, type)` di `wallet_entries` sebagai
+        pengaman terakhir.
+
+        Tindakannya tercatat di `admin_audit_logs` sebagai
+        `wallet_topup.confirmed`.
+      responses:
+        '200':
+          description: Dikonfirmasi; saldo penggunanya sudah bertambah.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminWalletTopup'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Permintaannya sudah diputuskan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Permintaan isi saldo ini sudah berstatus "confirmed" dan tidak bisa diubah lagi.
+                code: wallet_request_not_pending
+                context: { subject: isi saldo, status: confirmed }
+
+  /admin/wallet/topups/{topup}/reject:
+    parameters:
+      - $ref: '#/components/parameters/WalletTopupUlid'
+    post:
+      tags: [Pengelola]
+      operationId: rejectTopup
+      summary: Tolak isi saldo
+      security:
+        - adminAccessToken: []
+      description: |
+        `reason` **wajib** dan dibaca penggunanya sendiri di
+        `GET /me/wallet/topups`.
+
+        Penolakannya **final**, berbeda dari penolakan pembayaran task yang
+        mengembalikan tagihan ke `pending`. Di sana barisnya melekat pada satu
+        task dan tidak boleh berlipat; di sini pengajuan ulang cukup membuat
+        baris baru, dan riwayat penolakan tetap utuh sebagai sinyal.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonRequest'
+            example:
+              reason: Tidak ada mutasi masuk dengan nominal itu.
+      responses:
+        '200':
+          description: Ditolak. Saldo tidak berubah.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminWalletTopup'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /admin/wallet/withdrawals:
+    get:
+      tags: [Pengelola]
+      operationId: listWithdrawalQueue
+      summary: Antrean pencairan saldo
+      security:
+        - adminAccessToken: []
+      description: |
+        Bawaannya `requested`. Paling lama menunggu di depan.
+
+        **Nomor rekening tidak keluar di sini.** Ia terbaca satu layar lebih
+        jauh, di `GET /admin/verifications/{verification}`, dan pembacaan di
+        sana dicatat sebagai `verification.viewed`. Daftar ini secara harfiah
+        tidak punya kode untuk mengeluarkannya — pola yang sama dengan antrean
+        verifikasi dan NIK. Pakai `destination.verification_id` untuk membuka
+        detailnya.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/WalletWithdrawalStatus'
+      responses:
+        '200':
+          description: Satu halaman antrean.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminWalletWithdrawal' }
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /admin/wallet/withdrawals/{withdrawal}/complete:
+    parameters:
+      - $ref: '#/components/parameters/WalletWithdrawalUlid'
+    post:
+      tags: [Pengelola]
+      operationId: completeWithdrawal
+      summary: Tandai pencairan sudah ditransfer
+      security:
+        - adminAccessToken: []
+      description: |
+        **TIDAK memotong saldo lagi.** Saldonya sudah berkurang sejak penarikan
+        diminta; memotongnya di sini berarti penggunanya membayar dua kali
+        untuk satu pencairan. Yang terjadi hanya penandaan status.
+
+        `transfer_reference` opsional tapi sangat dianjurkan: ia satu-satunya
+        tali antara baris di aplikasi ini dan baris di mutasi bank, dan
+        sengketa "uangnya belum sampai" tidak punya apa pun untuk dicocokkan
+        tanpanya.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteWithdrawalRequest'
+            example:
+              transfer_reference: TRX-99887766
+      responses:
+        '200':
+          description: Ditandai selesai.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminWalletWithdrawal'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: Sudah final — dicairkan, ditolak, atau dibatalkan penggunanya.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Permintaan penarikan saldo ini sudah berstatus "cancelled" dan tidak bisa diubah lagi.
+                code: wallet_request_not_pending
+                context: { subject: withdrawal, status: cancelled }
+
+  /admin/wallet/withdrawals/{withdrawal}/reject:
+    parameters:
+      - $ref: '#/components/parameters/WalletWithdrawalUlid'
+    post:
+      tags: [Pengelola]
+      operationId: rejectWithdrawal
+      summary: Tolak pencairan — dana yang ditahan dikembalikan
+      security:
+        - adminAccessToken: []
+      description: |
+        **Mengembalikan dana yang tadi ditahan** sebagai baris
+        `withdrawal_reversal`. Pengembalian itu bukan tambahan yang enak
+        dimiliki: ia syarat agar pemotongan di muka boleh ada sama sekali.
+        Tanpanya, penolakan menghapus uang orang tanpa uang itu pernah keluar
+        ke rekening mana pun.
+
+        `reason` wajib, dan penggunanya yang membacanya.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonRequest'
+            example:
+              reason: Nama pemilik rekening tidak cocok dengan KTP.
+      responses:
+        '200':
+          description: Ditolak; saldo penggunanya kembali.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AdminWalletWithdrawal'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
   /admin/users:
     get:
       tags: [Pengelola]
@@ -2891,6 +3520,18 @@ components:
       required: true
       description: ULID akun pengelola.
       schema: { type: string, minLength: 26, maxLength: 26 }
+    WalletTopupUlid:
+      name: topup
+      in: path
+      required: true
+      description: ULID permintaan isi saldo.
+      schema: { type: string, example: 01M2WALLETTOPUP00000000001 }
+    WalletWithdrawalUlid:
+      name: withdrawal
+      in: path
+      required: true
+      description: ULID permintaan penarikan.
+      schema: { type: string, example: 01M2WALLETWD00000000000001 }
     VerificationId:
       name: verification
       in: path
@@ -4096,6 +4737,217 @@ components:
         per_page: { type: integer }
         next_cursor: { type: [string, 'null'], description: Kirim balik sebagai `?cursor=`. Null di halaman terakhir. }
         prev_cursor: { type: [string, 'null'] }
+    WalletEntryDirection:
+      type: string
+      title: WalletEntryDirection
+      enum: [credit, debit]
+      description: |
+        Arah mutasi. Kolom sendiri, bukan tanda pada `amount`: uang di seluruh
+        API ini bilangan bulat **tak bertanda**, dan satu kolom yang memakai
+        konvensi berbeda adalah penjumlahan yang salah tanpa galat.
+    WalletEntryType:
+      type: string
+      title: WalletEntryType
+      enum:
+        - topup
+        - refund
+        - earning
+        - withdrawal
+        - withdrawal_reversal
+        - adjustment_credit
+        - adjustment_debit
+      description: |
+        Sebab mutasinya. Arahnya diturunkan dari jenis ini, tidak pernah
+        dikirim terpisah.
+
+        | Jenis | Arah | Lahir dari |
+        |---|---|---|
+        | `topup` | credit | `POST /admin/wallet/topups/{topup}/confirm` |
+        | `refund` | credit | Task dibatalkan sesudah dana ditahan |
+        | `earning` | credit | Seluruh hasil disetujui, dana dilepas |
+        | `withdrawal` | debit | `POST /me/wallet/withdrawals` |
+        | `withdrawal_reversal` | credit | Penarikan ditolak atau dibatalkan |
+        | `adjustment_credit` / `adjustment_debit` | keduanya | Koreksi manual; tidak punya endpoint |
+    WalletTopupStatus:
+      type: string
+      title: WalletTopupStatus
+      enum: [awaiting_confirmation, confirmed, rejected, cancelled]
+      description: |
+        Tidak ada `pending`: baris ini lahir dari permintaan penggunanya, dan
+        permintaan itu **adalah** laporannya. Berbeda dari `payments`, yang
+        barisnya sudah ada sejak pelamar pertama diterima.
+
+        Ketiga status selain `awaiting_confirmation` bersifat final.
+    WalletWithdrawalStatus:
+      type: string
+      title: WalletWithdrawalStatus
+      enum: [requested, completed, rejected, cancelled]
+      description: |
+        `requested` sudah berarti **saldonya berkurang**. `rejected` dan
+        `cancelled` mengembalikannya; `completed` tidak menyentuh saldo sama
+        sekali.
+    Wallet:
+      type: object
+      title: Wallet
+      required: [id, balance]
+      description: |
+        Saldo satu orang. `id` `null` berarti barisnya memang belum pernah
+        dibuat — membaca saldo tidak membuat baris.
+      properties:
+        id:
+          type: [string, 'null']
+          example: 01M2WALLET000000000000001
+        balance:
+          type: integer
+          minimum: 0
+          description: Satuan terkecil (rupiah), bilangan bulat.
+          example: 250000
+        created_at: { type: [string, 'null'], format: date-time }
+    WalletEntry:
+      type: object
+      title: WalletEntry
+      required: [id, type, direction, amount, balance_after]
+      description: |
+        Satu baris buku besar. **Append-only** — tidak ada `updated_at`, dan
+        tidak ada endpoint yang menyuntingnya.
+      properties:
+        id: { type: string, example: 01M2WALLETENTRY0000000001 }
+        type: { $ref: '#/components/schemas/WalletEntryType' }
+        direction: { $ref: '#/components/schemas/WalletEntryDirection' }
+        amount: { type: integer, minimum: 1, example: 250000 }
+        balance_after:
+          type: integer
+          minimum: 0
+          description: |
+            Saldo **sesudah** baris ini. Yang membuat riwayat terbaca seperti
+            rekening koran, bukan daftar angka lepas.
+          example: 250000
+        reference_type:
+          type: [string, 'null']
+          description: |
+            Slug tabel kejadian penyebabnya. Id-nya sengaja tidak ikut: id
+            berurutan membocorkan volume bisnis.
+          enum: [wallet_topups, wallet_withdrawals, payments, activities, null]
+          example: wallet_topups
+        description: { type: [string, 'null'], example: Isi saldo dikonfirmasi pengelola }
+        created_at: { type: string, format: date-time }
+    WalletTopup:
+      type: object
+      title: WalletTopup
+      required: [id, amount, status, awaits_confirmation]
+      properties:
+        id: { type: string, example: 01M2WALLETTOPUP00000000001 }
+        amount: { type: integer, example: 250000 }
+        status: { $ref: '#/components/schemas/WalletTopupStatus' }
+        awaits_confirmation:
+          type: boolean
+          description: Bolanya sudah di tangan pengelola.
+        sender_note:
+          type: [string, 'null']
+          description: Petunjuk untuk menemukan transfernya di mutasi rekening.
+          example: BCA 1234 a.n. Budi Prasetyo
+        rejection_reason: { type: [string, 'null'] }
+        confirmed_at: { type: [string, 'null'], format: date-time }
+        rejected_at: { type: [string, 'null'], format: date-time }
+        cancelled_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+    WalletWithdrawalDestination:
+      type: object
+      title: WalletWithdrawalDestination
+      description: |
+        Rekening tujuan, sebatas yang boleh dibaca di daftar. **Nomor
+        rekeningnya tidak ada di sini dan tidak ada di tabelnya** — ia
+        terenkripsi di baris verifikasi.
+      properties:
+        bank_code: { type: string, example: BCA }
+        account_holder_name: { type: string, example: Budi Prasetyo }
+    WalletWithdrawal:
+      type: object
+      title: WalletWithdrawal
+      required: [id, amount, status, awaits_processing]
+      properties:
+        id: { type: string, example: 01M2WALLETWD00000000000001 }
+        amount: { type: integer, example: 200000 }
+        status: { $ref: '#/components/schemas/WalletWithdrawalStatus' }
+        awaits_processing: { type: boolean }
+        destination: { $ref: '#/components/schemas/WalletWithdrawalDestination' }
+        rejection_reason: { type: [string, 'null'] }
+        transfer_reference:
+          type: [string, 'null']
+          description: Nomor mutasi bank, diisi pengelola saat mencairkan.
+          example: TRX-99887766
+        completed_at: { type: [string, 'null'], format: date-time }
+        rejected_at: { type: [string, 'null'], format: date-time }
+        cancelled_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+    AdminWalletTopup:
+      allOf:
+        - $ref: '#/components/schemas/WalletTopup'
+        - type: object
+          title: AdminWalletTopup
+          properties:
+            user: { $ref: '#/components/schemas/AdminUser' }
+            reviewed_at: { type: [string, 'null'], format: date-time }
+    AdminWalletWithdrawal:
+      allOf:
+        - $ref: '#/components/schemas/WalletWithdrawal'
+        - type: object
+          title: AdminWalletWithdrawal
+          properties:
+            user: { $ref: '#/components/schemas/AdminUser' }
+            processed_at: { type: [string, 'null'], format: date-time }
+            destination:
+              type: object
+              description: |
+                Sama seperti sisi pengguna, ditambah `verification_id` untuk
+                membuka detail rekeningnya. Nomor rekeningnya tetap tidak di
+                sini — bacanya di `GET /admin/verifications/{verification}`,
+                dan pembacaan itu dicatat.
+              properties:
+                verification_id: { type: integer, example: 42 }
+                bank_code: { type: string, example: BCA }
+                account_holder_name: { type: string, example: Budi Prasetyo }
+    CreateTopupRequest:
+      type: object
+      title: CreateTopupRequest
+      required: [amount]
+      description: |
+        `status` **tidak** diterima. Kalau ia bisa dikirim, endpoint ini adalah
+        jalan mengisi saldo tanpa transfer.
+      properties:
+        amount:
+          type: integer
+          description: |
+            Bilangan bulat, satuan terkecil. Batasnya di `config/sekarya.php`
+            → `wallet.min_topup` / `wallet.max_topup` (bawaan 10.000 –
+            10.000.000).
+          example: 250000
+        sender_note: { type: [string, 'null'], maxLength: 200 }
+    CreateWithdrawalRequest:
+      type: object
+      title: CreateWithdrawalRequest
+      required: [amount]
+      description: |
+        Hanya nominal. **Rekening tujuan tidak diterima dari klien** — kalau
+        bisa dikirim per permintaan, persetujuan rekening berhenti berarti apa
+        pun.
+      properties:
+        amount:
+          type: integer
+          description: |
+            Batasnya `wallet.min_withdrawal` / `wallet.max_withdrawal` (bawaan
+            50.000 – 10.000.000). Saldo yang dimiliki **bukan** batas validasi:
+            itu keadaan sistem, dan kekurangannya keluar sebagai
+            `insufficient_balance`.
+          example: 200000
+    CompleteWithdrawalRequest:
+      type: object
+      title: CompleteWithdrawalRequest
+      properties:
+        transfer_reference:
+          type: [string, 'null']
+          maxLength: 100
+          example: TRX-99887766
     ValidationError:
       type: object
       title: ValidationError
@@ -4146,6 +4998,10 @@ components:
             - admin_access_denied
             - super_admin_protected
             - profile_incomplete
+            - insufficient_balance
+            - bank_account_not_verified
+            - wallet_request_not_pending
+            - too_many_pending_wallet_requests
         context:
           type: object
           additionalProperties: true

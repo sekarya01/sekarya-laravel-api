@@ -31,6 +31,12 @@ use App\Http\Controllers\Api\V1\Admin\Verification\ListVerificationQueueControll
 use App\Http\Controllers\Api\V1\Admin\Verification\RejectVerificationController;
 use App\Http\Controllers\Api\V1\Admin\Verification\RevokeVerificationController;
 use App\Http\Controllers\Api\V1\Admin\Verification\ShowVerificationController;
+use App\Http\Controllers\Api\V1\Admin\Wallet\CompleteWithdrawalController;
+use App\Http\Controllers\Api\V1\Admin\Wallet\ConfirmTopupController;
+use App\Http\Controllers\Api\V1\Admin\Wallet\ListTopupQueueController;
+use App\Http\Controllers\Api\V1\Admin\Wallet\ListWithdrawalQueueController;
+use App\Http\Controllers\Api\V1\Admin\Wallet\RejectTopupController;
+use App\Http\Controllers\Api\V1\Admin\Wallet\RejectWithdrawalController;
 use App\Http\Controllers\Api\V1\Auth\CheckAvailabilityController;
 use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
@@ -66,6 +72,14 @@ use App\Http\Controllers\Api\V1\User\ShowWorkerProfileController;
 use App\Http\Controllers\Api\V1\User\SubmitVerificationController;
 use App\Http\Controllers\Api\V1\User\UpdateProfileController;
 use App\Http\Controllers\Api\V1\User\UpsertWorkerProfileController;
+use App\Http\Controllers\Api\V1\Wallet\CancelTopupController;
+use App\Http\Controllers\Api\V1\Wallet\CancelWithdrawalController;
+use App\Http\Controllers\Api\V1\Wallet\CreateTopupController;
+use App\Http\Controllers\Api\V1\Wallet\CreateWithdrawalController;
+use App\Http\Controllers\Api\V1\Wallet\ListTopupsController;
+use App\Http\Controllers\Api\V1\Wallet\ListWalletEntriesController;
+use App\Http\Controllers\Api\V1\Wallet\ListWithdrawalsController;
+use App\Http\Controllers\Api\V1\Wallet\ShowWalletController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -147,6 +161,35 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
 
         Route::get('me/verifications', ListVerificationsController::class)->name('me.verifications.index');
         Route::post('me/verifications', SubmitVerificationController::class)->name('me.verifications.store');
+
+        // ── Saldo ──────────────────────────────────────────────────────────
+        //
+        // Uangnya masuk dari tiga arah — isi ulang, pengembalian dana task
+        // yang batal, dan upah pekerja saat dana dilepas — dan keluar lewat
+        // satu pintu: penarikan ke rekening yang sudah diverifikasi.
+        //
+        // Dua hal yang tidak boleh dibaca terbalik:
+        //
+        //  1. `POST me/wallet/topups` TIDAK menambah saldo. Ia melapor sudah
+        //     transfer, persis seperti `tasks/{task}/payment/hold`. Yang
+        //     menambah saldo hanya POST /admin/wallet/topups/{topup}/confirm.
+        //  2. `POST me/wallet/withdrawals` LANGSUNG mengurangi saldo. Kalau
+        //     pemotongan menunggu pencairan, saldo yang sama bisa diminta
+        //     berkali-kali selama antrean pengelola belum tersentuh.
+        Route::get('me/wallet', ShowWalletController::class)->name('me.wallet.show');
+        Route::get('me/wallet/entries', ListWalletEntriesController::class)->name('me.wallet.entries.index');
+
+        Route::get('me/wallet/topups', ListTopupsController::class)->name('me.wallet.topups.index');
+        Route::post('me/wallet/topups', CreateTopupController::class)
+            ->middleware('throttle:write')->name('me.wallet.topups.store');
+        Route::post('me/wallet/topups/{topup}/cancel', CancelTopupController::class)
+            ->can('cancel', 'topup')->name('me.wallet.topups.cancel');
+
+        Route::get('me/wallet/withdrawals', ListWithdrawalsController::class)->name('me.wallet.withdrawals.index');
+        Route::post('me/wallet/withdrawals', CreateWithdrawalController::class)
+            ->middleware('throttle:write')->name('me.wallet.withdrawals.store');
+        Route::post('me/wallet/withdrawals/{withdrawal}/cancel', CancelWithdrawalController::class)
+            ->can('cancel', 'withdrawal')->name('me.wallet.withdrawals.cancel');
 
         // Pekerja yang siap menerima pekerjaan — sisi sebaliknya dari feed
         // task. Cursor pagination, berangkat dari `user_workers` supaya
@@ -298,6 +341,31 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
                 ->name('payments.confirm');
             Route::post('payments/{payment}/reject', RejectPaymentController::class)
                 ->name('payments.reject');
+
+            // ── Saldo: isi ulang & pencairan ──────────────────────────────
+            //
+            // Dua antrean manual, dan keduanya menyentuh uang sungguhan.
+            // `topups/{topup}/confirm` adalah SATU-SATUNYA jalan saldo bisa
+            // bertambah dari isi ulang — sama seperti `payments/{payment}/
+            // confirm` adalah satu-satunya jalan menuju `held`.
+            //
+            // Nomor rekening tujuan pencairan TIDAK keluar di antrean ini.
+            // Ia terbaca di GET /admin/verifications/{verification}, dan
+            // pembacaan di sana dicatat sebagai `verification.viewed`.
+            Route::get('wallet/topups', ListTopupQueueController::class)->name('wallet.topups.index');
+            Route::post('wallet/topups/{topup}/confirm', ConfirmTopupController::class)
+                ->name('wallet.topups.confirm');
+            Route::post('wallet/topups/{topup}/reject', RejectTopupController::class)
+                ->name('wallet.topups.reject');
+
+            Route::get('wallet/withdrawals', ListWithdrawalQueueController::class)->name('wallet.withdrawals.index');
+            // Menandai transfer sudah dikirim. TIDAK memotong saldo lagi —
+            // saldonya sudah ditahan sejak penarikan diminta.
+            Route::post('wallet/withdrawals/{withdrawal}/complete', CompleteWithdrawalController::class)
+                ->name('wallet.withdrawals.complete');
+            // Menolak MENGEMBALIKAN tahanan itu.
+            Route::post('wallet/withdrawals/{withdrawal}/reject', RejectWithdrawalController::class)
+                ->name('wallet.withdrawals.reject');
 
             // ── Moderasi pengguna ─────────────────────────────────────────
             Route::get('users', ListUsersController::class)->name('users.index');

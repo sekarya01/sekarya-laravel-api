@@ -154,6 +154,12 @@ final class AxiomCommand extends Command
             'title' => 'Perbaiki AC bocor di Bintaro',
             'category_id' => '01JBQ7XK2M3N4P5Q6R7S8T9V0W',
             'price' => 250000,
+
+            // Saldo. `sender_note` ADALAH teks bebas yang hampir selalu memuat
+            // nama pengirim ("BCA 1234 a.n. Budi Prasetyo") — ia tertangkap
+            // oleh `note` di summarize_keys, dan baris ini yang membuktikannya
+            // tetap begitu setiap kali daftar itu disunting.
+            'sender_note' => 'BCA 1234 a.n. Budi Prasetyo',
             'nested' => [
                 'gateway_payload' => ['va' => '8808123456789012'],
                 'callback_url' => 'https://mitra.test/cb?token=abc123secret&id=7',
