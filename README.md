@@ -134,6 +134,9 @@ SEKARYA_LONG_LIVED_TTL_DAYS=30      # umur token refresh
 SEKARYA_VERIFICATION_TTL_MINUTES=15
 SEKARYA_RL_LOGIN=5                  # batas laju login per menit
 SEKARYA_VALIDATE_EMAIL_DNS=false    # nyalakan di produksi
+SEKARYA_WALLET_MIN_TOPUP=10000      # batas nominal saldo, rupiah bulat
+SEKARYA_WALLET_MIN_WITHDRAWAL=50000
+SEKARYA_WALLET_MAX_PENDING=3        # permintaan saldo menggantung per orang
 ```
 
 `SEKARYA_VALIDATE_EMAIL_DNS` dimatikan di lokal supaya domain uji seperti `.test` bisa
@@ -328,6 +331,16 @@ status, bukan disiplin kode.
 peran: tabel sendiri (`admins`), guard sendiri, ability token sendiri. Token pengguna di
 `/admin` menghasilkan `401`, dan sebaliknya. Ada **tepat satu** `super_admin` — dijamin
 indeks unique di basis data — dan ia tidak bisa dihapus maupun dinonaktifkan.
+
+**Saldo adalah agregat yang di-cache dari buku besar, bukan kolom yang berdiri sendiri.**
+`wallets.balance` menjawab *berapa*; `wallet_entries` yang menjawab *kenapa* — append-only,
+satu baris per kejadian, masing-masing membawa saldo sesudahnya. Hanya
+`App\Support\WalletLedger` yang boleh mengubah saldo, dan ia selalu mengunci baris
+dompetnya lebih dulu. Dua arah yang tidak boleh dibaca terbalik: **melapor isi saldo tidak
+menambah apa pun** sampai pengelola mengonfirmasi (kalau tidak, siapa pun bisa mengisi
+dompetnya sendiri lewat satu permintaan HTTP), dan **meminta penarikan langsung memotong
+saldo** (kalau menunggu pencairan, saldo yang sama bisa diminta berkali-kali). Karena itu
+penolakan dan pembatalan penarikan **wajib** mengembalikan dana yang ditahan.
 
 **Profil pekerja ada di tabelnya sendiri, dan kolomnya PELENGKAP — bukan salinan.**
 `users` menyimpan orangnya (termasuk `gender` dan `birth_date`); `user_workers` menyimpan

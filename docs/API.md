@@ -5,8 +5,8 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 | | |
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
-| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 58 operation cocok dengan 58 rute nyata |
-| **Uji otomatis** | `bash docs/smoke.sh` — 165 pemeriksaan |
+| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 77 operation cocok dengan 77 rute nyata |
+| **Uji otomatis** | `bash docs/smoke.sh` — 194 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
 
@@ -21,10 +21,10 @@ bash docs/smoke.sh
 ```
 
 Menjalankan server sendiri, mereset database, mendaftar akun lewat alur auth yang
-sebenarnya, menjalankan 165 pemeriksaan, lalu membereskan diri. Keluaran akhir:
+sebenarnya, menjalankan 194 pemeriksaan, lalu membereskan diri. Keluaran akhir:
 
 ```
-SEMUA LULUS  135/165 pemeriksaan
+SEMUA LULUS  194/194 pemeriksaan
 ```
 
 Kalau mau memakai server yang sudah jalan: `bash docs/smoke.sh 8000`.
@@ -41,7 +41,7 @@ Sisa dokumen ini untuk mencoba manual.
 # sekali saja
 mysql -u root -e "CREATE DATABASE IF NOT EXISTS sekarya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
-php artisan migrate:fresh --seed     # 26 tabel + 9 kategori + 42 keahlian
+php artisan migrate:fresh --seed     # 30 tabel + 9 kategori + 42 keahlian
 php artisan serve                    # http://127.0.0.1:8000
 
 export BASE=http://127.0.0.1:8000/api/v1
@@ -1834,7 +1834,7 @@ jadi sumber kebenaran.
 php artisan route:list --path=api    # rute + middleware
 php artisan about --only=environment
 tail -f storage/logs/laravel.log     # termasuk kode verifikasi saat MAIL_MAILER=log
-bash docs/smoke.sh                   # 165 pemeriksaan
+bash docs/smoke.sh                   # 194 pemeriksaan
 ```
 
 Audit lapisan pengamanan — daftar yang keluar harus kosong atau bisa dijelaskan:
