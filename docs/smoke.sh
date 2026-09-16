@@ -888,6 +888,121 @@ check "yang dihapus tidak muncul lagi di daftar" 200 \
     "[a['email'] for a in d['data'] if a['email'] == 'verif3@sekarya.test']" '[]' \
     "${ADMIN[@]}" "$BASE/admin/admins"
 
+# ── 9c. saldo ────────────────────────────────────────────────────────────────
+#
+# Yang dibuktikan di sini bukan "endpointnya menjawab 200", melainkan ke mana
+# uangnya bergerak — dan kapan ia TIDAK bergerak. Tiga pernyataan yang paling
+# mahal kalau salah:
+#
+#   1. melapor isi saldo tidak menambah apa pun sampai pengelola mengonfirmasi,
+#   2. meminta penarikan LANGSUNG memotong saldo, dan
+#   3. penolakan penarikan mengembalikan potongan itu.
+echo
+echo "${Y}==>${N} Saldo: upah masuk, isi ulang, penarikan"
+
+# Siti memenangkan lelang di 210.000 dan hasilnya sudah disetujui di bagian 7,
+# jadi upahnya seharusnya sudah ada di dompetnya — tanpa ia meminta apa pun.
+check "upah pekerja masuk saldo saat dana dilepas" 200 "d['data']['balance']" '210000' \
+    "${W[@]}" "$BASE/me/wallet"
+check "riwayatnya menyebut sebabnya, bukan cuma angkanya" 200 \
+    "[d['data'][0]['type'], d['data'][0]['direction'], d['data'][0]['balance_after']]" \
+    '["earning", "credit", 210000]' \
+    "${W[@]}" "$BASE/me/wallet/entries"
+check "id internal kejadian TIDAK ikut keluar" 200 "'reference_id' in d['data'][0]" 'false' \
+    "${W[@]}" "$BASE/me/wallet/entries"
+check "saldo ikut di profil sendiri" 200 "d['data']['wallet']['balance']" '210000' \
+    "${W[@]}" "$BASE/me"
+
+# Pemberi kerja belum pernah menyentuh saldo: dompetnya belum ada, dan
+# membacanya tidak boleh membuatnya.
+check "membaca saldo tidak membuat baris dompet" 200 \
+    "[d['data']['id'], d['data']['balance']]" '[null, 0]' \
+    "${AUTH[@]}" "$BASE/me/wallet"
+
+check "nominal isi saldo di bawah minimum ditolak validasi" 422 "'amount' in d['errors']" 'true' \
+    -X POST "$BASE/me/wallet/topups" "${AUTH[@]}" -H "$CT" -d '{"amount":1000}'
+
+TOPUP="$(json "$(curl -s -X POST "$BASE/me/wallet/topups" "${AUTH[@]}" -H "$CT" \
+    -d '{"amount":300000,"sender_note":"BCA 1234 a.n. Budi Prasetyo","status":"confirmed"}')" \
+    "d['data']['id']")"
+check "melapor isi saldo TIDAK menambah saldo" 200 "d['data']['balance']" '0' \
+    "${AUTH[@]}" "$BASE/me/wallet"
+check "status tidak bisa diselundupkan lewat payload" 200 \
+    "d['data'][0]['status']" '"awaiting_confirmation"' \
+    "${AUTH[@]}" "$BASE/me/wallet/topups"
+check "permintaannya muncul di antrean pengelola" 200 \
+    "[t['sender_note'] for t in d['data'] if t['id'] == '$TOPUP']" \
+    '["BCA 1234 a.n. Budi Prasetyo"]' \
+    "${ADMIN[@]}" "$BASE/admin/wallet/topups"
+check "pengguna tidak bisa mengonfirmasi isi saldonya sendiri" 401 "d['code']" '"unauthenticated"' \
+    -X POST "$BASE/admin/wallet/topups/$TOPUP/confirm" "${AUTH[@]}"
+check "pengelola mengonfirmasi — DI SINI saldo bertambah" 200 "d['data']['status']" '"confirmed"' \
+    -X POST "$BASE/admin/wallet/topups/$TOPUP/confirm" "${ADMIN[@]}"
+check "saldonya naik sejumlah yang dikonfirmasi" 200 "d['data']['balance']" '300000' \
+    "${AUTH[@]}" "$BASE/me/wallet"
+check "mengonfirmasi dua kali tidak menggandakan uang" 422 "d['code']" '"wallet_request_not_pending"' \
+    -X POST "$BASE/admin/wallet/topups/$TOPUP/confirm" "${ADMIN[@]}"
+check "dan saldonya tetap" 200 "d['data']['balance']" '300000' \
+    "${AUTH[@]}" "$BASE/me/wallet"
+
+# Penarikan: rekening dulu, dan identitas terverifikasi TIDAK menggantikannya.
+check "menarik tanpa rekening terverifikasi ditolak" 422 "d['code']" '"bank_account_not_verified"' \
+    -X POST "$BASE/me/wallet/withdrawals" "${W[@]}" -H "$CT" -d '{"amount":100000}'
+
+curl -s -X POST "$BASE/me/verifications" "${W[@]}" -H "$CT" -d '{
+  "type":"bank_account",
+  "bank_code":"BCA",
+  "account_number":"1234567890",
+  "account_holder_name":"Siti Penerima"
+}' -o /dev/null
+
+BANK_VER="$(json "$(curl -s "$BASE/admin/verifications?type=bank_account" "${ADMIN[@]}")" \
+    "d['data'][0]['id']")"
+check "pengelola menyetujui rekening" 200 "d['data']['status']" '"verified"' \
+    -X POST "$BASE/admin/verifications/$BANK_VER/approve" "${ADMIN[@]}"
+
+check "menarik lebih dari saldo ditolak, kekurangannya disebut" 422 \
+    "[d['code'], d['context']['shortfall']]" '["insufficient_balance", 90000]' \
+    -X POST "$BASE/me/wallet/withdrawals" "${W[@]}" -H "$CT" -d '{"amount":300000}'
+
+WD="$(json "$(curl -s -X POST "$BASE/me/wallet/withdrawals" "${W[@]}" -H "$CT" \
+    -d '{"amount":200000}')" "d['data']['id']")"
+check "meminta penarikan LANGSUNG memotong saldo" 200 "d['data']['balance']" '10000' \
+    "${W[@]}" "$BASE/me/wallet"
+check "saldo yang sama tidak bisa ditarik dua kali" 422 "d['code']" '"insufficient_balance"' \
+    -X POST "$BASE/me/wallet/withdrawals" "${W[@]}" -H "$CT" -d '{"amount":200000}'
+check "antrean pencairan TIDAK membawa nomor rekening" 200 \
+    "'1234567890' in json.dumps(d)" 'false' \
+    "${ADMIN[@]}" "$BASE/admin/wallet/withdrawals"
+check "tapi cukup untuk menyaring: bank & atas nama siapa" 200 \
+    "[w['destination']['bank_code'] for w in d['data'] if w['id'] == '$WD']" '["BCA"]' \
+    "${ADMIN[@]}" "$BASE/admin/wallet/withdrawals"
+check "menolak pencairan butuh alasan" 422 "'reason' in d['errors']" 'true' \
+    -X POST "$BASE/admin/wallet/withdrawals/$WD/reject" "${ADMIN[@]}" -H "$CT" -d '{}'
+check "pencairan ditolak" 200 "d['data']['status']" '"rejected"' \
+    -X POST "$BASE/admin/wallet/withdrawals/$WD/reject" "${ADMIN[@]}" -H "$CT" \
+    -d '{"reason":"Nama pemilik rekening tidak cocok dengan KTP."}'
+check "penolakan MENGEMBALIKAN dana yang tadi ditahan" 200 "d['data']['balance']" '210000' \
+    "${W[@]}" "$BASE/me/wallet"
+check "pengembaliannya baris baru, bukan baris lama yang dihapus" 200 \
+    "d['data'][0]['type']" '"withdrawal_reversal"' \
+    "${W[@]}" "$BASE/me/wallet/entries"
+
+# Dan yang dicairkan sungguhan tidak memotong lagi.
+WD2="$(json "$(curl -s -X POST "$BASE/me/wallet/withdrawals" "${W[@]}" -H "$CT" \
+    -d '{"amount":210000}')" "d['data']['id']")"
+check "pencairan ditandai selesai" 200 \
+    "[d['data']['status'], d['data']['transfer_reference']]" '["completed", "TRX-99887766"]' \
+    -X POST "$BASE/admin/wallet/withdrawals/$WD2/complete" "${ADMIN[@]}" -H "$CT" \
+    -d '{"transfer_reference":"TRX-99887766"}'
+check "menyelesaikan TIDAK memotong saldo lagi" 200 "d['data']['balance']" '0' \
+    "${W[@]}" "$BASE/me/wallet"
+check "yang sudah dicairkan tidak bisa ditolak" 422 "d['code']" '"wallet_request_not_pending"' \
+    -X POST "$BASE/admin/wallet/withdrawals/$WD2/reject" "${ADMIN[@]}" -H "$CT" \
+    -d '{"reason":"Berubah pikiran setelah transfer terkirim."}'
+check "milik orang lain tidak bisa dibatalkan" 403 - - \
+    -X POST "$BASE/me/wallet/withdrawals/$WD2/cancel" "${AUTH[@]}"
+
 # ── 10. feed & filter ────────────────────────────────────────────────────────
 echo
 echo "${Y}==>${N} Feed pencari kerja & filter"

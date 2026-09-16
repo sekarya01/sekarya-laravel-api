@@ -12,8 +12,8 @@ badan usaha. Semua pihak perseorangan.
 | Bahasa & framework | PHP `^8.3` (**pakai 8.4 di produksi**, lihat catatan di bawah) · Laravel `11.55.1` (dipin persis) |
 | Basis data | MySQL 8+ / InnoDB — **bukan** SQLite, lihat [Kenapa MySQL](#kenapa-mysql-bukan-sqlite) |
 | Autentikasi | Laravel Sanctum `^4.0`, sepasang token |
-| Test | PHPUnit `^11.5` — 957 test, 3.507 asersi, 61 berkas (ukur coverage: `composer test-report`) |
-| Kontrak API | OpenAPI 3.1 di `docs/openapi.yaml` — 57 endpoint (35 pengguna + 22 pengelola) |
+| Test | PHPUnit `^11.5` — 1.137 test, 4.254 asersi, 79 berkas (ukur coverage: `composer test-report`) |
+| Kontrak API | OpenAPI 3.1 di `docs/openapi.yaml` — 77 endpoint (49 pengguna + 28 pengelola) |
 | Observability | Axiom (opsional, mati secara bawaan) |
 
 Diuji pada PHP 8.5.10, Laravel 11.55.1, MySQL 26.7 (Homebrew), Composer 2.10.
@@ -78,7 +78,7 @@ CREATE DATABASE sekarya_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 Isi kredensial basis data di `.env`, lalu:
 
 ```bash
-php artisan migrate --seed     # 26 migrasi -> 26 tabel, + kategori & keahlian
+php artisan migrate --seed     # 32 migrasi -> 30 tabel, + kategori & keahlian
 php artisan storage:link       # wajib, lihat di bawah
 npm install && npm run build   # opsional, hanya untuk aset
 ```
@@ -183,10 +183,10 @@ php artisan route:list --path=api
 ## Test
 
 ```bash
-php artisan test                  # 957 test, 3.507 asersi
+php artisan test                  # 1.137 test, 4.254 asersi
 php artisan test tests/Unit       # lapis cepat
 composer test-report              # + coverage/html, junit, testdox
-bash docs/smoke.sh                # 162 pemeriksaan HTTP sungguhan, server sendiri
+bash docs/smoke.sh                # 194 pemeriksaan HTTP sungguhan, server sendiri
 ./vendor/bin/pint                 # format — jalankan sebelum commit
 npx --yes -p @redocly/cli redocly lint docs/openapi.yaml
 ```
@@ -359,7 +359,7 @@ ada setelan MySQL yang perlu diminta ke penyedia hosting.
   akan mengotori setiap respons JSON — rinciannya di
   [Konsekuensi memakai Laravel 11](#konsekuensi-memakai-laravel-11).
 - Basis data dipasang sekali lewat
-  [`database/schema/sekarya-install.sql`](database/schema/sekarya-install.sql): 26 tabel
+  [`database/schema/sekarya-install.sql`](database/schema/sekarya-install.sql): 30 tabel
   beserta indeks dan foreign key, data acuan, dan riwayat migrasi supaya
   `php artisan migrate` tahu semuanya sudah dijalankan. Tanpa data pengguna. Tabelnya urut
   menurut ketergantungan dan tidak menghapus apa pun, jadi bisa diimpor lewat phpMyAdmin

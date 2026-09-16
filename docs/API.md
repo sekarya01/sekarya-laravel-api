@@ -1412,9 +1412,220 @@ ORDER BY l.created_at DESC LIMIT 20;
 
 ---
 
+## 16. Saldo — dompet yang menempel pada akun
+
+Satu orang, satu dompet. Ia bukan kolom di `users`: sebuah kolom saldo menjawab
+**berapa** tanpa bisa menjawab **kenapa**, dan pada uang, pertanyaan kedua itulah yang
+ditanyakan orang saat angkanya tidak sesuai harapan mereka. Yang ada di bawahnya buku
+besar `wallet_entries` — append-only, satu baris per kejadian, masing-masing membawa
+saldo sesudahnya.
+
+```
+                ┌──────────── isi ulang (dikonfirmasi pengelola)
+uang masuk ─────┼──────────── pengembalian dana task yang batal
+                └──────────── upah pekerja saat dana task dilepas
+
+uang keluar ───────────────── penarikan ke rekening terverifikasi
+```
+
+```bash
+curl -s "$BASE/me/wallet" -H "Authorization: Bearer $AT" -H 'Accept: application/json' | jq .data
+```
+
+```json
+{ "id": null, "balance": 0, "created_at": null }
+```
+
+`id: null` bukan galat: **membaca saldo tidak membuat baris dompet.** Orang yang belum
+pernah menerima atau mengisi apa pun mendapat bentuk respons yang sama dengan yang sudah,
+jadi klien tidak perlu punya dua cabang untuk satu layar. Angkanya juga ikut di `GET /me`
+sebagai `wallet.balance`, supaya layar profil cukup satu permintaan.
+
+### Isi saldo — melapor, bukan mengisi
+
+```bash
+curl -s -X POST "$BASE/me/wallet/topups" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"amount": 250000, "sender_note": "BCA 1234 a.n. Budi Prasetyo"}' | jq .data
+```
+
+```json
+{
+  "id": "01M2WALLETTOPUP00000000001",
+  "amount": 250000,
+  "status": "awaiting_confirmation",
+  "awaits_confirmation": true,
+  "sender_note": "BCA 1234 a.n. Budi Prasetyo",
+  "rejection_reason": null
+}
+```
+
+`201`, dan **saldo masih nol.** Polanya sama persis dengan `POST /tasks/{task}/payment/hold`:
+yang Anda kirim adalah laporan, bukan uang. Yang menambah saldo hanya
+`POST /admin/wallet/topups/{topup}/confirm`, dipanggil orang yang melihat mutasi rekening.
+
+Kalau panggilan ini menambah saldo, siapa pun bisa mengisi dompetnya sendiri dengan satu
+permintaan HTTP — dan menariknya ke rekening sebelum ada yang sempat melihat.
+
+`sender_note` bukan hiasan. Itulah satu-satunya petunjuk yang dipakai pengelola untuk
+menemukan transfernya; tanpa itu antreannya hanya bisa diputuskan dengan menebak.
+
+Yang belum diputuskan bisa ditarik kembali, dan itu **tidak** menyentuh saldo — memang
+belum ada yang pernah ditambahkan:
+
+```bash
+curl -s -X POST "$BASE/me/wallet/topups/$TOPUP/cancel" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' | jq '.data.status'
+```
+
+Permintaan yang menggantung dibatasi jumlahnya (bawaan 3, di `config/sekarya.php` →
+`wallet.max_pending_requests`). Ini bukan rate limit: rate limit membatasi kecepatan,
+sedangkan yang dijaga di sini berapa banyak yang menunggu sekaligus. Tiga per menit
+selama sehari tetap lolos rate limit dan tetap meninggalkan ribuan baris yang harus
+dibuka pengelola satu per satu — sementara di belakangnya ada pekerja yang menunggu
+uangnya.
+
+### Upah — pekerja sebagai penerima bayaran
+
+Tidak ada endpoint untuk ini, dan itu disengaja: upah tidak diklaim, ia jatuh sendiri.
+Saat pekerja **terakhir** disetujui (`POST /activities/{activity}/approve`), dana task
+dilepas dan setiap pekerja menerima kredit sebesar penawarannya sendiri.
+
+```bash
+curl -s "$BASE/me/wallet/entries" -H "Authorization: Bearer $AT" -H 'Accept: application/json' \
+  | jq '.data[0]'
+```
+
+```json
+{
+  "type": "earning",
+  "direction": "credit",
+  "amount": 150000,
+  "balance_after": 150000,
+  "reference_type": "activities",
+  "description": "Upah task #TSK-0007"
+}
+```
+
+Angkanya **harga per orang**, bukan `agreed_amount` task — yang terakhir total seluruh
+pekerja, dan memakainya berarti setiap orang dari task 30 orang menerima seluruh
+tagihan. Pelepasannya juga sekali, saat yang terakhir disetujui: melepas pada persetujuan
+pertama akan mengeluarkan seluruh tagihan untuk satu orang.
+
+`balance_after` yang membuat riwayat ini terbaca seperti rekening koran alih-alih daftar
+angka lepas yang harus dijumlahkan klien. Id internal kejadian penyebabnya tidak ikut
+keluar — id berurutan membocorkan volume bisnis, alasan yang sama membuat seluruh rute
+memakai ULID.
+
+### Pengembalian dana — task yang batal
+
+Task yang dibatalkan setelah dananya ditahan mengembalikan uang itu **ke saldo
+pembayarnya**, sebagai baris `refund`. Bukan ke rekening: transfer balik menuntut antrean
+manual ketiga dan menahan uang orang selama antrean itu berjalan, padahal hampir semua
+pembatalan diikuti task pengganti. Yang menginginkan uangnya di bank memakai pintu yang
+sama dengan pekerja — penarikan.
+
+Yang menerima selalu `payment.payer_id`, bahkan ketika yang membatalkan adalah pekerjanya.
+Mengembalikan ke pembatal akan memindahkan uang pemberi kerja ke orang lain.
+
+### Penarikan — satu pintu keluar
+
+```bash
+curl -s -X POST "$BASE/me/wallet/withdrawals" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"amount": 200000}' | jq .data
+```
+
+```json
+{
+  "id": "01M2WALLETWD00000000000001",
+  "amount": 200000,
+  "status": "requested",
+  "awaits_processing": true,
+  "destination": { "bank_code": "BCA", "account_holder_name": "Budi Prasetyo" }
+}
+```
+
+Dua hal yang harus dibaca benar:
+
+**Rekening tujuan tidak dikirim klien.** Ia diambil dari verifikasi rekening yang sudah
+disetujui pengelola. Kalau tujuannya bisa dikirim per permintaan, persetujuan rekening
+berhenti berarti apa pun: saldo hasil kerja bisa dialirkan ke rekening mana saja yang
+belum pernah dicocokkan dengan identitas pemiliknya. Tanpa satu pun rekening
+terverifikasi, `422 bank_account_not_verified` — dan verifikasi **identitas** tidak
+menggantikannya, keduanya jenis pengajuan yang berbeda (bagian 13).
+
+**Saldonya langsung berkurang di sini**, bukan saat pengelola mencairkan:
+
+```bash
+curl -s "$BASE/me/wallet" -H "Authorization: Bearer $AT" -H 'Accept: application/json' | jq '.data.balance'
+```
+
+Kalau pemotongan menunggu pencairan, saldo yang sama bisa diminta berkali-kali selama
+antrean pengelola belum tersentuh — tiga permintaan dua ratus ribu atas saldo dua ratus
+ribu akan lolos semuanya, dan ketiganya terlihat sah saat dibuka satu per satu.
+
+Konsekuensinya berlaku ke arah sebaliknya: **penolakan dan pembatalan mengembalikan dana
+itu**, sebagai baris `withdrawal_reversal`. Buku besarnya append-only, jadi yang muncul
+baris baru — bukan baris lama yang dihapus.
+
+```bash
+curl -s -X POST "$BASE/me/wallet/withdrawals/$WD/cancel" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' | jq '.data.status'
+```
+
+Saldo kurang menyebut kekurangannya, supaya klien tidak perlu menghitung sendiri:
+
+```json
+{
+  "message": "Saldo tidak cukup. Tersedia Rp60.000, diminta Rp100.000.",
+  "code": "insufficient_balance",
+  "context": { "balance": 60000, "requested": 100000, "shortfall": 40000 }
+}
+```
+
+### Sisi pengelola
+
+Dua antrean, keduanya menyentuh uang sungguhan.
+
+```bash
+curl -s "$BASE/admin/wallet/topups" -H "Authorization: Bearer $ADMIN_AT" -H 'Accept: application/json'
+curl -s -X POST "$BASE/admin/wallet/topups/$TOPUP/confirm" \
+  -H "Authorization: Bearer $ADMIN_AT" -H 'Accept: application/json'
+```
+
+Konfirmasi itu **satu-satunya jalan saldo bisa bertambah dari isi ulang**, sederajat
+dengan `payments/{payment}/confirm` sebagai satu-satunya jalan menuju `held`. Menekan dua
+kali tidak menggandakan uang: kunci baris menahannya di dalam transaksi, dan indeks
+unique `(reference_type, reference_id, type)` di `wallet_entries` menahannya di basis
+data. Penolakannya **final** — pengajuan ulang membuat baris baru, dan riwayat penolakan
+tetap utuh sebagai sinyal.
+
+```bash
+curl -s "$BASE/admin/wallet/withdrawals" -H "Authorization: Bearer $ADMIN_AT" -H 'Accept: application/json'
+curl -s -X POST "$BASE/admin/wallet/withdrawals/$WD/complete" \
+  -H "Authorization: Bearer $ADMIN_AT" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"transfer_reference": "TRX-99887766"}'
+```
+
+`complete` **tidak memotong saldo lagi** — saldonya sudah berkurang sejak penarikan
+diminta; memotongnya di sini berarti penggunanya membayar dua kali untuk satu pencairan.
+`reject` yang mengembalikannya.
+
+**Nomor rekening tidak keluar di antrean pencairan.** Ia terbaca satu layar lebih jauh, di
+`GET /admin/verifications/{verification}` lewat `destination.verification_id`, dan
+pembacaan di sana dicatat sebagai `verification.viewed`. Pola yang sama dengan antrean
+verifikasi dan NIK: daftar antreannya secara harfiah tidak punya kode untuk
+mengeluarkannya.
+
+Keempat tindakan itu tercatat di `admin_audit_logs` sebagai `wallet_topup.confirmed`,
+`wallet_topup.rejected`, `wallet_withdrawal.completed`, dan `wallet_withdrawal.rejected`.
+
+---
+
 ## Ringkasan endpoint
 
-**63 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**77 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1423,7 +1634,7 @@ Semua di bawah `/api/v1`. Kolom **Token**: `access` = token pendek 8 jam, `long_
 token 30 hari yang HANYA bisa refresh, `admin` = token pengelola, `—` = tanpa token.
 Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya.php`.
 
-> [!important] 41 endpoint pertama untuk PENGGUNA, 22 terakhir untuk PENGELOLA, dan
+> [!important] 49 endpoint pertama untuk PENGGUNA, 28 terakhir untuk PENGELOLA, dan
 > tokennya **tidak bisa ditukar**. Akun pengelola ada di tabelnya sendiri dengan
 > guard-nya sendiri: token pengguna di `/admin` menghasilkan `401`, dan token pengelola
 > di endpoint pengguna juga `401`. Lihat bagian **Pengelola** di bawah.
@@ -1486,6 +1697,19 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `GET` | `/tasks/{task}/payment` | access | `api` | Status uang task. Satu tagihan untuk seluruh pekerja. Memuat `rejection_reason` kalau laporan sebelumnya ditolak. |
 | `POST` | `/tasks/{task}/payment/hold` | access | `api` | **Lapor** sudah transfer -> masuk antrean pengelola. Tidak lagi menahan dana. |
 
+**Saldo**
+
+| | Endpoint | Token | Limit | Keterangan |
+|---|---|---|---|---|
+| `GET` | `/me/wallet` | access | `api` | Saldo sendiri. Membacanya tidak membuat baris dompet. |
+| `GET` | `/me/wallet/entries` | access | `api` | Riwayat mutasi. Filter: `type`, `direction`. Cursor. |
+| `GET` | `/me/wallet/topups` | access | `api` | Permintaan isi saldo saya. Filter: `status`. |
+| `POST` | `/me/wallet/topups` | access | `write` | **Lapor** sudah transfer untuk isi saldo. **Tidak** menambah saldo. |
+| `POST` | `/me/wallet/topups/{topup}/cancel` | access | `api` | Batalkan permintaan yang belum diputuskan. Saldo tidak tersentuh. |
+| `GET` | `/me/wallet/withdrawals` | access | `api` | Permintaan penarikan saya. Filter: `status`. |
+| `POST` | `/me/wallet/withdrawals` | access | `write` | Tarik saldo ke rekening terverifikasi. **Saldo langsung berkurang.** |
+| `POST` | `/me/wallet/withdrawals/{withdrawal}/cancel` | access | `api` | Batalkan; dana yang ditahan **dikembalikan**. |
+
 **Pengerjaan**
 
 | | Endpoint | Token | Limit | Keterangan |
@@ -1521,6 +1745,12 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `GET` | `/admin/payments/{payment}` | admin | `admin` | Detail satu tagihan beserta task dan pembayarnya. |
 | `POST` | `/admin/payments/{payment}/confirm` | admin | `admin` | **Satu-satunya jalan ke `held`** -> activity dibuka untuk setiap pekerja. |
 | `POST` | `/admin/payments/{payment}/reject` | admin | `admin` | Dana tidak ditemukan. Kembali ke `pending`, `reason` dibaca pemberi kerja. |
+| `GET` | `/admin/wallet/topups` | admin | `admin` | Antrean isi saldo. Bawaannya `awaiting_confirmation`, paling lama menunggu di depan. |
+| `POST` | `/admin/wallet/topups/{topup}/confirm` | admin | `admin` | **Satu-satunya jalan saldo bertambah dari isi ulang.** |
+| `POST` | `/admin/wallet/topups/{topup}/reject` | admin | `admin` | Dana tidak ditemukan. Final; `reason` dibaca penggunanya. |
+| `GET` | `/admin/wallet/withdrawals` | admin | `admin` | Antrean pencairan. Nomor rekening **tidak** keluar di sini. |
+| `POST` | `/admin/wallet/withdrawals/{withdrawal}/complete` | admin | `admin` | Transfer sudah dikirim. **Tidak** memotong saldo lagi. |
+| `POST` | `/admin/wallet/withdrawals/{withdrawal}/reject` | admin | `admin` | Ditolak; dana yang ditahan **dikembalikan**. `reason` wajib. |
 | `GET` | `/admin/users` | admin | `admin` | Daftar pengguna. Filter `status`, `email` (**pencocokan persis**, bukan pencarian). |
 | `GET` | `/admin/users/{user}` | admin | `admin` | Detail satu pengguna. |
 | `POST` | `/admin/users/{user}/suspend` | admin | `admin` | Tangguhkan **dan cabut seluruh tokennya**. `reason` wajib. |
@@ -1563,6 +1793,10 @@ Bercabanglah pada `code`, **jangan** pada `message`.
 | `review_not_allowed` | 422 | Belum selesai, atau sudah menilai |
 | `admin_access_denied` | 403 | Pengelola dinonaktifkan, atau perannya tidak mencakup tindakan itu (`context.reason`) |
 | `super_admin_protected` | 403 | `super_admin` tidak bisa dihapus maupun dinonaktifkan |
+| `insufficient_balance` | 422 | Saldo kurang. `context` menyebut `balance`, `requested`, `shortfall` |
+| `bank_account_not_verified` | 422 | Menarik saldo tanpa rekening yang disetujui pengelola |
+| `wallet_request_not_pending` | 422 | Permintaan saldo sudah diputuskan; tidak bisa diubah lagi |
+| `too_many_pending_wallet_requests` | 422 | Terlalu banyak permintaan saldo menggantung sekaligus |
 
 `task_not_found` sengaja `404`, bukan `403` — `403` akan mengonfirmasi bahwa task milik
 orang lain itu ada.
@@ -1624,7 +1858,11 @@ di luar produksi.
 
 - **Reset kata sandi** — belum ada endpoint lupa/ganti kata sandi.
 - **Pembayaran sungguhan.** `payments` masih penanda status. Gateway, kunci idempoten,
-  komisi, pencairan ke rekening, pelepasan otomatis, dan refund sebagian belum ada.
+  komisi, pelepasan otomatis, dan refund sebagian belum ada. Yang **sudah** ada sejak
+  saldo: dana dilepas ke dompet pekerja, pengembalian dana task batal masuk ke dompet
+  pembayarnya, dan pencairan ke rekening lewat antrean pengelola (bagian 16).
+- **Isi saldo & pencairan otomatis.** Keduanya transfer manual yang dicocokkan pengelola
+  di mutasi rekening. Tidak ada virtual account, tidak ada disbursement API.
 - **Penyelesaian sengketa.** `reject` membuat task `disputed` dan dana tetap ditahan;
   belum ada jalan keluar dari status itu lewat API.
 - **Chat.** Diputuskan memakai database terpisah; kaitkan lewat `tasks.ulid`.

@@ -138,6 +138,47 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Saldo (dompet)
+    |--------------------------------------------------------------------------
+    |
+    | Batas nominal untuk isi saldo dan penarikan. Angkanya DI SINI, bukan
+    | sebagai literal di aturan validasi — alasan yang sama seperti batas umur.
+    | Keduanya dibaca FormRequest, jadi pelanggarannya keluar sebagai galat
+    | validasi (`{message, errors}`), bukan galat bisnis: nominal yang terlalu
+    | kecil adalah bentuk permintaan yang salah, bukan keadaan sistem.
+    |
+    | Satuan terkecil (rupiah), bilangan bulat — sama seperti seluruh kolom
+    | uang di aplikasi ini.
+    |
+    */
+
+    'wallet' => [
+        // Minimum isi saldo. Setiap topup menghabiskan satu tindakan manual
+        // pengelola (mencocokkan mutasi rekening), jadi batas bawah ini
+        // menjaga antrean itu tidak dipenuhi nominal yang tidak sepadan.
+        'min_topup' => (int) env('SEKARYA_WALLET_MIN_TOPUP', 10_000),
+
+        // Batas atas per permintaan. Bukan batas saldo — penjaga salah ketik
+        // dan pembatas kerugian satu kesalahan konfirmasi.
+        'max_topup' => (int) env('SEKARYA_WALLET_MAX_TOPUP', 10_000_000),
+
+        // Minimum penarikan. Biaya transfer manualnya tetap sama berapa pun
+        // nominalnya.
+        'min_withdrawal' => (int) env('SEKARYA_WALLET_MIN_WITHDRAWAL', 50_000),
+
+        // Batas atas per permintaan penarikan. Penarikan lebih besar dipecah,
+        // supaya satu kesalahan tidak mengeluarkan seluruh saldo sekaligus.
+        'max_withdrawal' => (int) env('SEKARYA_WALLET_MAX_WITHDRAWAL', 10_000_000),
+
+        // Berapa permintaan yang boleh menunggu keputusan pengelola sekaligus,
+        // per orang, untuk topup maupun penarikan. Tanpa batas ini satu akun
+        // bisa mengisi seluruh antrean pengelola dengan permintaan yang tidak
+        // pernah dibayar — dan yang menunggu di belakangnya pekerja sungguhan.
+        'max_pending_requests' => (int) env('SEKARYA_WALLET_MAX_PENDING', 3),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Rate limit
     |--------------------------------------------------------------------------
     |

@@ -388,6 +388,102 @@ Yang **belum** ada, dan sudah tercatat di `docs/API.md` bagian 15: endpoint memb
 jejak audit, dan signed URL untuk melihat foto KTP/selfie (sampai itu ada, penilaian
 identitas hanya bertumpu pada data teks).
 
+## Saldo (dompet)
+
+`wallets` menyimpan BERAPA, `wallet_entries` menyimpan KENAPA. Uang masuk dari tiga
+arah — isi ulang (dikonfirmasi pengelola), pengembalian dana task yang batal, dan upah
+pekerja saat dana dilepas — dan keluar lewat satu pintu: `wallet_withdrawals`.
+Panduan manusianya `docs/API.md` bagian 16.
+
+**`App\Support\WalletLedger` adalah SATU-SATUNYA jalur tulis saldo.** Ia menegakkan
+tiga hal yang tidak bisa ditegakkan dari Action masing-masing: setiap perubahan saldo
+meninggalkan baris buku besar, baris dompet selalu dikunci lebih dulu, dan debit
+diperiksa DI DALAM kunci yang sama dengan penulisannya. Ia sengaja TIDAK membuka
+transaksi sendiri — transaksi bersarang di Laravel adalah savepoint, dan `commit` di
+dalamnya menyatakan selesai sesuatu yang masih bisa dibatalkan di luar. Pemanggilnya
+yang membuka transaksi.
+
+Yang tidak boleh "dirapikan":
+
+- **`wallets.balance` adalah CACHE, `wallet_entries` sumber kebenarannya.** Kolomnya ada
+  karena menjumlahkan seluruh buku besar di setiap pembacaan tumbuh sebanding riwayat
+  orangnya. Yang menjaga keduanya tidak melenceng: jalur tulis tunggal, kunci baris, dan
+  `balance_after` di tiap baris — selisih bisa dilacak ke satu baris tepat.
+  `Wallet::recomputedBalance()` yang membuktikannya, dan ada test untuk itu.
+- **`balance` TIDAK mass-assignable, dan `WalletEntry::$fillable` KOSONG.** Sederajat
+  dengan `users.status`: kolom yang menentukan berapa uang seseorang tidak boleh bisa
+  disetel dari larik atribut. Satu `Wallet::create($request->all())` di jalur mana pun
+  adalah mesin cetak uang, dan kelalaian seperti itu tidak menimbulkan galat apa pun.
+- **Arah mutasi diturunkan dari JENISNYA** (`WalletEntryType::direction()`), tidak diminta
+  dari pemanggil. `credit()` dan `debit()` karena itu mengerjakan hal yang sama; keduanya
+  tetap ada supaya tempat pemanggilan menyebut arahnya, dan `assertDirection()` yang
+  membuat `credit($wallet, Withdrawal, …)` gagal saat itu juga.
+- **Debit disimpan sebagai angka POSITIF dengan `direction = debit`.** Uang di seluruh
+  aplikasi ini bilangan bulat tak bertanda; satu kolom yang memakai konvensi berbeda
+  adalah penjumlahan yang salah tanpa galat.
+- **Idempotensi dijamin indeks unique `(reference_type, reference_id, type)`.** Konfirmasi
+  yang terpanggil dua kali ditolak #1062 alih-alih menggandakan uang. `type` ikut serta
+  karena satu penarikan sah punya DUA baris — tahanannya dan pengembaliannya. Baris tanpa
+  referensi (koreksi manual) tidak terkena: MySQL mengizinkan NULL berulang.
+  `lockForUpdate()` di Action tetap lapis pertamanya — kunci hanya berlaku di dalam
+  transaksi.
+- **`wallet_entries` append-only** (`$timestamps = false`, tidak ada `updated_at`), sama
+  seperti `admin_audit_logs`. Pembatalan penarikan menambah baris `withdrawal_reversal`;
+  ia tidak menghapus baris tahanannya.
+- **`POST /me/wallet/topups` TIDAK menambah saldo.** Pola yang sama dengan
+  `tasks/{task}/payment/hold`: pengguna melapor, pengelola yang melihat mutasi yang
+  menyatakan uangnya masuk. Jalan satu-satunya
+  `POST /admin/wallet/topups/{topup}/confirm`. Kalau panggilan pengguna menambah saldo,
+  siapa pun bisa mengisi dompetnya sendiri dengan satu permintaan HTTP — dan menariknya.
+- **`POST /me/wallet/withdrawals` LANGSUNG mengurangi saldo.** Kalau pemotongan menunggu
+  pencairan, saldo yang sama bisa diminta berkali-kali selama antrean pengelola belum
+  tersentuh. Konsekuensinya mengikat: `RejectWithdrawalAction` dan
+  `CancelWithdrawalAction` WAJIB mengembalikan tahanan itu, dan `CompleteWithdrawalAction`
+  WAJIB tidak memotong lagi. Ketiganya punya test sendiri; membalik salah satunya
+  menghapus uang orang tanpa galat apa pun.
+- **Rekening tujuan DIRUJUK (`verification_id`), tidak disalin.** Nomor rekening sudah
+  terenkripsi di `user_worker_verifications.account_number_enc`, dan detail verifikasi
+  satu-satunya tempat ia keluar terbaca — dengan jejak baca. Menyalinnya ke
+  `wallet_withdrawals` berarti tempat kedua tanpa jejak, dan dua jawaban untuk
+  "ke rekening mana orang ini dibayar". Karena itu antrean pencairan pengelola secara
+  harfiah tidak punya kode untuk membocorkannya; ia hanya mengeluarkan
+  `destination.verification_id`, bank, dan nama pemilik.
+- **Rekening bank adalah syarat DIBAYAR, bukan syarat BEKERJA.** Ia tetap tidak ikut di
+  `ready_to_work`; gerbangnya hanya di `RequestWithdrawalAction`
+  (`bank_account_not_verified`). Verifikasi identitas tidak menggantikannya.
+- **Upah dibaca dari `activities.agreed_amount`, bukan `tasks.agreed_amount`.** Yang
+  terakhir TOTAL seluruh pekerja — memakainya berarti setiap orang dari task 30 orang
+  menerima seluruh tagihan. Kreditnya duduk di dalam penjaga "pekerja terakhir" yang sama
+  dengan pelepasan pembayaran, jadi berjalan sekali per task.
+- **Pengembalian dana task selalu ke `payment.payer_id`, bukan ke pembatalnya.** Pekerja
+  juga bisa membatalkan; mengembalikan ke pembatal memindahkan uang pemberi kerja ke
+  orang lain.
+- **Batas permintaan menggantung BUKAN rate limit.** Rate limit membatasi kecepatan;
+  `wallet.max_pending_requests` membatasi berapa banyak yang menunggu sekaligus. Tiga per
+  menit selama sehari lolos rate limit dan tetap meninggalkan ribuan baris yang harus
+  dibuka pengelola satu per satu.
+- **Saldo hanya keluar di profil SENDIRI** (`UserResource.wallet.balance`) dan
+  `GET /me/wallet`. Ia tidak ada di `PublicUserResource` maupun `AdminUserResource`:
+  berapa uang seseorang bukan bahan pertimbangan siapa pun untuk memilih pekerja, dan
+  sisi pengelola membacanya lewat antrean saldo yang memang punya alasan menyebutnya.
+- **Jalur BACA tidak membuat dompet.** `User::walletOrNew()` untuk GET,
+  `WalletLedger::walletFor()` untuk Action — aturan yang sama dengan
+  `workerProfileOrNew()`. `GET /me/wallet` mengembalikan `id: null` dan `balance: 0`,
+  bentuk yang sama untuk semua orang.
+- **`sender_note` tidak boleh keluar ke Axiom apa adanya.** Ia teks bebas yang hampir
+  selalu memuat nama pengirim ("BCA 1234 a.n. Budi Prasetyo"). Sudah tertangkap
+  `summarize_keys` lewat substring `note` (jadi `[len:N]`), dan `account_holder_name`
+  sudah ada di `pseudonymize_keys` — tapi itu kebetulan yang menguntungkan, bukan
+  keputusan, jadi `sender_note` ditambahkan ke contoh `php artisan sekarya:axiom --audit`
+  supaya penyuntingan daftar itu tidak bisa membukanya diam-diam. `amount`, `balance`,
+  `balance_after` dan `transfer_reference` sengaja lolos: nominal dan nomor mutasi bank
+  bukan data pribadi, dan tanpa keduanya jejak uang tidak bisa ditelusuri sama sekali.
+- **Test mengisi saldo lewat `TestCase::fundWallet()`, bukan
+  `Wallet::factory(['balance' => …])`.** Saldo yang lahir tanpa buku besar adalah keadaan
+  yang tidak bisa terjadi di aplikasi, dan test yang berangkat dari sana tidak akan
+  pernah menangkap cache yang melenceng dari riwayatnya. `WalletFactory` karena itu tidak
+  punya state bersaldo.
+
 ## Observability (Axiom)
 
 Full guide: `docs/OBSERVABILITY.md`. Reusable rules and the leak table live in the
@@ -449,17 +545,17 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
 ```bash
 # Sekali saat setup: buat database-nya lebih dulu
 #   CREATE DATABASE sekarya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-php artisan migrate:fresh --seed  # 26 tabel + kategori & skills
+php artisan migrate:fresh --seed  # 30 tabel + kategori & skills
 php artisan sekarya:admin create  # akun super_admin — SATU-SATUNYA cara membuatnya
 php artisan serve                 # http://localhost:8000
-php artisan test                  # 957 test, 3.507 asersi
+php artisan test                  # 1.137 test, 4.254 asersi
 composer test-report              # coverage/html + junit + testdox (lihat tests/README.md)
 php artisan sekarya:axiom --audit # buktikan penyaringan PII sebelum kirim apa pun
 php artisan test tests/Unit       # fast tier
 ./vendor/bin/pint                 # format (run before committing)
 php artisan route:list --path=api
 php artisan sekarya:demo --fresh     # seed fixtures + print dev tokens
-bash docs/smoke.sh                # 162 live HTTP assertions, self-hosting server
+bash docs/smoke.sh                # 194 live HTTP assertions, self-hosting server
 ```
 
 ## API contract

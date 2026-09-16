@@ -10,6 +10,9 @@ use App\Actions\Payment\ReportTransferAction;
 use App\Enums\AdminRole;
 use App\Enums\BidStatus;
 use App\Enums\UserStatus;
+use App\Enums\VerificationStatus;
+use App\Enums\VerificationType;
+use App\Enums\WalletEntryType;
 use App\Models\Activity;
 use App\Models\Admin;
 use App\Models\Bid;
@@ -20,8 +23,10 @@ use App\Models\Task;
 use App\Models\User;
 use App\Models\UserVerification;
 use App\Models\UserWorker;
+use App\Models\Wallet;
 use App\Notifications\VerificationCodeNotification;
 use App\Support\TokenIssuer;
+use App\Support\WalletLedger;
 use Database\Seeders\CategorySeeder;
 use Database\Seeders\SkillSeeder;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
@@ -106,6 +111,56 @@ abstract class TestCase extends BaseTestCase
         $user->unsetRelation('verifications');
 
         return $verification;
+    }
+
+    /**
+     * Rekening bank terverifikasi — gerbang penarikan saldo.
+     *
+     * Terpisah dari `verifyIdentity()` dan bukan varian darinya: keduanya
+     * baris `user_worker_verifications` dengan `type` berbeda, dan yang
+     * membuka `ready_to_work` HANYA yang identitas. Rekening membuka hal lain
+     * (boleh dibayar), jadi test yang menukar keduanya akan lulus untuk
+     * alasan yang salah.
+     */
+    protected function verifyBankAccount(User $user, string $bank = 'BCA'): UserVerification
+    {
+        $verification = UserVerification::factory()->create([
+            'user_id' => $user->getKey(),
+            'type' => VerificationType::BankAccount,
+            'status' => VerificationStatus::Verified,
+            'reviewed_at' => now(),
+            'bank_code' => $bank,
+            'account_number_enc' => '1234567890',
+            'account_holder_name' => $user->name,
+            // Kolom khas identitas dikosongkan: baris rekening yang membawa
+            // foto KTP adalah keadaan yang tidak bisa lahir dari API.
+            'id_card_photo_path' => null,
+            'selfie_photo_path' => null,
+            'document_number_hash' => null,
+            'document_number_enc' => null,
+        ]);
+
+        $user->unsetRelation('verifications');
+
+        return $verification;
+    }
+
+    /**
+     * Isi saldo seseorang LEWAT BUKU BESAR, seperti kode sungguhan.
+     *
+     * Bukan `Wallet::factory()->create(['balance' => ...])`. Saldo yang lahir
+     * tanpa baris buku besar adalah keadaan yang tidak bisa terjadi di
+     * aplikasi, dan test yang berangkat dari sana tidak akan pernah menangkap
+     * cache saldo yang melenceng dari riwayatnya.
+     */
+    protected function fundWallet(User $user, int $amount): Wallet
+    {
+        $ledger = app(WalletLedger::class);
+        $wallet = $ledger->walletFor($user);
+
+        $ledger->credit($wallet, WalletEntryType::AdjustmentCredit, $amount, null, 'fixture');
+
+        return $wallet->refresh();
     }
 
     /**
