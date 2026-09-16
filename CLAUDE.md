@@ -231,6 +231,38 @@ Yang tidak boleh "dirapikan":
   Sudah pernah terjadi; `tests/Feature/Deployment/WorkerAggregateMigrationTest.php`
   menjalankan siklus maju-mundur-maju dengan data sungguhan di basis data sekali-pakai.
 
+## Skema hanya berubah lewat migrasi — satu pengecualian, dan ia berpagar
+
+Tidak ada DDL di luar `database/migrations`. Satu-satunya tempat yang membuat DAN
+membuang basis data adalah `WorkerAggregateMigrationTest`, karena migrasi yang
+MEMINDAHKAN DATA tidak bisa dibuktikan di atas basis data yang baru saja dimigrasikan
+penuh — tidak pernah ada baris lama untuk dipindahkan.
+
+Harga pengecualian itu: ada perintah pembuangan basis data yang sungguhan dijalankan di
+dalam suite. `assertThrowaway()` yang membatasi jangkauannya, dan ia dipanggil DUA kali —
+sebelum membuat dan sebelum membuang.
+
+- **Diperiksa lagi di `tearDown()`, bukan cukup sekali di `setUp()`.** `tearDown()`
+  berjalan walaupun test gagal di tengah jalan, jadi isi `$this->database` pada saat itu
+  sudah melewati kode yang baru saja gagal. Pemeriksaan yang hanya ada di `setUp()`
+  menjaga NIAT; yang di `tearDown()` menjaga perintah yang benar-benar dijalankan.
+- **Dua lapis, keduanya perlu.** Awalan `sekarya_migrationcheck_` menutup salah ketik saat
+  menyusun nama; larangan menyentuh basis data yang sedang dipakai koneksi menutup
+  kejadian yang paling mungkin — seseorang menjalankan suite dengan `DB_DATABASE`
+  produksi di environment-nya. Lapis pertama tidak menolong kalau basis data itu
+  kebetulan bernama serupa.
+- **Pagarnya punya test sendiri** (`ThrowawayDatabaseGuardTest`), dan itu bukan
+  kelengkapan: pagar yang tidak diuji adalah niat baik, bukan penjaga, dan kegagalannya
+  baru terlihat sesudah basis data yang salah hilang. Test itu sudah dibuktikan tidak
+  kosong — melumpuhkan lapis kedua membuatnya merah.
+- **Melempar, bukan `markTestSkipped()`.** Nama yang tidak lolos pagar berarti ada yang
+  salah pada kodenya sendiri, dan test yang diam-diam dilewati adalah cara paling halus
+  untuk tidak pernah mengetahuinya.
+
+> `bash docs/smoke.sh` menjalankan `migrate:fresh --seed` — SELURUH isi `DB_DATABASE`
+> hilang. Itu memang gunanya, tapi jangan dijalankan di basis data yang datanya masih
+> dibutuhkan, dan jangan dijalankan atas nama orang lain tanpa bertanya lebih dulu.
+
 Tabelnya bernama **`user_worker_verifications`** (dulu `user_verifications`) sejak
 `ready_to_work` bergantung padanya: ia gerbang pekerja, bukan catatan di samping akun.
 **FK-nya tetap `user_id` ke `users`, bukan ke `user_workers`** — pemberi kerja juga

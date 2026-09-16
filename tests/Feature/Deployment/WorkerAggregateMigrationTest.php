@@ -7,6 +7,7 @@ namespace Tests\Feature\Deployment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Schema;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -38,6 +39,15 @@ final class WorkerAggregateMigrationTest extends TestCase
      */
     private const int STEPS = 7;
 
+    /**
+     * Awalan WAJIB untuk basis data sekali-pakai milik kelas ini.
+     *
+     * Bukan sekadar konvensi penamaan: inilah yang dibaca `assertThrowaway()`,
+     * dan satu-satunya hal yang membedakan "basis data yang boleh dibuang"
+     * dari "basis data orang".
+     */
+    private const string THROWAWAY_PREFIX = 'sekarya_migrationcheck_';
+
     private string $database = '';
 
     protected function setUp(): void
@@ -46,7 +56,9 @@ final class WorkerAggregateMigrationTest extends TestCase
 
         // Nama unik: suite ini mencampur RefreshDatabase dengan
         // DatabaseTruncation, jadi sisa dari jalannya yang lalu bisa masih ada.
-        $name = 'sekarya_migrationcheck_'.substr(md5((string) mt_rand()), 0, 8);
+        $name = self::THROWAWAY_PREFIX.substr(md5((string) mt_rand()), 0, 8);
+
+        $this->assertThrowaway($name);
 
         try {
             Schema::createDatabase($name);
@@ -60,10 +72,63 @@ final class WorkerAggregateMigrationTest extends TestCase
     protected function tearDown(): void
     {
         if ($this->database !== '') {
+            // Diperiksa LAGI di sini, bukan cukup sekali saat membuat.
+            //
+            // `tearDown()` berjalan walaupun test gagal di tengah jalan, jadi
+            // isi `$this->database` pada saat itu sudah melewati kode yang
+            // baru saja gagal. Pemeriksaan yang hanya ada di `setUp()` menjaga
+            // NIAT; yang dijaga di sini PERINTAH yang benar-benar dijalankan.
+            $this->assertThrowaway($this->database);
+
             Schema::dropDatabaseIfExists($this->database);
         }
 
         parent::tearDown();
+    }
+
+    /**
+     * Pagar di depan satu-satunya tempat di seluruh proyek ini yang membuat
+     * dan membuang basis data.
+     *
+     * Skema hanya boleh berubah lewat migrasi. Kelas ini pengecualiannya,
+     * karena migrasi yang MEMINDAHKAN DATA tidak bisa dibuktikan di atas basis
+     * data yang baru saja dimigrasikan penuh — tidak pernah ada baris lama
+     * untuk dipindahkan. Harga pengecualian itu: ada perintah pembuangan basis
+     * data yang sungguhan dijalankan di dalam suite, dan pagar ini yang
+     * membatasi jangkauannya.
+     *
+     * Dua hal yang dijaga, dan keduanya perlu:
+     *
+     *  1. **Awalannya harus milik kelas ini.** Tanpa ini, satu salah ketik saat
+     *     menyusun nama sudah cukup untuk menunjuk basis data lain.
+     *  2. **Tidak boleh sama dengan basis data yang sedang dipakai koneksi.**
+     *     Inilah yang menutup kejadian paling mungkin: seseorang menjalankan
+     *     suite dengan `DB_DATABASE` produksi di environment-nya. Pemeriksaan
+     *     pertama tidak menolong kalau basis data itu kebetulan bernama serupa.
+     *
+     * Melempar, bukan `markTestSkipped()`: nama yang tidak lolos pagar berarti
+     * ada yang salah pada kodenya sendiri, dan test yang diam-diam dilewati
+     * adalah cara paling halus untuk tidak pernah mengetahuinya.
+     */
+    private function assertThrowaway(string $name): void
+    {
+        if (! str_starts_with($name, self::THROWAWAY_PREFIX)) {
+            throw new RuntimeException(sprintf(
+                'Menolak menyentuh basis data "%s": kelas ini hanya boleh membuat dan '
+                .'membuang yang berawalan "%s".',
+                $name,
+                self::THROWAWAY_PREFIX,
+            ));
+        }
+
+        $inUse = (string) config('database.connections.'.config('database.default').'.database');
+
+        if ($name === $inUse) {
+            throw new RuntimeException(sprintf(
+                'Menolak membuang basis data "%s": itu yang sedang dipakai koneksi.',
+                $name,
+            ));
+        }
     }
 
     /** Artisan di basis data sekali-pakai, lewat proses terpisah. */
