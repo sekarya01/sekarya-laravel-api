@@ -42,6 +42,13 @@ trap cleanup EXIT
 ACC='Accept: application/json'
 CT='Content-Type: application/json'
 
+# `needed_at` wajib dan harus SESUDAH sekarang, jadi ia tidak bisa ditulis
+# sebagai tanggal tetap di dalam skrip: literal apa pun akan lewat suatu hari
+# dan seluruh pembuatan task mulai dijawab 422 tanpa ada yang menyentuh kode.
+NEEDED_AT="$(python3 -c "
+from datetime import datetime, timedelta, timezone
+print((datetime.now(timezone.utc) + timedelta(days=3)).strftime('%Y-%m-%dT%H:%M:%SZ'))")"
+
 # ── helper ───────────────────────────────────────────────────────────────────
 
 # check <label> <status> <ekspresi|-> <nilai|-> <argumen curl...>
@@ -133,8 +140,21 @@ signup() {
         return 1
     fi
 
+    # Kode dibaca dari BARIS SUBJEK, bukan dari badan emailnya.
+    #
+    # Pola lamanya `**123456**` mencari markdown tebal, dan itu berhenti cocok
+    # sejak surat verifikasi menjadi HTML: di badan HTML angkanya duduk di
+    # dalam <span> bergaya, dan quoted-printable memotongnya di tengah dengan
+    # soft line break (`846` di satu baris, `072` di baris berikutnya). Yang
+    # terlihat saat itu terjadi bukan "pola tidak cocok" melainkan FATAL
+    # "kode verifikasi tidak ditemukan" di langkah pertama.
+    #
+    # Subjeknya satu baris utuh dan memang memuat kodenya — lihat
+    # App\Mail\VerificationCodeMail. (Itu pula sebabnya subjek email TIDAK
+    # PERNAH dikirim ke Axiom: ia berisi kredensialnya. Lihat
+    # docs/OBSERVABILITY.md.)
     local code
-    code="$(grep -oE '\*\*[0-9]{6}\*\*' "$LOG" | head -1 | tr -d '*')"
+    code="$(grep -oE 'Kode verifikasi Sekarya: [0-9]{6}' "$LOG" | head -1 | grep -oE '[0-9]{6}')"
 
     if [[ -z "$code" ]]; then
         bad "signup <$2>: kode verifikasi tidak terbaca dari ${LOG} (MAIL_MAILER harus 'log')" >&2
@@ -218,7 +238,9 @@ check "login sebelum verifikasi ditolak" 403 "d['code']" '"email_not_verified"' 
     -X POST "$BASE/auth/login" -H "$ACC" -H "$CT" \
     -d '{"email":"budi@sekarya.test","password":"RahasiaKuat2026"}'
 
-VERIF_CODE="$(grep -oE '\*\*[0-9]{6}\*\*' "$LOG" | head -1 | tr -d '*')"
+# Dari baris subjek, alasan yang sama seperti di signup(). `head -1` tetap:
+# yang dicari kode milik budi, yang mendaftar lebih dulu.
+VERIF_CODE="$(grep -oE 'Kode verifikasi Sekarya: [0-9]{6}' "$LOG" | head -1 | grep -oE '[0-9]{6}')"
 [[ -z "$VERIF_CODE" ]] && { echo "${R}FATAL${N} kode verifikasi tidak ditemukan di ${LOG}"; exit 1; }
 
 check "kode salah menurunkan sisa percobaan" 422 "d['context']['attempts_left']" '4' \
@@ -542,7 +564,7 @@ TASK_JSON="$(curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "category_id":2,
   "title":"Cuci AC 2 unit di rumah",
   "description":"Servis AC split, freon dan cuci evaporator.",
-  "budget_min":150000,
+  "needed_at":"'"$NEEDED_AT"'","budget_min":150000,
   "city":"Jakarta","latitude":-6.1754,"longitude":106.8272,
   "skills":["cuci-ac"],"publish_now":true,
   "options":[{"label":"Bawa alat sendiri","value":true}]
@@ -650,7 +672,8 @@ CREW_JSON="$(curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "category_id":2,
   "title":"Bersih-bersih gudang sehari",
   "description":"Butuh beberapa orang untuk merapikan gudang dalam satu hari.",
-  "budget_min":100000,
+  "needed_at":"'"$NEEDED_AT"'","budget_min":100000,
+  "city":"Jakarta",
   "workers_needed":2,
   "publish_now":true
 }')"
@@ -726,7 +749,8 @@ SHORT_JSON="$(curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "category_id":2,
   "title":"Angkut barang pindahan",
   "description":"Butuh 5 orang, tapi tanggalnya tidak bisa mundur.",
-  "budget_min":100000,
+  "needed_at":"'"$NEEDED_AT"'","budget_min":100000,
+  "city":"Jakarta",
   "workers_needed":5,
   "publish_now":true
 }')"
@@ -870,17 +894,17 @@ echo "${Y}==>${N} Feed pencari kerja & filter"
 
 curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "category_id":2,"title":"Bersihkan kamar mandi","description":"Kamar mandi berkerak, disikat bersih.",
-  "budget_min":120000,"city":"Jakarta","latitude":-6.2088,"longitude":106.8456,
+  "needed_at":"'"$NEEDED_AT"'","budget_min":120000,"city":"Jakarta","latitude":-6.2088,"longitude":106.8456,
   "skills":["bersih-kamar-mandi"],"publish_now":true}' -o /dev/null
 curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "category_id":3,"title":"Jaga kucing 3 hari","description":"Titip 2 kucing persia, beri makan pagi sore.",
-  "budget_min":200000,"city":"Bandung","latitude":-6.9175,"longitude":107.6191,
+  "needed_at":"'"$NEEDED_AT"'","budget_min":200000,"city":"Bandung","latitude":-6.9175,"longitude":107.6191,
   "skills":["jaga-kucing"],"publish_now":true}' -o /dev/null
 # Judul ini yang menguji dua kelemahan FULLTEXT: kata dua huruf ("AC") dan
 # bentuk berimbuhan ("Membersihkan" dicari dengan "bersih").
 curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "category_id":2,"title":"Membersihkan AC ruang kerja","description":"Unit split, freon dicek.",
-  "budget_min":180000,"city":"Jakarta","publish_now":true}' -o /dev/null
+  "needed_at":"'"$NEEDED_AT"'","budget_min":180000,"city":"Jakarta","publish_now":true}' -o /dev/null
 
 check "feed tidak memuat task sendiri" 200 "len(d['data'])" '0' \
     "${AUTH[@]}" "$BASE/tasks"
