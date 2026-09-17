@@ -7,6 +7,7 @@ namespace Tests\Unit\Mail;
 use App\Mail\VerificationCodeMail;
 use App\Models\User;
 use App\Notifications\VerificationCodeNotification;
+use Illuminate\Mail\Mailables\Address;
 use Tests\TestCase;
 
 final class VerificationCodeMailTest extends TestCase
@@ -19,7 +20,7 @@ final class VerificationCodeMailTest extends TestCase
 
         $recipients = array_map(
             fn ($address): string => match (true) {
-                $address instanceof \Illuminate\Mail\Mailables\Address => $address->address,
+                $address instanceof Address => $address->address,
                 $address instanceof \Symfony\Component\Mime\Address => $address->getAddress(),
                 default => (string) $address,
             },

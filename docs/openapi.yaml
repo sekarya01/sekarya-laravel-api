@@ -4338,8 +4338,16 @@ components:
         message: { type: [string, 'null'], maxLength: 1000 }
         option_responses:
           type: array
-          description: Jawaban atas `options` task.
-          items: { type: object }
+          description: >-
+            Jawaban atas `options` task. Bentuknya CERMIN `Task.options`:
+            daftar objek `{label, value}`, bukan peta label→jawaban. Kosong
+            berangkat sebagai `[]`, bukan `{}` — klien bertipe harus
+            memodelkannya sebagai list.
+          items:
+            type: object
+            properties:
+              label: { type: string }
+              value: {}
         estimated_hours: { type: [number, 'null'] }
         can_start_at: { type: [string, 'null'], format: date-time }
         status: { $ref: '#/components/schemas/BidStatus' }
@@ -4683,7 +4691,16 @@ components:
       properties:
         amount: { type: integer, minimum: 1 }
         message: { type: [string, 'null'], maxLength: 1000 }
-        option_responses: { type: array, maxItems: 20, items: { type: object } }
+        option_responses:
+          type: array
+          maxItems: 20
+          description: Cermin `Task.options` — daftar `{label, value}`.
+          items:
+            type: object
+            required: [label, value]
+            properties:
+              label: { type: string, maxLength: 80 }
+              value: {}
         estimated_hours: { type: [number, 'null'], minimum: 0.25, maximum: 999 }
         can_start_at: { type: [string, 'null'], format: date-time }
       additionalProperties: false

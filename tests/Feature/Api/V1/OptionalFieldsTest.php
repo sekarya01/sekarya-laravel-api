@@ -95,10 +95,52 @@ final class OptionalFieldsTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.estimated_hours', 3.5)
             ->assertJsonCount(1, 'data.option_responses')
+            // Bentuknya dikunci, bukan cuma jumlahnya: `option_responses`
+            // adalah DAFTAR `{label, value}` — cermin `Task.options` — bukan
+            // peta label→jawaban. Klien mobile pernah memodelkannya sebagai
+            // Map, dan satu tawaran saja menggagalkan seluruh halaman feed.
+            ->assertJsonPath('data.option_responses.0.label', 'Bawa alat sendiri')
+            ->assertJsonPath('data.option_responses.0.value', true)
             ->assertJsonPath('data.message', 'Bawa alat sendiri');
 
         $this->assertNotNull(
             $this->asUser($worker)->getJson(route('v1.bids.mine'))->json('data.0.can_start_at'),
+        );
+    }
+
+    /**
+     * Tawaran tanpa jawaban opsi harus berangkat sebagai `[]`, BUKAN `{}`.
+     *
+     * PHP tidak membedakan list dan map: array kosong bisa ter-encode jadi
+     * objek begitu ada yang memperlakukannya sebagai peta. Klien bertipe
+     * membaca kontraknya harfiah — mobile pernah memodelkan field ini sebagai
+     * Map, dan SATU tawaran tanpa jawaban opsi menggagalkan penguraian
+     * SELURUH halaman feed (galat 200-tapi-tak-terbaca yang mahal dilacak).
+     */
+    public function test_bid_option_responses_stay_a_json_array_when_empty(): void
+    {
+        $poster = $this->activeUser();
+        $worker = $this->activeUser();
+
+        $task = $this->asUser($poster)->postJson(route('v1.tasks.store'), [
+            'category_id' => $this->anyCategory()->getKey(),
+            'title' => 'Angkat galon',
+            'description' => 'Dua galon ke lantai tiga.',
+            'budget_min' => 50_000,
+            'city' => 'Jakarta',
+            'needed_at' => now()->addDays(2)->toIso8601String(),
+            'publish_now' => true,
+        ])->json('data.id');
+
+        $response = $this->asUser($worker)
+            ->postJson(route('v1.tasks.bids.store', $task), ['amount' => 60_000])
+            ->assertCreated();
+
+        $this->assertSame([], $response->json('data.option_responses'));
+        $this->assertStringContainsString(
+            '"option_responses":[]',
+            $response->getContent(),
+            'option_responses kosong harus jadi array JSON, bukan objek.',
         );
     }
 

@@ -8,6 +8,7 @@ use App\Enums\Gender;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -45,7 +46,7 @@ final class RegisterGenderProvinceTest extends TestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('genderProvider')]
+    #[DataProvider('genderProvider')]
     public function test_register_persists_each_accepted_gender(string $gender): void
     {
         $this->postJson(route('v1.auth.register'), [...self::PAYLOAD, 'gender' => $gender])
