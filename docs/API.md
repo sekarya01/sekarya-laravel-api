@@ -408,6 +408,28 @@ curl -s -X POST "$BASE/tasks/$TASK/bids" \
 `201`. Kirim lagi dengan nominal berbeda dan balasannya **`200`**, bukan `201` — satu
 orang satu penawaran per task, jadi pengiriman kedua **mengubah** yang ada.
 
+#### `option_responses` adalah DAFTAR, bukan peta
+
+Jawaban atas `options` task memakai bentuk yang sama persis dengan `options`
+itu sendiri — **daftar objek `{label, value}`**:
+
+```json
+{ "amount": 220000, "option_responses": [{ "label": "Bawa alat sendiri", "value": true }] }
+```
+
+Dua hal yang gampang salah dibaca, dan keduanya sudah pernah memakan korban:
+
+- **Bukan peta `{"Bawa alat sendiri": true}`.** Klien yang memodelkannya
+  sebagai map akan gagal mengurai, dan karena penguraian halaman bersifat
+  semua-atau-tidak, satu penawaran saja menjatuhkan SELURUH halaman feed —
+  server menjawab `200` tapi layar melapor gagal memuat.
+- **Kosong berangkat sebagai `[]`, bukan `{}`.** Dikunci oleh
+  `OptionalFieldsTest::test_bid_option_responses_stay_a_json_array_when_empty`.
+
+`value` sengaja bebas tipe (boolean, angka, atau teks) karena isinya ditentukan
+pembuat task. Klien bertipe ketat perlu memperlakukannya sebagai primitif bebas,
+bukan string.
+
 ### Penolakan yang memang harus terjadi
 
 ```bash
