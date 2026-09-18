@@ -64,6 +64,7 @@ use App\Http\Controllers\Api\V1\Task\ListOpenTasksController;
 use App\Http\Controllers\Api\V1\Task\PublishTaskController;
 use App\Http\Controllers\Api\V1\Task\ShowTaskController;
 use App\Http\Controllers\Api\V1\Task\StartTaskController;
+use App\Http\Controllers\Api\V1\Task\UpdateTaskController;
 use App\Http\Controllers\Api\V1\Upload\StoreUploadController;
 use App\Http\Controllers\Api\V1\User\ListVerificationsController;
 use App\Http\Controllers\Api\V1\User\ListWorkersController;
@@ -210,6 +211,12 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
             ->middleware('throttle:write')->name('tasks.store');
         Route::get('tasks/{task}', ShowTaskController::class)
             ->can('view', 'task')->name('tasks.show');
+        // Sunting isi task. Parsial: ruas yang tidak dikirim tidak disentuh.
+        // Hanya selama `draft`/`open` — Action yang menjaganya, karena itu
+        // aturan bisnis, bukan soal siapa pemiliknya.
+        Route::put('tasks/{task}', UpdateTaskController::class)
+            ->middleware('throttle:write')
+            ->can('update', 'task')->name('tasks.update');
         Route::post('tasks/{task}/publish', PublishTaskController::class)
             ->can('update', 'task')->name('tasks.publish');
         Route::post('tasks/{task}/cancel', CancelTaskController::class)

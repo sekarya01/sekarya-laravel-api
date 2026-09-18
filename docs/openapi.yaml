@@ -1451,6 +1451,68 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+    put:
+      tags: [Task]
+      operationId: updateTask
+      summary: Sunting isi task
+      description: |
+        Hanya pemilik task, dan hanya selama statusnya `draft` atau `open`.
+        Sesudah ada pelamar yang diterima, isi task bukan lagi draf milik
+        pemberi kerja melainkan dasar keputusan orang lain — jalurnya batalkan
+        lalu buat ulang, bukan sunting.
+
+        **Parsial.** Ruas yang tidak dikirim tidak disentuh; mengirim `null`
+        pada ruas opsional (`budget_max`, `end_at`, `location_text`,
+        `latitude`, `longitude`, `bidding_closes_at`) mengosongkannya.
+        `options`, `photos`, dan `skills` diganti seluruhnya — kirim `[]` untuk
+        mengosongkan.
+
+        Dua perbandingan memakai nilai **efektif**: `budget_max` dibandingkan
+        dengan `budget_min` yang dikirim bila ada, kalau tidak dengan yang
+        tersimpan; begitu pula `end_at` terhadap `needed_at`.
+
+        Mengganti `category_id` menulis ulang snapshot `ref_price_median`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+            examples:
+              ubahJudulDanHarga:
+                summary: Hanya judul dan harga
+                value:
+                  title: Cuci AC 3 unit di rumah
+                  budget_min: 250000
+              hapusBatasAtas:
+                summary: Kosongkan budget maksimum
+                value:
+                  budget_max: null
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleTask'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          description: |
+            Bentuk request tidak sah, ATAU task sudah tidak bisa disunting
+            (`task_not_editable`), ATAU target pekerja diturunkan di bawah
+            jumlah yang sudah diterima (`workers_needed_below_hired`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Task dengan status dealt tidak bisa diubah lagi.
+                code: task_not_editable
+                context: { status: dealt }
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
   /tasks/{task}/publish:
     parameters:
       - $ref: '#/components/parameters/TaskUlid'
@@ -4685,6 +4747,59 @@ components:
           default: false
           description: '`true` → langsung `open`. `false` → `draft`.'
       additionalProperties: false
+    UpdateTaskRequest:
+      type: object
+      description: |
+        Semua ruas opsional — yang tidak dikirim tidak disentuh. Tidak ada
+        `publish_now` di sini: menerbitkan draft tetap lewat
+        `POST /tasks/{task}/publish`.
+      properties:
+        category_id: { type: integer }
+        title: { type: string, maxLength: 180 }
+        description: { type: string, maxLength: 5000 }
+        budget_min: { type: integer, minimum: 1 }
+        budget_max:
+          type: [integer, 'null']
+          description: '`null` menghapus batas atas. Bila diisi, tidak boleh di bawah `budget_min` efektif.'
+        options:
+          type: array
+          maxItems: 20
+          description: Mengganti seluruh daftar. `[]` mengosongkan.
+          items:
+            type: object
+            required: [label, value]
+            properties:
+              label: { type: string, maxLength: 80 }
+              value: {}
+        photos:
+          type: array
+          maxItems: 10
+          description: Mengganti seluruh daftar. `[]` mengosongkan.
+          items: { type: string }
+        skills:
+          type: array
+          maxItems: 10
+          description: Mengganti seluruh daftar. `[]` mengosongkan.
+          items: { type: string }
+        location_text: { type: [string, 'null'], maxLength: 255 }
+        city: { type: string, maxLength: 80 }
+        latitude: { type: [number, 'null'], minimum: -90, maximum: 90 }
+        longitude: { type: [number, 'null'], minimum: -180, maximum: 180 }
+        is_remote: { type: boolean }
+        workers_needed:
+          type: integer
+          minimum: 1
+          maximum: 500
+          description: |
+            Tidak boleh diturunkan di bawah `hiring.workers_hired` —
+            ditolak dengan `workers_needed_below_hired`.
+        needed_at: { type: string, format: date-time }
+        end_at:
+          type: [string, 'null']
+          format: date-time
+          description: Harus setelah `needed_at` efektif. `null` mengosongkan.
+        bidding_closes_at: { type: [string, 'null'], format: date-time }
+      additionalProperties: false
     PlaceBidRequest:
       type: object
       required: [amount]
@@ -5004,6 +5119,8 @@ components:
             - invalid_reset_token
             - task_not_found
             - task_not_biddable
+            - task_not_editable
+            - workers_needed_below_hired
             - cannot_bid_own_task
             - bid_below_minimum
             - task_already_dealt
