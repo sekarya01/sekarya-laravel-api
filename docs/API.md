@@ -5,7 +5,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 | | |
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
-| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 77 operation cocok dengan 77 rute nyata |
+| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 78 operation cocok dengan 78 rute nyata |
 | **Uji otomatis** | `bash docs/smoke.sh` — 194 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
@@ -1647,7 +1647,7 @@ Keempat tindakan itu tercatat di `admin_audit_logs` sebagai `wallet_topup.confir
 
 ## Ringkasan endpoint
 
-**77 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**78 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1698,6 +1698,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `GET` | `/tasks/posted` | access | `api` | Task yang saya posting. |
 | `GET` | `/tasks/worked` | access | `api` | Task yang saya kerjakan. |
 | `GET` | `/tasks/{task}` | access | `api` | Detail satu task, termasuk `hiring`, `workers`, `payment`, `activities`. |
+| `PUT` | `/tasks/{task}` | access | `write` | Sunting isi task. Parsial; hanya `draft`/`open`. |
 | `POST` | `/tasks/{task}/cancel` | access | `api` | Batalkan. Dana dikembalikan, penawaran ditutup. |
 | `POST` | `/tasks/{task}/publish` | access | `api` | `draft` -> `open`. Lelang dibuka. |
 | `POST` | `/tasks/{task}/start` | access | `api` | Berhenti merekrut lebih awal: target turun ke jumlah yang sudah diterima. |
@@ -1812,6 +1813,8 @@ Bercabanglah pada `code`, **jangan** pada `message`.
 | `review_target_required` | 422 | Task banyak pekerja, `worker_id` harus disebut |
 | `payment_not_held` | 422 | Dana tidak lagi ditahan |
 | `invalid_status_transition` | 422 | Perpindahan status tidak diizinkan |
+| `task_not_editable` | 422 | Isi task tidak bisa diubah lagi (bukan `draft`/`open`) |
+| `workers_needed_below_hired` | 422 | Target pekerja diturunkan di bawah yang sudah diterima |
 | `review_not_allowed` | 422 | Belum selesai, atau sudah menilai |
 | `admin_access_denied` | 403 | Pengelola dinonaktifkan, atau perannya tidak mencakup tindakan itu (`context.reason`) |
 | `super_admin_protected` | 403 | `super_admin` tidak bisa dihapus maupun dinonaktifkan |
