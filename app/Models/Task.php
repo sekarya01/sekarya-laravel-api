@@ -74,6 +74,19 @@ final class Task extends Model
     protected function casts(): array
     {
         return [
+            // Kunci pemilik DI-CAST, dan itu bukan kosmetik.
+            //
+            // Policy membandingkannya dengan `$user->getKey()` memakai `===`.
+            // Laravel meng-cast primary key model sendiri ke int (getCasts()
+            // menggabungkan keyName => keyType), tapi kolom asing seperti ini
+            // tidak dicast apa pun — nilainya apa adanya dari driver. Begitu
+            // driver mengembalikannya sebagai string, `int === string` bernilai
+            // false dan PEMILIK ASLI ditolak 403, sementara kueri yang
+            // membandingkannya di SQL tetap lolos karena MySQL menyamakan tipe.
+            // Persis itu yang terjadi di produksi: `GET /tasks/posted` berisi
+            // task orangnya, tapi `PUT /tasks/{task}` menjawab 403.
+            'poster_id' => 'integer',
+            'category_id' => 'integer',
             'options' => 'array',
             'photos' => 'array',
             'budget_min' => 'integer',
