@@ -421,6 +421,28 @@ final class TaskLifecycleTest extends TestCase
         $this->asUser($this->stranger)->getJson(route('v1.bids.mine'))->assertOk()->assertJsonCount(0, 'data');
     }
 
+    /**
+     * Detail task menyertakan tawaran sendiri, sama seperti feed. Tanpa ini
+     * mobile tidak punya cara tahu ia sudah menawar selain mengingatnya
+     * sendiri, dan tombol "Ajukan Penawaran" hidup lagi tiap layar dibuka
+     * ulang.
+     */
+    public function test_task_detail_carries_my_own_bid(): void
+    {
+        $id = $this->createTask();
+        $this->asUser($this->worker)->postJson(route('v1.tasks.bids.store', $id), ['amount' => 220_000]);
+
+        $this->asUser($this->worker)->getJson(route('v1.tasks.show', $id))
+            ->assertOk()
+            ->assertJsonPath('data.my_bid.status', 'pending')
+            ->assertJsonPath('data.my_bid.amount', 220_000);
+
+        // Tawaran orang lain BUKAN "my_bid" — relasinya dibatasi penawar.
+        $this->asUser($this->stranger)->getJson(route('v1.tasks.show', $id))
+            ->assertOk()
+            ->assertJsonPath('data.my_bid', null);
+    }
+
     public function test_only_the_bidder_can_withdraw(): void
     {
         $id = $this->createTask();
