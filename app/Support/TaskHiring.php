@@ -26,6 +26,7 @@ final class TaskHiring
     public function __construct(
         private readonly TaskStatusRecorder $recorder,
         private readonly WorkOpening $opening,
+        private readonly TaskEscrow $escrow,
     ) {}
 
     /**
@@ -51,6 +52,18 @@ final class TaskHiring
         // Satu tagihan per task, sebesar jumlah seluruh penawaran yang
         // diterima: pemberi kerja mentransfer sekali untuk semua orang.
         // Pembagiannya ada di `activities.agreed_amount`.
+        //
+        // Tugas yang dibiayai dari saldo (`held` sejak dipasang) tidak
+        // ditagih ulang di sini: TaskEscrow menyamakan dana yang ditahan
+        // dengan komitmennya — penawaran di atas harga dipotong selisihnya.
+        // Tagihan `pending` hanya tersisa untuk tugas lama sebelum aturan itu.
+        $payment = $task->payment()->first();
+        if ($payment !== null && $payment->status === PaymentStatus::Held) {
+            $this->escrow->sync($task, 'penawaran diterima', $payment);
+
+            return;
+        }
+
         Payment::query()->updateOrCreate(
             ['task_id' => $task->getKey()],
             [
@@ -79,6 +92,10 @@ final class TaskHiring
             ]);
 
         $task->forceFill(['dealt_at' => now(), 'bids_count' => 0])->save();
+
+        // Slot yang tidak terisi tidak dibayar: sisa dananya kembali ke saldo.
+        // Contoh: 5 × Rp100.000 ditahan, mulai dengan 3 orang → Rp200.000 kembali.
+        $this->escrow->sync($task, $reason);
 
         $this->recorder->move(
             $task,

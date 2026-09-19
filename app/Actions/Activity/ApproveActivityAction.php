@@ -98,26 +98,29 @@ final class ApproveActivityAction
             // Pekerjaannya tetap ditutup — `approved`, `tasks_completed` naik,
             // task `completed`. Yang tertunda cuma uangnya.
             // Lihat config/sekarya.payments.
-            $gateEnabled = (bool) config('sekarya.payments.gate_enabled');
+            // Dana dilepas kalau memang ADA yang ditahan. Tugas yang dibiayai
+            // dari saldo (TaskEscrow) selalu `held`; tagihan lain — tugas lama
+            // yang belum pernah dibayar — ditutup tanpa uang, seperti dulu
+            // selama gerbang pembayaran mati.
+            $payment = $activity->payment;
+            $funded = $payment !== null && $payment->status === PaymentStatus::Held;
 
-            if ($gateEnabled) {
-                $payment = $activity->payment;
-                if (! $payment->status->canTransitionTo(PaymentStatus::Released)) {
-                    throw InvalidStatusTransitionException::between(
-                        $payment->status->value,
-                        PaymentStatus::Released->value,
-                    );
-                }
+            if (! $funded && (bool) config('sekarya.payments.gate_enabled') && $payment !== null) {
+                throw InvalidStatusTransitionException::between(
+                    $payment->status->value,
+                    PaymentStatus::Released->value,
+                );
+            }
+
+            if ($funded) {
                 $payment->forceFill([
                     'status' => PaymentStatus::Released,
                     'released_at' => $now,
                 ])->save();
 
                 // Upah masuk ke saldo masing-masing pekerja. Dibaca dari
-                // `activities`, bukan dari `bids`: penawaran bisa berubah setelah
-                // diterima kalau suatu saat ada jalur yang mengizinkannya,
-                // sedangkan `agreed_amount` di activity adalah angka yang menjadi
-                // dasar pekerjaan ini dibuka.
+                // `activities`, bukan dari `bids`: `agreed_amount` di activity
+                // adalah angka yang menjadi dasar pekerjaan ini dibuka.
                 foreach ($task->activities()->with('worker')->get() as $paid) {
                     $this->ledger->credit(
                         $this->ledger->walletFor($paid->worker),
@@ -136,9 +139,9 @@ final class ApproveActivityAction
                 TaskStatus::Completed,
                 ActorType::Poster,
                 $poster->getKey(),
-                reason: $gateEnabled
+                reason: $funded
                     ? 'seluruh hasil disetujui, dana dilepas'
-                    : 'seluruh hasil disetujui; pembayaran belum dikembangkan, dana belum dilepas',
+                    : 'seluruh hasil disetujui; tugas tanpa dana ditahan, tidak ada yang dilepas',
             );
 
             return $activity;

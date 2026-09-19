@@ -26,6 +26,12 @@ enum WalletEntryType: string
     /** Upah pekerja saat dana task dilepas. */
     case Earning = 'earning';
 
+    /** Dana task ditahan dari saldo pemberi kerja saat task dipasang/diubah. */
+    case TaskHold = 'task_hold';
+
+    /** Dana task yang tidak terpakai (slot kosong, budget turun) kembali ke saldo. */
+    case TaskRelease = 'task_release';
+
     /** Saldo ditahan saat penarikan diminta — bukan saat dicairkan. */
     case Withdrawal = 'withdrawal';
 
@@ -43,10 +49,12 @@ enum WalletEntryType: string
             self::Topup,
             self::Refund,
             self::Earning,
+            self::TaskRelease,
             self::WithdrawalReversal,
             self::AdjustmentCredit => WalletEntryDirection::Credit,
 
             self::Withdrawal,
+            self::TaskHold,
             self::AdjustmentDebit => WalletEntryDirection::Debit,
         };
     }

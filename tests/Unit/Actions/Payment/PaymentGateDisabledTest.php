@@ -169,7 +169,7 @@ final class PaymentGateDisabledTest extends TestCase
 
         // Jejaknya tidak mengaku-aku: task selesai, dana belum dilepas.
         $this->assertStringContainsString(
-            'dana belum dilepas',
+            'tidak ada yang dilepas',
             (string) TaskStatusLog::query()
                 ->where('task_id', $this->task->getKey())
                 ->where('to_status', TaskStatus::Completed->value)

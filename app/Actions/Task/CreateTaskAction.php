@@ -12,11 +12,15 @@ use App\Models\Skill;
 use App\Models\Task;
 use App\Models\TaskStatusLog;
 use App\Models\User;
+use App\Support\TaskEscrow;
 use Illuminate\Database\ConnectionInterface;
 
 final class CreateTaskAction
 {
-    public function __construct(private readonly ConnectionInterface $db) {}
+    public function __construct(
+        private readonly ConnectionInterface $db,
+        private readonly TaskEscrow $escrow,
+    ) {}
 
     public function handle(CreateTaskData $data, User $poster): Task
     {
@@ -65,6 +69,13 @@ final class CreateTaskAction
             }
 
             $poster->increment('tasks_posted');
+
+            // Tugas yang langsung tayang langsung dibiayai: pekerja diminta ×
+            // harga per orang dipotong dari saldo. Saldo kurang → seluruh
+            // pembuatan batal (insufficient_balance). Draf belum menahan apa pun.
+            if ($status === TaskStatus::Open) {
+                $this->escrow->start($task, 'tugas dipasang');
+            }
 
             // Muat ulang supaya nilai default dari DATABASE ikut terbawa —
             // `workers_hired` dan `bids_count` tidak ada di INSERT, jadi tanpa
