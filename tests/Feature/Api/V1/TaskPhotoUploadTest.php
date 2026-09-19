@@ -16,6 +16,8 @@ use Tests\TestCase;
  */
 final class TaskPhotoUploadTest extends TestCase
 {
+    protected bool $fundUsers = true;
+
     use RefreshDatabase;
 
     private User $poster;

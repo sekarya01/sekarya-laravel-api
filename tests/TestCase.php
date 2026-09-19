@@ -93,8 +93,23 @@ abstract class TestCase extends BaseTestCase
         $user->email_verified_at = now();
         $user->save();
 
+        if ($this->fundUsers) {
+            $this->fundWallet($user, self::FUNDED_BALANCE);
+        }
+
         return $user->refresh();
     }
+
+    /**
+     * Beri saldo ke setiap `activeUser()` di kelas ini.
+     *
+     * Sejak dana tugas ditahan dari saldo saat dipasang (TaskEscrow), setiap
+     * test yang memasang tugas lewat jalur nyata butuh pemberi kerja bersaldo.
+     * Bawaannya MATI supaya test dompet tetap berangkat dari akun kosong.
+     */
+    protected bool $fundUsers = false;
+
+    protected const FUNDED_BALANCE = 100_000_000;
 
     /**
      * Identitas terverifikasi — gerbang `ready_to_work`.

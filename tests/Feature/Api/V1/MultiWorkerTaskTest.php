@@ -18,6 +18,8 @@ use Tests\TestCase;
  */
 final class MultiWorkerTaskTest extends TestCase
 {
+    protected bool $fundUsers = true;
+
     use RefreshDatabase;
 
     private User $poster;
@@ -259,20 +261,16 @@ final class MultiWorkerTaskTest extends TestCase
     }
 
     /**
-     * Dua langkah: pemberi kerja melapor, pengelola mengonfirmasi.
+     * Activity tiap pekerja. Dana sudah ditahan dari saldo sejak tugas
+     * dipasang, jadi deal langsung membuka pekerjaan yang dibiayai — tidak ada
+     * transfer yang perlu dilaporkan atau dikonfirmasi.
      *
      * @return list<string> id activity, URUT sesuai urutan $this->workers
      */
     private function confirmTransfer(string $task, int $workerCount): array
     {
-        $payment = $this->asUser($this->poster)
-            ->postJson(route('v1.tasks.payment.hold', $task))
-            ->assertOk()
-            ->assertJsonPath('data.awaits_confirmation', true)
-            ->json('data.id');
-
-        $this->asAdmin($this->admin())
-            ->postJson(route('v1.admin.payments.confirm', $payment))
+        $this->asUser($this->poster)
+            ->getJson(route('v1.tasks.payment.show', $task))
             ->assertOk()
             ->assertJsonPath('data.is_held', true);
 
@@ -288,21 +286,10 @@ final class MultiWorkerTaskTest extends TestCase
         return $ids;
     }
 
-    /**
-     * Laporan transfer TIDAK mengizinkan apa pun dimulai.
-     *
-     * Pekerjaannya sudah terdaftar sejak deal — itu catatan siapa mengerjakan
-     * apa. Yang masih ditahan uang adalah MULAI BEKERJA, dan pernyataan
-     * "saya sudah transfer" bukan bukti uangnya masuk.
-     */
-    public function test_reporting_a_transfer_does_not_let_the_work_start(): void
+    /** Dana ditahan sejak tugas dipasang → setiap pekerja langsung boleh berangkat. */
+    public function test_a_funded_deal_lets_every_worker_depart(): void
     {
         $task = $this->dealtTask(3);
-
-        $this->asUser($this->poster)
-            ->postJson(route('v1.tasks.payment.hold', $task))
-            ->assertOk()
-            ->assertJsonPath('data.is_held', false);
 
         foreach (array_slice($this->workers, 0, 3) as $worker) {
             $activity = $this->asUser($worker)->getJson(route('v1.activities.mine'))
@@ -311,16 +298,51 @@ final class MultiWorkerTaskTest extends TestCase
                 ->assertJsonPath('data.0.status', 'open')
                 ->json('data.0.id');
 
-            // Langkah pertama pekerja adalah BERANGKAT, dan itu yang dijaga
-            // dana: ia waktu dan ongkos yang sudah dikeluarkan orangnya.
             $this->asUser($worker)->postJson(route('v1.activities.depart', $activity))
-                ->assertStatus(422)
-                ->assertJsonPath('code', 'payment_not_held');
+                ->assertOk();
         }
 
         $this->asUser($this->poster)->getJson(route('v1.tasks.show', $task))
             ->assertOk()
             ->assertJsonPath('data.status', 'active');
+    }
+
+    /**
+     * Contoh aturan pemotongan: 3 pekerja × Rp150.000 ditahan saat dipasang;
+     * mulai dengan 1 orang (penawaran Rp200.000) → yang terpotong Rp200.000,
+     * sisanya kembali ke saldo.
+     */
+    public function test_only_hired_workers_are_charged_when_starting_with_fewer(): void
+    {
+        $before = (int) $this->poster->walletOrNew()->balance;
+        $task = $this->createTask(3);
+
+        $this->assertSame($before - 450_000, (int) $this->poster->fresh()->walletOrNew()->balance);
+
+        $bid = $this->apply($this->workers[0], $task, 200_000);
+        $this->asUser($this->poster)->postJson(route('v1.bids.accept', $bid))->assertOk();
+        $this->asUser($this->poster)->postJson(route('v1.tasks.start', $task))->assertOk();
+
+        $this->assertSame($before - 200_000, (int) $this->poster->fresh()->walletOrNew()->balance);
+        $this->asUser($this->poster)->getJson(route('v1.tasks.payment.show', $task))
+            ->assertJsonPath('data.amount', 200_000)
+            ->assertJsonPath('data.is_held', true);
+    }
+
+    /** Saldo kurang → tugas tidak terpasang sama sekali. */
+    public function test_posting_without_enough_balance_is_refused(): void
+    {
+        $broke = User::factory()->create();
+        $broke->status = \App\Enums\UserStatus::Active;
+        $broke->email_verified_at = now();
+        $broke->save();
+
+        $this->asUser($broke)
+            ->postJson(route('v1.tasks.store'), $this->payload(['workers_needed' => 2]))
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'insufficient_balance');
+
+        $this->assertSame(0, \App\Models\Task::query()->where('poster_id', $broke->getKey())->count());
     }
 
     public function test_one_transfer_opens_an_activity_for_every_worker(): void
@@ -407,6 +429,14 @@ final class MultiWorkerTaskTest extends TestCase
         $this->asUser($this->poster)->getJson(route('v1.tasks.show', $task))
             ->assertOk()
             ->assertJsonPath('data.status', 'completed');
+
+        // Upah masing-masing — harga penawarannya sendiri — masuk ke saldonya.
+        foreach ([0 => 200_000, 1 => 210_000] as $i => $pay) {
+            $this->assertSame(
+                self::FUNDED_BALANCE + $pay,
+                (int) $this->workers[$i]->fresh()->walletOrNew()->balance,
+            );
+        }
     }
 
     // ── Penilaian ───────────────────────────────────────────────────────────

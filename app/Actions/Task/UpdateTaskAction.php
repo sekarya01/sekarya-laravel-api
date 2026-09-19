@@ -11,6 +11,7 @@ use App\Exceptions\Domain\WorkersNeededBelowHiredException;
 use App\Models\Category;
 use App\Models\Skill;
 use App\Models\Task;
+use App\Support\TaskEscrow;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -25,7 +26,10 @@ final class UpdateTaskAction
     /** Status yang isinya masih milik pemberi kerja sepenuhnya. */
     private const EDITABLE = [TaskStatus::Draft, TaskStatus::Open];
 
-    public function __construct(private readonly ConnectionInterface $db) {}
+    public function __construct(
+        private readonly ConnectionInterface $db,
+        private readonly TaskEscrow $escrow,
+    ) {}
 
     public function handle(Task $task, UpdateTaskData $data): Task
     {
@@ -94,6 +98,12 @@ final class UpdateTaskAction
                 $task->skills()->sync(
                     Skill::query()->whereIn('slug', $data->skillSlugs)->pluck('id'),
                 );
+            }
+
+            // Anggaran atau jumlah pekerja berubah → dana yang ditahan ikut:
+            // kekurangannya dipotong dari saldo, kelebihannya dikembalikan.
+            if ($task->status === TaskStatus::Open) {
+                $this->escrow->sync($task, 'tugas diubah');
             }
 
             return $task->refresh();

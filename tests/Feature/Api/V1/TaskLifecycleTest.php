@@ -14,6 +14,8 @@ use Tests\TestCase;
 /** Task, lelang, uang, activity, penilaian — lewat HTTP. */
 final class TaskLifecycleTest extends TestCase
 {
+    protected bool $fundUsers = true;
+
     use RefreshDatabase;
 
     private User $poster;
@@ -473,25 +475,15 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonPath('data.status', 'active')
             ->assertJsonPath('data.agreed_amount', 220_000);
 
-        // Pemberi kerja MELAPOR sudah transfer. Ini tidak menahan dana —
-        // dan itu inti aturannya: dulu langkah ini langsung memindahkan
-        // tagihan ke `held`, yang berarti pemberi kerja menyatakan sendiri
-        // uangnya sudah masuk. Yang dibuka uang sekarang bukan keberadaan
-        // activity-nya, melainkan izin MEMULAINYA.
-        $payment = $this->asUser($this->poster)
-            ->postJson(route('v1.tasks.payment.hold', $task))
+        // Dana sudah ditahan dari saldo sejak tugas dipasang (TaskEscrow):
+        // tidak ada transfer yang dilaporkan atau dikonfirmasi. Tagihannya
+        // sebesar penawaran yang diterima.
+        $this->asUser($this->poster)
+            ->getJson(route('v1.tasks.payment.show', $task))
             ->assertOk()
-            ->assertJsonPath('data.status', 'awaiting_confirmation')
-            ->assertJsonPath('data.awaits_confirmation', true)
-            ->assertJsonPath('data.is_held', false)
-            ->json('data.id');
-
-        // Yang menahan dana — dan dengan itu mengizinkan pekerjaan dimulai —
-        // pengelola.
-        $this->asAdmin($this->admin())
-            ->postJson(route('v1.admin.payments.confirm', $payment))
-            ->assertOk()
-            ->assertJsonPath('data.is_held', true);
+            ->assertJsonPath('data.status', 'held')
+            ->assertJsonPath('data.is_held', true)
+            ->assertJsonPath('data.amount', 220_000);
 
         $activity = $this->asUser($this->worker)
             ->getJson(route('v1.activities.mine'))
@@ -534,8 +526,8 @@ final class TaskLifecycleTest extends TestCase
 
         $this->asUser($this->poster)->getJson(route('v1.tasks.payment.show', $task))
             ->assertOk()
-            ->assertJsonPath('data.status', 'pending')
-            ->assertJsonPath('data.is_held', false)
+            ->assertJsonPath('data.status', 'held')
+            ->assertJsonPath('data.is_held', true)
             ->assertJsonStructure(['data' => ['id', 'status', 'amount', 'is_held',
                 'awaits_confirmation', 'reported_at', 'rejection_reason',
                 'paid_at', 'held_at', 'released_at', 'refunded_at', 'cancelled_at', 'created_at']]);
@@ -565,7 +557,7 @@ final class TaskLifecycleTest extends TestCase
         $this->asUser($this->poster)->postJson(route('v1.bids.accept', $bid))->assertOk();
 
         $payment = $this->asUser($this->poster)
-            ->postJson(route('v1.tasks.payment.hold', $task))
+            ->getJson(route('v1.tasks.payment.show', $task))
             ->assertOk()
             ->json('data.id');
 
@@ -573,11 +565,6 @@ final class TaskLifecycleTest extends TestCase
             ->postJson(route('v1.admin.payments.confirm', $payment))
             ->assertUnauthorized()
             ->assertJsonPath('code', 'unauthenticated');
-
-        // Dan tidak ada apa pun yang terbuka.
-        $this->asUser($this->poster)->getJson(route('v1.tasks.payment.show', $task))
-            ->assertOk()
-            ->assertJsonPath('data.is_held', false);
     }
 
     public function test_confirming_opens_the_activity(): void

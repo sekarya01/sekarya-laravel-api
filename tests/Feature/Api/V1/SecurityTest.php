@@ -12,6 +12,8 @@ use Tests\TestCase;
 
 final class SecurityTest extends TestCase
 {
+    protected bool $fundUsers = true;
+
     use RefreshDatabase;
 
     protected function setUp(): void

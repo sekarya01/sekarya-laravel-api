@@ -22,6 +22,8 @@ use Tests\TestCase;
 
 final class TaskActionsTest extends TestCase
 {
+    protected bool $fundUsers = true;
+
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -165,21 +167,25 @@ final class TaskActionsTest extends TestCase
     {
         $poster = $this->activeUser();
         $task = app(CreateTaskAction::class)->handle($this->data(['publishNow' => true]), $poster);
-        $payment = Payment::factory()->held()->create([
-            'task_id' => $task->getKey(),
-            'payer_id' => $poster->getKey(),
-        ]);
+        // Dana ditahan dari saldo saat tugas dipasang (TaskEscrow).
+        $payment = $task->payment()->firstOrFail();
+        $this->assertSame(PaymentStatus::Held, $payment->status);
+        $this->assertLessThan(self::FUNDED_BALANCE, (int) $poster->fresh()->walletOrNew()->balance);
 
         app(CancelTaskAction::class)->handle($task, $poster, 'rencana berubah');
 
         $this->assertSame(PaymentStatus::Refunded, $payment->refresh()->status);
         $this->assertNotNull($payment->refunded_at);
+        // Seluruh dana yang ditahan kembali.
+        $this->assertSame(self::FUNDED_BALANCE, (int) $poster->fresh()->walletOrNew()->balance);
     }
 
     public function test_cancel_cancels_a_pending_payment_instead(): void
     {
         $poster = $this->activeUser();
-        $task = app(CreateTaskAction::class)->handle($this->data(['publishNow' => true]), $poster);
+        // Tagihan `pending` hanya ada pada tugas yang belum dibiayai (draf /
+        // tugas lama) — tugas yang tayang langsung ditahan dananya.
+        $task = app(CreateTaskAction::class)->handle($this->data(['publishNow' => false]), $poster);
         $payment = Payment::factory()->create([
             'task_id' => $task->getKey(),
             'payer_id' => $poster->getKey(),

@@ -10,6 +10,8 @@ use Tests\TestCase;
 /** Field opsional yang tidak dipakai alur utama, tapi ada di kontrak. */
 final class OptionalFieldsTest extends TestCase
 {
+    protected bool $fundUsers = true;
+
     use RefreshDatabase;
 
     protected function setUp(): void
