@@ -9,6 +9,7 @@ use App\Enums\TaskStatus;
 use App\Enums\UserStatus;
 use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
+use App\Enums\WalletTopupStatus;
 use App\Models\Admin;
 use App\Models\AdminAuditLog;
 use App\Models\Payment;
@@ -16,6 +17,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Models\UserVerification;
 use App\Models\UserWorker;
+use App\Models\WalletTopup;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\View\View;
 
@@ -35,6 +37,10 @@ final class DashboardController
 
         $awaitingPayments = Payment::query()
             ->where('status', PaymentStatus::AwaitingConfirmation)
+            ->count();
+
+        $awaitingTopups = WalletTopup::query()
+            ->where('status', WalletTopupStatus::AwaitingConfirmation)
             ->count();
 
         $activeUsers = User::query()->where('status', UserStatus::Active)->count();
@@ -62,6 +68,7 @@ final class DashboardController
         return view('super_admin.dashboard', [
             'pendingVerifications' => $pendingVerifications,
             'awaitingPayments' => $awaitingPayments,
+            'awaitingTopups' => $awaitingTopups,
             'activeUsers' => $activeUsers,
             'totalAdmins' => $totalAdmins,
             'openTasks' => $openTasks,
