@@ -254,6 +254,12 @@ return [
     | tetap `pending`, jadi tidak ada baris data yang berbohong soal uang yang
     | belum masuk. Yang dilewati adalah pemeriksaannya, bukan catatannya.
     |
+    | Uangnya ikut tertunda, bukan cuma statusnya: tanpa dana yang ditahan,
+    | persetujuan hasil tidak melepas tagihan DAN tidak mengkreditkan upah.
+    | Mengkreditkan upahnya saja akan melahirkan saldo yang bisa ditarik lewat
+    | POST /me/wallet/withdrawals — tagihan sungguhan atas uang yang tidak
+    | pernah ada.
+    |
     | Aturan "`pending` tidak pernah boleh langsung jadi `held`" tetap utuh di
     | PaymentStatus::canTransitionTo() — jangan pernah melonggarkannya sebagai
     | jalan pintas ke sini.

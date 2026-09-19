@@ -145,8 +145,12 @@ Yang tidak boleh "dirapikan":
   Selama mati: `TaskHiring::close()` memanggil `WorkOpening` begitu lelang ditutup, jadi
   task langsung `active` dan activity-nya terbuka; `StartActivityAction` melewati
   pemeriksaan `held`; `ApproveActivityAction` tidak memindahkan tagihan ke `released`
-  (upahnya tetap dikreditkan). Yang dilewati PEMERIKSAAN, bukan CATATAN: pembayaran tetap
-  `pending` dan tidak ada baris yang berbohong soal uang. Jangan sekali-kali "merapikan"
+  DAN tidak mengkreditkan upah — keduanya berpasangan, karena yang dibagi adalah dana yang
+  ditahan, dan saldo yang lahir tanpa uang bisa ditarik lewat
+  `POST /me/wallet/withdrawals`. Pekerjaannya tetap ditutup (`approved`,
+  `tasks_completed` naik, task `completed`); yang tertunda uangnya. Yang dilewati
+  PEMERIKSAAN, bukan CATATAN: pembayaran tetap `pending` dan tidak ada baris yang
+  berbohong soal uang. Jangan sekali-kali "merapikan"
   ini dengan melonggarkan `PaymentStatus::canTransitionTo()` — aturan di butir berikutnya
   tetap berlaku apa adanya. Suite test berjalan dengan gerbangnya HIDUP (phpunit.xml)
   supaya alur yang dirancang tidak membusuk selagi dilewati; jalur sementaranya diuji

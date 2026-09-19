@@ -535,7 +535,10 @@ curl -s "$BASE/tasks/$TASK" -H "Authorization: Bearer $AT" -H 'Accept: applicati
 > `pending`**: yang dilewati pemeriksaannya, bukan catatannya, jadi tidak ada baris yang
 > menyatakan uang sudah masuk. Karena itu `activities[].payment.status` di keadaan ini
 > `pending`, bukan `held`, dan persetujuan hasil **tidak** memindahkan tagihan ke
-> `released` — upahnya tetap dikreditkan ke saldo pekerja.
+> `released` **maupun mengkreditkan upah** ke saldo pekerja: yang dibagi adalah dana yang
+> ditahan, dan saldo yang lahir tanpa uang bisa ditarik lewat
+> `POST /me/wallet/withdrawals`. Pekerjaannya tetap ditutup — activity `approved`,
+> `tasks_completed` naik, task `completed`; yang tertunda uangnya.
 >
 > Dua langkah di bawah ini adalah alur yang dirancang dan yang berlaku lagi begitu
 > `SEKARYA_PAYMENT_GATE=true`. Ia tidak membusuk selagi dilewati: seluruh suite test

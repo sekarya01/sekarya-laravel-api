@@ -34,6 +34,11 @@ use Illuminate\Database\ConnectionInterface;
  * unique (reference_type, reference_id, type) di `wallet_entries`: satu
  * activity paling banyak menghasilkan satu baris `earning`, berapa kali pun
  * jalur ini terpanggil.
+ *
+ * SEMENTARA: selama gerbang pembayaran dimatikan
+ * (`config/sekarya.payments.gate_enabled`), tidak ada dana yang pernah ditahan —
+ * jadi tidak ada yang dilepas DAN tidak ada yang dikreditkan. Pekerjaannya tetap
+ * ditutup; yang tertunda uangnya.
  */
 final class ApproveActivityAction
 {
@@ -79,15 +84,24 @@ final class ApproveActivityAction
                 return $activity;
             }
 
-            // Pelepasan pembayaran hanya berlaku kalau dananya memang pernah
-            // ditahan. Selama gerbang pembayaran dimatikan, tagihannya masih
-            // `pending` dan `pending → released` bukan transisi yang sah —
-            // memaksakannya akan menulis "dana dilepas" untuk uang yang tidak
-            // pernah masuk. Yang dilewati pelepasannya; upahnya tetap
-            // dikreditkan supaya alur pekerjaan bisa ditutup ujung ke ujung.
+            // Pelepasan pembayaran dan pembagian upahnya berjalan BERPASANGAN:
+            // yang dibagi adalah dana yang ditahan, jadi keduanya hanya berlaku
+            // kalau dananya memang pernah masuk.
+            //
+            // Selama gerbang pembayaran dimatikan tidak ada yang masuk —
+            // tagihannya masih `pending`, dan `pending → released` bukan
+            // transisi yang sah. Mengkreditkan upahnya sendiri juga tidak bisa
+            // dipisahkan sebagai "supaya alurnya terasa tuntas": saldo itu bisa
+            // ditarik lewat POST /me/wallet/withdrawals, jadi ia akan menjadi
+            // tagihan sungguhan atas uang yang tidak pernah ada.
+            //
+            // Pekerjaannya tetap ditutup — `approved`, `tasks_completed` naik,
+            // task `completed`. Yang tertunda cuma uangnya.
             // Lihat config/sekarya.payments.
-            $payment = $activity->payment;
-            if ((bool) config('sekarya.payments.gate_enabled')) {
+            $gateEnabled = (bool) config('sekarya.payments.gate_enabled');
+
+            if ($gateEnabled) {
+                $payment = $activity->payment;
                 if (! $payment->status->canTransitionTo(PaymentStatus::Released)) {
                     throw InvalidStatusTransitionException::between(
                         $payment->status->value,
@@ -98,21 +112,21 @@ final class ApproveActivityAction
                     'status' => PaymentStatus::Released,
                     'released_at' => $now,
                 ])->save();
-            }
 
-            // Upah masuk ke saldo masing-masing pekerja. Dibaca dari
-            // `activities`, bukan dari `bids`: penawaran bisa berubah setelah
-            // diterima kalau suatu saat ada jalur yang mengizinkannya,
-            // sedangkan `agreed_amount` di activity adalah angka yang menjadi
-            // dasar pekerjaan ini dibuka.
-            foreach ($task->activities()->with('worker')->get() as $paid) {
-                $this->ledger->credit(
-                    $this->ledger->walletFor($paid->worker),
-                    WalletEntryType::Earning,
-                    (int) $paid->agreed_amount,
-                    $paid,
-                    'Upah task #'.$task->task_number,
-                );
+                // Upah masuk ke saldo masing-masing pekerja. Dibaca dari
+                // `activities`, bukan dari `bids`: penawaran bisa berubah setelah
+                // diterima kalau suatu saat ada jalur yang mengizinkannya,
+                // sedangkan `agreed_amount` di activity adalah angka yang menjadi
+                // dasar pekerjaan ini dibuka.
+                foreach ($task->activities()->with('worker')->get() as $paid) {
+                    $this->ledger->credit(
+                        $this->ledger->walletFor($paid->worker),
+                        WalletEntryType::Earning,
+                        (int) $paid->agreed_amount,
+                        $paid,
+                        'Upah task #'.$task->task_number,
+                    );
+                }
             }
 
             $task->forceFill(['completed_at' => $now])->save();
@@ -122,7 +136,9 @@ final class ApproveActivityAction
                 TaskStatus::Completed,
                 ActorType::Poster,
                 $poster->getKey(),
-                reason: 'seluruh hasil disetujui, dana dilepas',
+                reason: $gateEnabled
+                    ? 'seluruh hasil disetujui, dana dilepas'
+                    : 'seluruh hasil disetujui; pembayaran belum dikembangkan, dana belum dilepas',
             );
 
             return $activity;

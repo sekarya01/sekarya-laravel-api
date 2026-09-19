@@ -21,6 +21,7 @@ use App\Models\Task;
 use App\Models\TaskStatusLog;
 use App\Models\User;
 use App\Models\WalletEntry;
+use App\Support\WalletLedger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -70,6 +71,11 @@ final class PaymentGateDisabledTest extends TestCase
             'budget_min' => 150_000,
             'budget_max' => null,
         ]);
+    }
+
+    private function ledger(): WalletLedger
+    {
+        return app(WalletLedger::class);
     }
 
     private function pendingBid(?User $bidder = null, int $amount = 220_000): Bid
@@ -162,16 +168,49 @@ final class PaymentGateDisabledTest extends TestCase
 
         $this->assertSame(TaskStatus::Completed, $this->task->refresh()->status);
         $this->assertNotNull($this->task->refresh()->completed_at);
-        // Upahnya tetap masuk — kalau tidak, "konfirmasi selesai" tidak
-        // menghasilkan apa pun yang bisa dilihat pekerja.
-        $this->assertSame(220_000, (int) WalletEntry::query()
-            ->where('type', WalletEntryType::Earning)
-            ->where('reference_id', $activity->getKey())
-            ->value('amount'));
-        // Tapi pembayarannya TIDAK dilepas: tidak ada uang yang pernah masuk.
+        $this->assertSame(ActivityStatus::Approved, $activity->refresh()->status);
+        // Reputasinya tetap tumbuh: orangnya memang sudah menyelesaikan bagiannya.
+        $this->assertSame(1, (int) $this->worker->workerProfileOrCreate()->refresh()->tasks_completed);
+    }
+
+    /**
+     * Tidak ada dana yang masuk, jadi tidak ada yang keluar.
+     *
+     * Baik pelepasan tagihan maupun kredit upahnya ditahan. Mengkreditkan
+     * upahnya saja "supaya alurnya terasa tuntas" bukan pilihan: saldo itu bisa
+     * ditarik lewat POST /me/wallet/withdrawals, jadi ia akan jadi tagihan
+     * sungguhan atas uang yang tidak pernah ada.
+     */
+    public function test_nothing_is_paid_out_without_a_payment(): void
+    {
+        $this->accept();
+        $activity = Activity::query()->where('task_id', $this->task->getKey())->sole();
+
+        app(StartActivityAction::class)->handle($activity);
+        app(SubmitActivityAction::class)->handle(
+            new SubmitActivityData('Sudah beres', []),
+            $activity->refresh(),
+        );
+        app(ApproveActivityAction::class)->handle($activity->refresh(), $this->poster);
+
         $payment = $this->task->refresh()->payment;
         $this->assertSame(PaymentStatus::Pending, $payment->status);
         $this->assertNull($payment->released_at);
+
+        $this->assertSame(0, WalletEntry::query()
+            ->where('type', WalletEntryType::Earning)
+            ->where('reference_id', $activity->getKey())
+            ->count());
+        $this->assertSame(0, (int) $this->ledger()->walletFor($this->worker->refresh())->balance);
+
+        // Jejaknya tidak mengaku-aku: task selesai, dana belum dilepas.
+        $this->assertStringContainsString(
+            'dana belum dilepas',
+            (string) TaskStatusLog::query()
+                ->where('task_id', $this->task->getKey())
+                ->where('to_status', TaskStatus::Completed->value)
+                ->value('reason'),
+        );
     }
 
     /** Mulai lebih awal menutup lelang lewat jalur lain — hasilnya sama. */
