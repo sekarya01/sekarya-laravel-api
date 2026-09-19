@@ -9,7 +9,7 @@ use App\Http\Resources\Api\V1\Admin\AdminPaymentResource;
 use App\Models\Payment;
 use Illuminate\Http\Request;
 
-/** Dana masuk → ditahan → activity dibuka. Satu-satunya jalan ke `held`. */
+/** Dana masuk → ditahan → pekerjaan boleh dimulai. Satu-satunya jalan ke `held`. */
 final class ConfirmPaymentController
 {
     public function __construct(private readonly ConfirmPaymentAction $action) {}

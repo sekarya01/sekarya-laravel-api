@@ -17,13 +17,18 @@ final class StartActivityAction
     public function handle(Activity $activity): Activity
     {
         return $this->db->transaction(function () use ($activity): Activity {
-            // Pemeriksaan ulang meski activity sudah ada: dana bisa sudah
-            // dikembalikan sejak activity dibuka.
+            // INILAH yang dijaga uang: mulai bekerja, bukan keberadaan
+            // activity-nya. Activity lahir saat deal — ia catatan siapa
+            // mengerjakan apa; yang tidak boleh terjadi tanpa dana adalah
+            // orang menghabiskan waktunya.
             //
-            // Dilewati selama gerbang pembayaran dimatikan — di keadaan itu
-            // pembayaran memang tidak pernah beranjak dari `pending`, dan
-            // menuntut `held` di sini berarti pekerjaan yang sudah dibuka
-            // tidak pernah bisa dimulai. Lihat config/sekarya.payments.
+            // Diperiksa di sini, bukan sekali saat barisnya dibuat: dana bisa
+            // sudah dikembalikan sejak deal.
+            //
+            // Dilewati selama gerbang pembayaran dimatikan — mekanisme
+            // pembayarannya belum ada, jadi tagihan tidak pernah beranjak dari
+            // `pending` dan menuntut `held` berarti tidak ada pekerjaan yang
+            // pernah bisa dimulai. Lihat config/sekarya.payments.
             if ((bool) config('sekarya.payments.gate_enabled')
                 && ! $activity->payment->status->opensActivity()) {
                 throw PaymentNotHeldException::becauseStatus($activity->payment->status);

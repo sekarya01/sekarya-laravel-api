@@ -132,32 +132,39 @@ Yang tidak boleh "dirapikan":
   akan menggeser median kategori sebesar jumlah pekerjanya.
 - **Satu `payment` per task, banyak `activities`.** Pemberi kerja transfer sekali;
   pembagiannya di `activities.agreed_amount` yang disalin dari penawaran masing-masing.
-  Penjaga "tidak ada activity tanpa dana ditahan" kini `unique (task_id, worker_id)`,
+  Penjaga "satu orang satu activity per task" adalah `unique (task_id, worker_id)`,
   bukan lagi `unique (payment_id)`.
+- **DEAL MEMBUKA PEKERJAAN.** Menutup lelang (slot terakhir terisi, atau
+  `POST /tasks/{task}/start`) membuat satu activity per orang yang diterima dan
+  memindahkan task ke `active` — lewat `App\Support\WorkOpening`, satu-satunya tempat
+  yang membukanya. Sebelumnya baris itu baru lahir saat pengelola mengonfirmasi transfer,
+  sehingga pekerja yang SUDAH dipilih tidak menemukan kerjaannya di mana pun: ada di
+  daftar pemberi kerja, tidak ada di daftarnya sendiri, tanpa satu pun keterangan.
+- **Uang menjaga MULAI BEKERJA, bukan keberadaan activity.** Aturan lama "tidak ada
+  activity tanpa dana ditahan" diganti "tidak ada pekerjaan DIMULAI tanpa dana ditahan":
+  `StartActivityAction` yang menuntut `held`, dan pelepasan upah menunggu hal yang sama.
+  Activity adalah catatan siapa mengerjakan apa — menahannya tidak melindungi siapa pun,
+  hanya menyembunyikan kesepakatan dari orang yang menyepakatinya.
+- **Gerbang pembayaran sedang DIMATIKAN — sementara.** `config/sekarya.payments.gate_enabled`
+  (`SEKARYA_PAYMENT_GATE`, bawaan `false`) karena mekanisme pembayaran belum dikembangkan
+  (rencananya pindah ke depan: dibayar saat task dibuat). Yang dilewatinya HANYA dua
+  pemeriksaan dana di atas — `StartActivityAction` dan pelepasan upah di
+  `ApproveActivityAction`. Pembukaan pekerjaan tidak bergantung padanya. Yang dilewati
+  PEMERIKSAAN, bukan CATATAN: tagihan tetap `pending`, dan `pending → held` tetap
+  mustahil. Suite test berjalan dengan gerbangnya HIDUP (phpunit.xml); jalur matinya
+  diuji `tests/Unit/Actions/Payment/PaymentGateDisabledTest.php`.
+- **Task yang terlanjur tersangkut di `dealt` disusulkan sekali jalan** oleh migrasi
+  `2026_09_19_000001_open_stuck_dealt_tasks` (`App\Support\StuckWorkBackfill`) — baris
+  yang lahir sebelum aturan "deal membuka pekerjaan" ada.
 - **Status task mengikuti AGREGAT, bukan pekerja tercepat.** `submitted` hanya kalau semua
   sudah menyerahkan; `completed` + dana dilepas hanya kalau semua disetujui. Melepas pada
   persetujuan pertama akan mengeluarkan seluruh tagihan untuk satu orang.
 - **Dana tidak bisa ditahan sebelum perekrutan selesai.** Tagihan sudah ada sejak pelamar
-  pertama diterima, jadi tanpa penjaga itu pekerja yang direkrut belakangan tidak akan
-  pernah punya activity.
-- **Gerbang pembayaran sedang DIMATIKAN — sementara.** `config/sekarya.payments.gate_enabled`
-  (`SEKARYA_PAYMENT_GATE`, bawaan `false`) karena mekanisme pembayaran belum dikembangkan.
-  Selama mati: `TaskHiring::close()` memanggil `WorkOpening` begitu lelang ditutup, jadi
-  task langsung `active` dan activity-nya terbuka; `StartActivityAction` melewati
-  pemeriksaan `held`; `ApproveActivityAction` tidak memindahkan tagihan ke `released`
-  DAN tidak mengkreditkan upah — keduanya berpasangan, karena yang dibagi adalah dana yang
-  ditahan, dan saldo yang lahir tanpa uang bisa ditarik lewat
-  `POST /me/wallet/withdrawals`. Pekerjaannya tetap ditutup (`approved`,
-  `tasks_completed` naik, task `completed`); yang tertunda uangnya. Yang dilewati
-  PEMERIKSAAN, bukan CATATAN: pembayaran tetap `pending` dan tidak ada baris yang
-  berbohong soal uang. Jangan sekali-kali "merapikan"
-  ini dengan melonggarkan `PaymentStatus::canTransitionTo()` — aturan di butir berikutnya
-  tetap berlaku apa adanya. Suite test berjalan dengan gerbangnya HIDUP (phpunit.xml)
-  supaya alur yang dirancang tidak membusuk selagi dilewati; jalur sementaranya diuji
-  `tests/Unit/Actions/Payment/PaymentGateDisabledTest.php`, yang mematikannya per test.
+  pertama diterima, jadi tanpa penjaga itu ia bisa ditahan untuk jumlah yang masih akan
+  bertambah.
 - **`held` HANYA bisa dicapai dari sisi pengelola.** Pemberi kerja memanggil
-  `POST /tasks/{task}/payment/hold` (→ `awaiting_confirmation`); yang menahan dana dan
-  membuka activity `POST /admin/payments/{payment}/confirm`. Dulu satu panggilan itu
+  `POST /tasks/{task}/payment/hold` (→ `awaiting_confirmation`); yang menahan dana — dan
+  dengan itu mengizinkan pekerjaan dimulai — `POST /admin/payments/{payment}/confirm`. Dulu satu panggilan itu
   mengerjakan keduanya, artinya pemberi kerja menyatakan sendiri uangnya sudah masuk —
   dan pekerja yang menanggung kalau ternyata tidak. Jangan pernah menambahkan kembali
   transisi `pending → held`; `PaymentStatus::canTransitionTo()` yang menjaganya, dan ada

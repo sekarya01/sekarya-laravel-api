@@ -200,10 +200,14 @@ final class BidActionsTest extends TestCase
 
         $task = app(AcceptBidAction::class)->handle($bid, $this->poster);
 
-        $this->assertSame(TaskStatus::Dealt, $task->status);
+        // `active`, bukan `dealt`: penutupan lelang sekaligus membuka
+        // pekerjaannya. `dealt_at` tetap tercatat — kesepakatannya memang
+        // terjadi, task hanya tidak berhenti di sana.
+        $this->assertSame(TaskStatus::Active, $task->status);
         $this->assertSame(220_000, $task->agreed_amount);
         $this->assertNotNull($task->dealt_at);
         $this->assertSame(0, $task->bids_count);
+        $this->assertSame(1, $task->activities()->count());
 
         // Siapa yang mengerjakan dibaca dari penawaran yang diterima, bukan
         // dari kolom di `tasks` — satu task bisa merekrut banyak orang.
@@ -296,7 +300,7 @@ final class BidActionsTest extends TestCase
 
         $task = app(AcceptBidAction::class)->handle($winner, $this->poster);
 
-        $this->assertSame(TaskStatus::Dealt, $task->status);
+        $this->assertSame(TaskStatus::Active, $task->status);
         $this->assertSame(BidStatus::Rejected, $loser->refresh()->status);
 
         try {

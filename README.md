@@ -321,18 +321,22 @@ diterima — bukan batas pelamar. Lelangnya tetap terbuka, dan pemberi kerja mem
 berdasarkan harga penawaran. Status task mengikuti **agregat** seluruh pekerja: dana
 dilepas hanya ketika pekerja terakhir disetujui.
 
-**Gerbang pembayaran sedang dimatikan (sementara).** Mekanisme pembayarannya belum
-dikembangkan, jadi `SEKARYA_PAYMENT_GATE` bawaannya `false`: pekerjaan dibuka bersama
-penutupan lelang, dan pekerja bisa langsung mulai. Tagihannya tetap `pending` — yang
-dilewati pemeriksaannya, bukan catatannya. Aturan di paragraf berikut tetap utuh di kode
-dan tetap diuji (suite test berjalan dengan gerbangnya hidup); nyalakan lagi dengan
-`SEKARYA_PAYMENT_GATE=true` begitu pembayarannya siap.
+**Deal membuka pekerjaan.** Begitu lelang ditutup, setiap orang yang diterima punya satu
+`activity` atas namanya dan task berpindah ke `active`. Yang dijaga uang bukan keberadaan
+baris itu, melainkan **mulai bekerja**: `held` yang membuka tombol mulai, dan upah baru
+dilepas saat pekerja terakhir disetujui. Sebelumnya activity sendiri yang ditahan uang —
+dan pekerja yang sudah dipilih tidak menemukan kerjaannya di daftarnya sendiri.
 
-**Tidak ada activity tanpa dana ditahan**, dan **yang menyatakan dana diterima bukan
-pihak yang membayar.** Pemberi kerja hanya bisa *melapor* sudah transfer; yang
-memindahkan tagihan ke `held` — dan dengan itu membuka pekerjaan — adalah pengelola yang
-melihat mutasi rekening. Ditegakkan oleh baris basis data dan oleh aturan transisi
-status, bukan disiplin kode.
+**Yang menyatakan dana diterima bukan pihak yang membayar.** Pemberi kerja hanya bisa
+*melapor* sudah transfer; yang memindahkan tagihan ke `held` adalah pengelola yang melihat
+mutasi rekening. Ditegakkan aturan transisi status, bukan disiplin kode.
+
+**Gerbang pembayaran sedang dimatikan (sementara).** `SEKARYA_PAYMENT_GATE` bawaannya
+`false` karena mekanisme pembayarannya belum dikembangkan, jadi dua pemeriksaan dana di
+atas dilewati: pekerjaan bisa dimulai dan diselesaikan tanpa dana yang ditahan, dan
+upahnya ikut tertunda — tidak dikreditkan ke saldo siapa pun. Tagihannya tetap `pending`;
+yang dilewati pemeriksaannya, bukan catatannya. Suite test berjalan dengan gerbangnya
+hidup, jadi alur yang dirancang tidak membusuk selagi dilewati.
 
 **Pengelola adalah populasi pemilik token yang berbeda**, bukan pengguna dengan kolom
 peran: tabel sendiri (`admins`), guard sendiri, ability token sendiri. Token pengguna di

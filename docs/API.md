@@ -519,31 +519,30 @@ kalau dibiarkan di angka semula, task ini akan selamanya terlihat kekurangan ora
 `agreed_amount` pada task adalah **total** untuk seluruh pekerja. Harga per orang ada di
 penawaran masing-masing.
 
-Activity **belum ada**:
+Activity-nya **sudah ada** — satu per pekerja, dibuka bersama penutupan lelang:
 
 ```bash
 curl -s "$BASE/tasks/$TASK" -H "Authorization: Bearer $AT" -H 'Accept: application/json' \
-  | python3 -c 'import json,sys; print("activity:", json.load(sys.stdin)["data"].get("activities") or "BELUM ADA")'
+  | python3 -c 'import json,sys; print("activity:", len(json.load(sys.stdin)["data"].get("activities") or []))'
 ```
 
-> **SEMENTARA — gerbang pembayaran dimatikan.**
+> **Pekerjaannya sudah terbuka sejak deal.**
 >
-> Mekanisme pembayaran belum dikembangkan, jadi bawaan `SEKARYA_PAYMENT_GATE=false`
-> membuat penutupan lelang sekaligus **membuka pekerjaan**: begitu slot terakhir terisi
-> (atau `POST /tasks/{task}/start` dipanggil), task langsung `active` dan activity-nya
-> ada — tanpa laporan transfer dan tanpa konfirmasi pengelola. Tagihannya **tetap
-> `pending`**: yang dilewati pemeriksaannya, bukan catatannya, jadi tidak ada baris yang
-> menyatakan uang sudah masuk. Karena itu `activities[].payment.status` di keadaan ini
-> `pending`, bukan `held`, dan persetujuan hasil **tidak** memindahkan tagihan ke
-> `released` **maupun mengkreditkan upah** ke saldo pekerja: yang dibagi adalah dana yang
-> ditahan, dan saldo yang lahir tanpa uang bisa ditarik lewat
-> `POST /me/wallet/withdrawals`. Pekerjaannya tetap ditutup — activity `approved`,
-> `tasks_completed` naik, task `completed`; yang tertunda uangnya.
+> Menutup lelang membuat satu activity per orang yang diterima dan memindahkan task ke
+> `active` — tanpa menunggu uang. Yang ditahan uang adalah **mulai bekerja**:
+> `POST /activities/{activity}/start` menolak dengan `payment_not_held` selama tagihannya
+> belum `held`.
 >
-> Dua langkah di bawah ini adalah alur yang dirancang dan yang berlaku lagi begitu
+> **SEMENTARA**, dengan `SEKARYA_PAYMENT_GATE=false` (bawaan hari ini), pemeriksaan itu
+> pun dilewati — mekanisme pembayaran belum dikembangkan, dan menuntut `held` berarti
+> tidak ada pekerjaan yang pernah bisa dimulai. Tagihannya tetap `pending`
+> (`activities[].payment.status` ikut `pending`, bukan `held`), persetujuan hasil tidak
+> memindahkannya ke `released`, dan upahnya **tidak** dikreditkan ke saldo pekerja:
+> saldo yang lahir tanpa uang bisa ditarik lewat `POST /me/wallet/withdrawals`.
+>
+> Dua langkah di bawah ini adalah alur yang berlaku lagi begitu
 > `SEKARYA_PAYMENT_GATE=true`. Ia tidak membusuk selagi dilewati: seluruh suite test
-> berjalan dengan gerbangnya HIDUP. Melaporkan lalu mengonfirmasi transfer di atas
-> pekerjaan yang sudah terbuka aman — dananya ditahan, activity-nya tidak digandakan.
+> berjalan dengan gerbangnya HIDUP.
 
 Sekarang transfer. **Dua langkah, dua orang berbeda** — dan itu inti aturannya:
 
@@ -573,18 +572,19 @@ curl -s -X POST "$BASE/tasks/$TASK/payment/hold" \
 }
 ```
 
-Pekerjaan belum boleh dimulai, karena yang baru ada adalah **pernyataan** bahwa uangnya
-dikirim. Yang menyatakan uangnya benar-benar **diterima** adalah orang yang melihat mutasi
+Pekerjaan tetap belum boleh dimulai, karena yang baru ada adalah **pernyataan** bahwa
+uangnya dikirim. Yang menyatakan uangnya benar-benar **diterima** adalah orang yang melihat mutasi
 rekening — pengelola:
 
 ```bash
-# 2. Pengelola: mutasi cocok -> dana ditahan -> activity dibuka
+# 2. Pengelola: mutasi cocok -> dana ditahan -> pekerjaan boleh dimulai
 export PAY=<ulid tagihan, dari respons di atas>
 curl -s -X POST "$BASE/admin/payments/$PAY/confirm" \
   -H "Authorization: Bearer $ADMIN_AT" -H 'Accept: application/json' | python3 -m json.tool
 ```
 
-Sesudah itu barulah activity ada — satu **per pekerja** yang diterima:
+Sesudah itu barulah pekerjaannya boleh dimulai. Daftarnya sendiri sudah ada sejak deal —
+satu **per pekerja** yang diterima:
 
 ```bash
 curl -s "$BASE/activities/mine" -H "Authorization: Bearer $WT" -H 'Accept: application/json'
@@ -1785,7 +1785,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/admin/verifications/{verification}/revoke` | admin | `admin` | Cabut verifikasi yang sudah diberikan. `reason` wajib. |
 | `GET` | `/admin/payments` | admin | `admin` | Antrean konfirmasi transfer. Urut `reported_at`, paling lama menunggu di depan. |
 | `GET` | `/admin/payments/{payment}` | admin | `admin` | Detail satu tagihan beserta task dan pembayarnya. |
-| `POST` | `/admin/payments/{payment}/confirm` | admin | `admin` | **Satu-satunya jalan ke `held`** -> activity dibuka untuk setiap pekerja. |
+| `POST` | `/admin/payments/{payment}/confirm` | admin | `admin` | **Satu-satunya jalan ke `held`** -> pekerjaan boleh dimulai. |
 | `POST` | `/admin/payments/{payment}/reject` | admin | `admin` | Dana tidak ditemukan. Kembali ke `pending`, `reason` dibaca pemberi kerja. |
 | `GET` | `/admin/wallet/topups` | admin | `admin` | Antrean isi saldo. Bawaannya `awaiting_confirmation`, paling lama menunggu di depan. |
 | `POST` | `/admin/wallet/topups/{topup}/confirm` | admin | `admin` | **Satu-satunya jalan saldo bertambah dari isi ulang.** |

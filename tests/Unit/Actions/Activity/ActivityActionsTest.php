@@ -66,7 +66,7 @@ final class ActivityActionsTest extends TestCase
         $this->assertNotNull($started->started_at);
     }
 
-    /** Dana bisa sudah dikembalikan sejak activity dibuka. */
+    /** Dana bisa sudah dikembalikan sejak pekerjaannya dibuka. */
     public function test_start_rechecks_that_money_is_still_held(): void
     {
         $this->activity->payment->forceFill([

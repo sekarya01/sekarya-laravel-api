@@ -17,12 +17,13 @@ use Illuminate\Support\Collection;
  * Membuka pekerjaan: satu activity per pekerja yang diterima, lalu task
  * berpindah ke `active`.
  *
- * Ada sebagai kelas tersendiri karena DUA jalur memanggilnya, dan keduanya
+ * Ada sebagai kelas tersendiri karena TIGA jalur memanggilnya, dan ketiganya
  * harus menghasilkan keadaan yang sama persis:
  *
- *  1. Pengelola mengonfirmasi transfer — jalur yang dirancang.
- *  2. Perekrutan ditutup, selagi gerbang pembayaran dimatikan — jalur
- *     sementara, lihat `config/sekarya.payments.gate_enabled`.
+ *  1. Perekrutan ditutup — jalur utama: deal membuka pekerjaannya.
+ *  2. Pengelola mengonfirmasi transfer — untuk task yang barisnya belum ada
+ *     (warisan sebelum aturan di atas berlaku).
+ *  3. Penyusulan sekali jalan atas task warisan itu, lihat StuckWorkBackfill.
  *
  * Kalau logikanya disalin ke masing-masing, cepat atau lambat yang satu
  * diperbaiki dan yang lain tidak — dan selisihnya adalah pekerja yang punya
