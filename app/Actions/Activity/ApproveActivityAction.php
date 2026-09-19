@@ -79,17 +79,26 @@ final class ApproveActivityAction
                 return $activity;
             }
 
+            // Pelepasan pembayaran hanya berlaku kalau dananya memang pernah
+            // ditahan. Selama gerbang pembayaran dimatikan, tagihannya masih
+            // `pending` dan `pending → released` bukan transisi yang sah —
+            // memaksakannya akan menulis "dana dilepas" untuk uang yang tidak
+            // pernah masuk. Yang dilewati pelepasannya; upahnya tetap
+            // dikreditkan supaya alur pekerjaan bisa ditutup ujung ke ujung.
+            // Lihat config/sekarya.payments.
             $payment = $activity->payment;
-            if (! $payment->status->canTransitionTo(PaymentStatus::Released)) {
-                throw InvalidStatusTransitionException::between(
-                    $payment->status->value,
-                    PaymentStatus::Released->value,
-                );
+            if ((bool) config('sekarya.payments.gate_enabled')) {
+                if (! $payment->status->canTransitionTo(PaymentStatus::Released)) {
+                    throw InvalidStatusTransitionException::between(
+                        $payment->status->value,
+                        PaymentStatus::Released->value,
+                    );
+                }
+                $payment->forceFill([
+                    'status' => PaymentStatus::Released,
+                    'released_at' => $now,
+                ])->save();
             }
-            $payment->forceFill([
-                'status' => PaymentStatus::Released,
-                'released_at' => $now,
-            ])->save();
 
             // Upah masuk ke saldo masing-masing pekerja. Dibaca dari
             // `activities`, bukan dari `bids`: penawaran bisa berubah setelah

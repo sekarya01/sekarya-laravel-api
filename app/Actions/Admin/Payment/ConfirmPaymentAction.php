@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Actions\Admin\Payment;
 
-use App\Enums\ActivityStatus;
 use App\Enums\ActorType;
 use App\Enums\AdminAction;
 use App\Enums\PaymentStatus;
@@ -12,10 +11,9 @@ use App\Enums\TaskStatus;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
 use App\Models\Activity;
 use App\Models\Admin;
-use App\Models\Bid;
 use App\Models\Payment;
 use App\Support\AdminAuditRecorder;
-use App\Support\TaskStatusRecorder;
+use App\Support\WorkOpening;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Collection;
 
@@ -36,7 +34,7 @@ final class ConfirmPaymentAction
 {
     public function __construct(
         private readonly ConnectionInterface $db,
-        private readonly TaskStatusRecorder $recorder,
+        private readonly WorkOpening $opening,
         private readonly AdminAuditRecorder $audit,
     ) {}
 
@@ -74,12 +72,10 @@ final class ConfirmPaymentAction
                 );
             }
 
-            $now = now();
-
             $fresh->forceFill([
                 'status' => PaymentStatus::Held,
-                'paid_at' => $now,
-                'held_at' => $now,
+                'paid_at' => now(),
+                'held_at' => now(),
                 'rejection_reason' => null,
             ])->save();
 
@@ -88,34 +84,20 @@ final class ConfirmPaymentAction
             // untuk semua pekerja, jadi penjaganya unique (task_id, worker_id):
             // satu orang paling banyak satu activity per task, berapa kali pun
             // konfirmasi terpanggil.
-            $activities = $task->acceptedBids()->get()->map(
-                fn (Bid $bid): Activity => Activity::query()->firstOrCreate(
-                    [
-                        'task_id' => $task->getKey(),
-                        'worker_id' => $bid->bidder_id,
-                    ],
-                    [
-                        'payment_id' => $fresh->getKey(),
-                        'status' => ActivityStatus::Open,
-                        // Harga PER ORANG, dari penawarannya sendiri — bukan
-                        // total task, yang pada task 30 orang akan membuat
-                        // setiap pekerja terlihat berhak atas seluruh dana.
-                        'agreed_amount' => $bid->amount,
-                        'opened_at' => $now,
-                    ],
-                ),
-            );
-
-            $this->recorder->move(
+            //
+            // Pembukaannya sendiri dipinjam dari WorkOpening, karena jalur
+            // sementara (gerbang pembayaran dimatikan) harus membuka pekerjaan
+            // dengan cara yang sama persis.
+            $activities = $this->opening->open(
                 $task,
-                TaskStatus::Active,
+                $fresh,
                 // Pelakunya PENGELOLA, dan id-nya id dari tabel `admins`.
                 // `task_status_logs` menyimpan pasangan actor_type + actor_id
                 // tanpa foreign key justru untuk ini; tanpa actor_type yang
                 // benar, id 7 di kolom itu akan terbaca sebagai pengguna 7.
                 ActorType::Admin,
                 $admin->getKey(),
-                reason: sprintf('transfer dikonfirmasi, %d activity dibuka', $activities->count()),
+                sprintf('transfer dikonfirmasi, %d activity dibuka', $task->acceptedBids()->count()),
             );
 
             $this->audit->record(

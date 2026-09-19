@@ -19,7 +19,13 @@ final class StartActivityAction
         return $this->db->transaction(function () use ($activity): Activity {
             // Pemeriksaan ulang meski activity sudah ada: dana bisa sudah
             // dikembalikan sejak activity dibuka.
-            if (! $activity->payment->status->opensActivity()) {
+            //
+            // Dilewati selama gerbang pembayaran dimatikan — di keadaan itu
+            // pembayaran memang tidak pernah beranjak dari `pending`, dan
+            // menuntut `held` di sini berarti pekerjaan yang sudah dibuka
+            // tidak pernah bisa dimulai. Lihat config/sekarya.payments.
+            if ((bool) config('sekarya.payments.gate_enabled')
+                && ! $activity->payment->status->opensActivity()) {
                 throw PaymentNotHeldException::becauseStatus($activity->payment->status);
             }
 

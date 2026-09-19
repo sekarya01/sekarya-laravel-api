@@ -140,6 +140,17 @@ Yang tidak boleh "dirapikan":
 - **Dana tidak bisa ditahan sebelum perekrutan selesai.** Tagihan sudah ada sejak pelamar
   pertama diterima, jadi tanpa penjaga itu pekerja yang direkrut belakangan tidak akan
   pernah punya activity.
+- **Gerbang pembayaran sedang DIMATIKAN — sementara.** `config/sekarya.payments.gate_enabled`
+  (`SEKARYA_PAYMENT_GATE`, bawaan `false`) karena mekanisme pembayaran belum dikembangkan.
+  Selama mati: `TaskHiring::close()` memanggil `WorkOpening` begitu lelang ditutup, jadi
+  task langsung `active` dan activity-nya terbuka; `StartActivityAction` melewati
+  pemeriksaan `held`; `ApproveActivityAction` tidak memindahkan tagihan ke `released`
+  (upahnya tetap dikreditkan). Yang dilewati PEMERIKSAAN, bukan CATATAN: pembayaran tetap
+  `pending` dan tidak ada baris yang berbohong soal uang. Jangan sekali-kali "merapikan"
+  ini dengan melonggarkan `PaymentStatus::canTransitionTo()` — aturan di butir berikutnya
+  tetap berlaku apa adanya. Suite test berjalan dengan gerbangnya HIDUP (phpunit.xml)
+  supaya alur yang dirancang tidak membusuk selagi dilewati; jalur sementaranya diuji
+  `tests/Unit/Actions/Payment/PaymentGateDisabledTest.php`, yang mematikannya per test.
 - **`held` HANYA bisa dicapai dari sisi pengelola.** Pemberi kerja memanggil
   `POST /tasks/{task}/payment/hold` (→ `awaiting_confirmation`); yang menahan dana dan
   membuka activity `POST /admin/payments/{payment}/confirm`. Dulu satu panggilan itu

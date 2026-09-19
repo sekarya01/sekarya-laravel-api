@@ -23,7 +23,10 @@ use App\Models\User;
  */
 final class TaskHiring
 {
-    public function __construct(private readonly TaskStatusRecorder $recorder) {}
+    public function __construct(
+        private readonly TaskStatusRecorder $recorder,
+        private readonly WorkOpening $opening,
+    ) {}
 
     /**
      * Hitung ULANG penghitung dan tagihan dari baris `bids`.
@@ -84,5 +87,26 @@ final class TaskHiring
             $poster->getKey(),
             reason: $reason,
         );
+
+        // SEMENTARA — selama gerbang pembayaran dimatikan, penutupan lelang
+        // sekaligus membuka pekerjaannya.
+        //
+        // Tanpa ini task berhenti di `dealt` selamanya: satu-satunya jalan ke
+        // `active` adalah konfirmasi pengelola, dan mekanisme pembayarannya
+        // belum dikembangkan — pekerja melihat "menunggu pembayaran
+        // dikonfirmasi" untuk konfirmasi yang tidak akan pernah datang.
+        //
+        // Pembayarannya TIDAK diubah: ia tetap `pending`. Yang dilewati
+        // pemeriksaannya, bukan catatannya — tidak ada baris yang menyatakan
+        // uang sudah masuk padahal belum. Lihat config/sekarya.payments.
+        if (! (bool) config('sekarya.payments.gate_enabled')) {
+            $this->opening->open(
+                $task,
+                $task->payment()->firstOrFail(),
+                ActorType::Poster,
+                $poster->getKey(),
+                'gerbang pembayaran dimatikan, pekerjaan dibuka bersama penutupan lelang',
+            );
+        }
     }
 }
