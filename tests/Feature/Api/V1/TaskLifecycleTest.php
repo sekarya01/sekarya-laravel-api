@@ -589,7 +589,8 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonPath('data.status', 'open')
             ->assertJsonPath('data.payment.is_held', true)
             ->assertJsonPath('data.task.status', 'active')
-            ->assertJsonStructure(['data' => ['id', 'status', 'agreed_amount', 'opened_at', 'started_at',
+            ->assertJsonStructure(['data' => ['id', 'status', 'agreed_amount', 'opened_at',
+                'departed_at', 'arrived_at', 'started_at',
                 'submitted_at', 'approved_at', 'rejected_at', 'worker_note', 'proof_photos',
                 'poster_note', 'task', 'worker', 'payment', 'created_at']]);
         $this->assertNotEmpty($task);
@@ -604,9 +605,62 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonPath('code', 'invalid_status_transition');
     }
 
-    public function test_only_the_worker_can_start_and_submit(): void
+    /**
+     * Sampai pekerjanya berdiri di lokasi.
+     *
+     * Dua langkah, dua aktor: pekerja mengumumkan berangkat, PEMBERI KERJA
+     * yang mengakui kedatangannya. Baru sesudah itu pekerjaan boleh dimulai.
+     *
+     * @return array{0:string,1:string,2:string} task, bid, activity
+     */
+    private function throughToArrival(): array
+    {
+        [$task, $bid, $activity] = $this->throughToActivity();
+
+        $this->asUser($this->worker)->postJson(route('v1.activities.depart', $activity))
+            ->assertOk()
+            ->assertJsonPath('data.status', 'on_the_way');
+
+        $this->asUser($this->poster)->postJson(route('v1.activities.arrived', $activity))
+            ->assertOk()
+            ->assertJsonPath('data.status', 'arrived');
+
+        return [$task, $bid, $activity];
+    }
+
+    /** Masing-masing langkah perjalanan punya pemiliknya sendiri. */
+    public function test_each_travel_step_belongs_to_one_side(): void
     {
         [, , $activity] = $this->throughToActivity();
+
+        // Berangkat milik pekerja.
+        $this->asUser($this->poster)->postJson(route('v1.activities.depart', $activity))
+            ->assertForbidden();
+        $this->asUser($this->worker)->postJson(route('v1.activities.depart', $activity))
+            ->assertOk();
+
+        // Mengakui kedatangan milik pemberi kerja — kalau yang datang boleh
+        // menyatakannya sendiri, pengakuan itu tidak berarti apa pun.
+        $this->asUser($this->worker)->postJson(route('v1.activities.arrived', $activity))
+            ->assertForbidden();
+        $this->asUser($this->poster)->postJson(route('v1.activities.arrived', $activity))
+            ->assertOk()
+            ->assertJsonPath('data.status', 'arrived');
+    }
+
+    /** Mulai bekerja menuntut kedatangan yang sudah diakui. */
+    public function test_starting_before_arrival_is_rejected(): void
+    {
+        [, , $activity] = $this->throughToActivity();
+
+        $this->asUser($this->worker)->postJson(route('v1.activities.start', $activity))
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'invalid_status_transition');
+    }
+
+    public function test_only_the_worker_can_start_and_submit(): void
+    {
+        [, , $activity] = $this->throughToArrival();
 
         $this->asUser($this->poster)->postJson(route('v1.activities.start', $activity))->assertForbidden();
         $this->asUser($this->worker)->postJson(route('v1.activities.start', $activity))
@@ -621,7 +675,7 @@ final class TaskLifecycleTest extends TestCase
 
     public function test_submit_validates_the_photo_list(): void
     {
-        [, , $activity] = $this->throughToActivity();
+        [, , $activity] = $this->throughToArrival();
         $this->asUser($this->worker)->postJson(route('v1.activities.start', $activity));
 
         $this->asUser($this->worker)->postJson(route('v1.activities.submit', $activity), [
@@ -631,7 +685,7 @@ final class TaskLifecycleTest extends TestCase
 
     private function submitted(): array
     {
-        [$task, $bid, $activity] = $this->throughToActivity();
+        [$task, $bid, $activity] = $this->throughToArrival();
         $this->asUser($this->worker)->postJson(route('v1.activities.start', $activity))->assertOk();
         $this->asUser($this->worker)->postJson(route('v1.activities.submit', $activity), [
             'worker_note' => 'Beres', 'proof_photos' => ['p/a.jpg'],

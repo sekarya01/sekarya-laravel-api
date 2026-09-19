@@ -1959,6 +1959,78 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /activities/{activity}/depart:
+    parameters:
+      - $ref: '#/components/parameters/ActivityUlid'
+    post:
+      tags: [Activity]
+      operationId: departActivity
+      summary: Berangkat ke lokasi
+      description: |
+        Hanya penerima kerja. Status `open` → `on_the_way`, dan `departed_at`
+        terisi.
+
+        Langkah pertama yang benar-benar dilakukan pekerja sesudah diterima —
+        yang membuat pemberi kerja tahu ada orang dalam perjalanan, bukan
+        menebak dari diamnya layar.
+
+        Dijaga dana yang sama dengan mulai bekerja: berangkat adalah waktu dan
+        ongkos yang sudah dikeluarkan pekerja.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleActivity'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: |
+            Dana tidak lagi ditahan (`payment_not_held`) atau perpindahan status
+            tidak diizinkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: 'Dana belum ditahan, pekerjaan belum bisa dimulai (status: refunded).'
+                code: payment_not_held
+                context: { payment_status: refunded }
+
+  /activities/{activity}/arrived:
+    parameters:
+      - $ref: '#/components/parameters/ActivityUlid'
+    post:
+      tags: [Activity]
+      operationId: confirmActivityArrival
+      summary: Konfirmasi pekerja sudah sampai
+      description: |
+        Hanya **pemberi kerja**. Status `on_the_way` → `arrived`, dan
+        `arrived_at` terisi.
+
+        Yang melihat orangnya berdiri di depan pintu adalah tuan rumah, bukan
+        orang yang datang. Kalau pekerja boleh menyatakan sendiri ia tiba,
+        "sudah sampai" berhenti berarti apa pun dan tidak ada satu titik pun
+        yang bisa disanggah.
+
+        TIDAK diperiksa dananya: orangnya sudah berdiri di sana, dan menolak
+        pengakuan itu karena tagihan belum beres tidak membuatnya pulang.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleActivity'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Perpindahan status tidak diizinkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: 'Status tidak bisa berpindah dari open ke arrived.'
+                code: invalid_status_transition
+
   /activities/{activity}/start:
     parameters:
       - $ref: '#/components/parameters/ActivityUlid'
@@ -1967,8 +2039,12 @@ paths:
       operationId: startActivity
       summary: Mulai mengerjakan
       description: |
-        Hanya penerima kerja. Status dana diperiksa **ulang** di sini: dana bisa
-        saja sudah dikembalikan sejak pekerjaannya dibuka.
+        Hanya penerima kerja, dan hanya dari `arrived`: pekerjaan tidak dimulai
+        dari perjalanan, dan kedatangan yang belum diakui pemberi kerja belum
+        jadi kedatangan.
+
+        Status dana diperiksa **ulang** di sini: dana bisa saja sudah
+        dikembalikan sejak pekerjaannya dibuka.
       responses:
         '200':
           $ref: '#/components/responses/SingleActivity'
@@ -3801,7 +3877,12 @@ components:
         `rejection_reason` terisi dan boleh dilaporkan ulang.
     ActivityStatus:
       type: string
-      enum: [open, in_progress, submitted, approved, rejected]
+      enum: [open, on_the_way, arrived, in_progress, submitted, approved, rejected]
+      description: |
+        Dua langkah di depan `in_progress` punya pemilik yang berbeda:
+        `on_the_way` diumumkan **pekerja** (ia berangkat), `arrived` diakui
+        **pemberi kerja** (ia melihat orangnya sampai). Karena itu
+        `open → in_progress` tidak ada jalannya.
     UserStatus:
       type: string
       enum: [pending_verification, active, suspended, banned]
@@ -4467,8 +4548,9 @@ components:
     Activity:
       type: object
       description: |
-        Eksekusi pekerjaan. Keberadaan barisnya sendiri menegakkan aturan:
-        activity tidak bisa ada tanpa dana yang sudah ditahan.
+        Eksekusi pekerjaan — satu baris per pekerja yang diterima, lahir saat
+        lelang ditutup. Yang dijaga dana bukan keberadaannya, melainkan izin
+        memulainya.
       required: [id, status, agreed_amount, opened_at]
       properties:
         id: { type: string, description: ULID }
@@ -4477,7 +4559,15 @@ components:
         opened_at:
           type: [string, 'null']
           format: date-time
-          description: Saat transfer terkonfirmasi.
+          description: Saat pekerjaan dibuka — deal, atau konfirmasi transfer.
+        departed_at:
+          type: [string, 'null']
+          format: date-time
+          description: Pekerja menyatakan berangkat.
+        arrived_at:
+          type: [string, 'null']
+          format: date-time
+          description: Pemberi kerja mengakui pekerjanya sampai.
         started_at: { type: [string, 'null'], format: date-time }
         submitted_at: { type: [string, 'null'], format: date-time }
         approved_at: { type: [string, 'null'], format: date-time }

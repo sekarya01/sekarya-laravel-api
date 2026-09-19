@@ -122,7 +122,9 @@ final class EnumsTest extends TestCase
 
     public function test_activity_transitions(): void
     {
-        $this->assertTrue(ActivityStatus::Open->canTransitionTo(ActivityStatus::InProgress));
+        $this->assertTrue(ActivityStatus::Open->canTransitionTo(ActivityStatus::OnTheWay));
+        $this->assertTrue(ActivityStatus::OnTheWay->canTransitionTo(ActivityStatus::Arrived));
+        $this->assertTrue(ActivityStatus::Arrived->canTransitionTo(ActivityStatus::InProgress));
         $this->assertTrue(ActivityStatus::InProgress->canTransitionTo(ActivityStatus::Submitted));
         $this->assertTrue(ActivityStatus::Submitted->canTransitionTo(ActivityStatus::Approved));
         $this->assertTrue(ActivityStatus::Submitted->canTransitionTo(ActivityStatus::Rejected));
@@ -140,6 +142,21 @@ final class EnumsTest extends TestCase
     {
         $this->assertFalse(ActivityStatus::Open->canTransitionTo(ActivityStatus::Submitted));
         $this->assertFalse(ActivityStatus::Open->canTransitionTo(ActivityStatus::Approved));
+    }
+
+    /**
+     * Perjalanan tidak bisa dilompati.
+     *
+     * Yang dijaga bukan urutan demi urutan: `arrived` adalah pengakuan PEMBERI
+     * KERJA. Membolehkan `open → in_progress` berarti pekerja bisa menyatakan
+     * dirinya sudah sampai sekaligus mulai, dan pengakuan itu berhenti berarti
+     * apa pun.
+     */
+    public function test_activity_cannot_skip_the_journey(): void
+    {
+        $this->assertFalse(ActivityStatus::Open->canTransitionTo(ActivityStatus::Arrived));
+        $this->assertFalse(ActivityStatus::Open->canTransitionTo(ActivityStatus::InProgress));
+        $this->assertFalse(ActivityStatus::OnTheWay->canTransitionTo(ActivityStatus::InProgress));
     }
 
     // ── UserStatus ──────────────────────────────────────────────────────────

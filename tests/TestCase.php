@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use App\Actions\Activity\ConfirmArrivalAction;
+use App\Actions\Activity\DepartActivityAction;
 use App\Actions\Admin\Payment\ConfirmPaymentAction;
 use App\Actions\Auth\IssueVerificationCodeAction;
 use App\Actions\Payment\ReportTransferAction;
@@ -277,6 +279,21 @@ abstract class TestCase extends BaseTestCase
             $task->payment()->firstOrFail(),
             $admin ?? $this->activeAdmin(),
         );
+    }
+
+    /**
+     * Antar pekerja sampai ke depan pintu: berangkat, lalu kedatangannya
+     * diakui pemberi kerja.
+     *
+     * Dua langkah dengan dua aktor, sama seperti `openActivities()`. Fixture
+     * yang melompatinya akan berangkat dari keadaan yang tidak bisa dicapai
+     * aplikasi — `open` langsung `in_progress` tidak ada jalannya.
+     */
+    protected function bringToSite(Activity $activity): Activity
+    {
+        app(DepartActivityAction::class)->handle($activity);
+
+        return app(ConfirmArrivalAction::class)->handle($activity->refresh());
     }
 
     /**

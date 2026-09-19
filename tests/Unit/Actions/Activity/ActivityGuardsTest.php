@@ -116,7 +116,7 @@ final class ActivityGuardsTest extends TestCase
 
     private function submitted(): Activity
     {
-        app(StartActivityAction::class)->handle($this->activity);
+        app(StartActivityAction::class)->handle($this->bringToSite($this->activity));
 
         return app(SubmitActivityAction::class)
             ->handle(new SubmitActivityData('Beres', ['p/a.jpg']), $this->activity->refresh());

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Enums\TokenAbility;
 use App\Http\Controllers\Api\V1\Activity\ApproveActivityController;
+use App\Http\Controllers\Api\V1\Activity\ConfirmArrivalController;
+use App\Http\Controllers\Api\V1\Activity\DepartActivityController;
 use App\Http\Controllers\Api\V1\Activity\ListMyActivitiesController;
 use App\Http\Controllers\Api\V1\Activity\RejectActivityController;
 use App\Http\Controllers\Api\V1\Activity\ShowActivityController;
@@ -252,6 +254,14 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         Route::get('activities/mine', ListMyActivitiesController::class)->name('activities.mine');
         Route::get('activities/{activity}', ShowActivityController::class)
             ->can('view', 'activity')->name('activities.show');
+        // Perjalanan: pekerja mengumumkan berangkat, PEMBERI KERJA yang
+        // mengakui kedatangannya. Yang melihat orangnya sampai adalah tuan
+        // rumah — kalau yang datang boleh menyatakannya sendiri, pengakuan itu
+        // tidak berarti apa pun.
+        Route::post('activities/{activity}/depart', DepartActivityController::class)
+            ->can('work', 'activity')->name('activities.depart');
+        Route::post('activities/{activity}/arrived', ConfirmArrivalController::class)
+            ->can('judge', 'activity')->name('activities.arrived');
         Route::post('activities/{activity}/start', StartActivityController::class)
             ->can('work', 'activity')->name('activities.start');
         Route::post('activities/{activity}/submit', SubmitActivityController::class)

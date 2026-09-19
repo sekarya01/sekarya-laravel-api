@@ -34,6 +34,9 @@ final class StartActivityAction
                 throw PaymentNotHeldException::becauseStatus($activity->payment->status);
             }
 
+            // `arrived → in_progress` satu-satunya jalan masuk: pekerjaan
+            // tidak dimulai dari perjalanan, dan kedatangan yang belum diakui
+            // pemberi kerja belum jadi kedatangan.
             if (! $activity->status->canTransitionTo(ActivityStatus::InProgress)) {
                 throw InvalidStatusTransitionException::between(
                     $activity->status->value,

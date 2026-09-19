@@ -82,7 +82,7 @@ final class MultiWorkerProgressTest extends TestCase
 
     private function submit(int $i): Activity
     {
-        $activity = $this->activities[$i];
+        $activity = $this->bringToSite($this->activities[$i]);
         app(StartActivityAction::class)->handle($activity);
 
         return app(SubmitActivityAction::class)

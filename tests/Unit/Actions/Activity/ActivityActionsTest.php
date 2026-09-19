@@ -56,6 +56,11 @@ final class ActivityActionsTest extends TestCase
 
         // Satu transfer membuka satu activity PER pekerja; task ini punya satu.
         $this->activity = $this->openActivities($this->task, $this->poster)->sole();
+
+        // Mulai bekerja menuntut kedatangan yang sudah diakui pemberi kerja,
+        // jadi fixture kelas ini berangkat dari `arrived` — bukan `open`.
+        // Dua langkah perjalanannya sendiri diuji ActivityTravelTest.
+        $this->activity = $this->bringToSite($this->activity);
     }
 
     public function test_start_moves_to_in_progress(): void

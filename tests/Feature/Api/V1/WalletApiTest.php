@@ -632,6 +632,13 @@ final class WalletApiTest extends TestCase
     private function submitEverything(Task $task): void
     {
         foreach ($task->activities()->with('worker')->get() as $activity) {
+            // Lewat perjalanannya juga: `open -> in_progress` tidak ada jalannya.
+            $this->asUser($activity->worker)
+                ->postJson(route('v1.activities.depart', $activity))
+                ->assertOk();
+            $this->asUser($task->poster)
+                ->postJson(route('v1.activities.arrived', $activity))
+                ->assertOk();
             $this->asUser($activity->worker)
                 ->postJson(route('v1.activities.start', $activity))
                 ->assertOk();
