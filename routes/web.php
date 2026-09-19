@@ -8,6 +8,7 @@ use App\Http\Controllers\Web\SuperAdmin\AuditLogController;
 use App\Http\Controllers\Web\SuperAdmin\AuthController;
 use App\Http\Controllers\Web\SuperAdmin\DashboardController;
 use App\Http\Controllers\Web\SuperAdmin\PaymentController;
+use App\Http\Controllers\Web\SuperAdmin\WalletTopupController;
 use App\Http\Controllers\Web\SuperAdmin\UserController;
 use App\Http\Controllers\Web\SuperAdmin\VerificationController;
 use App\Http\Controllers\Web\SuperAdmin\WorkerController;
@@ -62,6 +63,12 @@ Route::prefix('access/super_admin')->name('super_admin.')->group(function (): vo
         Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
         Route::post('payments/{payment}/confirm', [PaymentController::class, 'confirm'])->name('payments.confirm');
         Route::post('payments/{payment}/reject', [PaymentController::class, 'reject'])->name('payments.reject');
+
+        // Isi saldo: konfirmasi manual sesudah mutasi rekening dicocokkan.
+        Route::get('wallet-topups', [WalletTopupController::class, 'index'])->name('wallet_topups.index');
+        Route::get('wallet-topups/{topup}', [WalletTopupController::class, 'show'])->name('wallet_topups.show');
+        Route::post('wallet-topups/{topup}/confirm', [WalletTopupController::class, 'confirm'])->name('wallet_topups.confirm');
+        Route::post('wallet-topups/{topup}/reject', [WalletTopupController::class, 'reject'])->name('wallet_topups.reject');
 
         Route::get('users', [UserController::class, 'index'])->name('users.index');
         Route::get('users/{user}', [UserController::class, 'show'])->name('users.show');

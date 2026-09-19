@@ -9,7 +9,7 @@
         <div class="absolute -right-10 -top-16 w-64 h-64 rounded-full opacity-25" style="background: #F97316; filter: blur(70px);"></div>
         <div class="relative">
             <p class="text-xs uppercase tracking-widest font-bold text-orange-200">Halo, Super Admin</p>
-            <h3 class="mt-1 text-xl sm:text-2xl font-extrabold">Ada {{ $pendingVerifications + $awaitingPayments }} antrean menunggu tindakanmu.</h3>
+            <h3 class="mt-1 text-xl sm:text-2xl font-extrabold">Ada {{ $pendingVerifications + $awaitingPayments + $awaitingTopups }} antrean menunggu tindakanmu.</h3>
             <p class="mt-1 text-sm text-slate-300">Kerjakan yang paling lama menunggu dulu — mereka yang paling lama tertahan.</p>
             <div class="mt-4 flex flex-wrap gap-2">
                 <a href="{{ route('super_admin.verifications.index') }}" class="btn btn-accent text-sm!">Buka verifikasi →</a>
@@ -27,6 +27,9 @@ $stats = [
     ['label' => 'Transfer menunggu', 'value' => $awaitingPayments, 'href' => route('super_admin.payments.index'),
      'bg' => '#E4EDF7', 'fg' => '#163C68', 'alert' => $awaitingPayments > 0,
      'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/>'],
+    ['label' => 'Isi saldo menunggu', 'value' => $awaitingTopups, 'href' => route('super_admin.wallet_topups.index'),
+     'bg' => '#E7F6EF', 'fg' => '#047857', 'alert' => $awaitingTopups > 0,
+     'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3"/>'],
     ['label' => 'Task open', 'value' => $openTasks, 'href' => null,
      'bg' => '#E7F6EF', 'fg' => '#047857', 'alert' => false,
      'icon' => '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0"/>'],
