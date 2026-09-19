@@ -17,7 +17,7 @@ final class PaymentNotHeldException extends DomainException
     public static function becauseStatus(PaymentStatus $status): self
     {
         return new self(
-            "Dana belum ditahan, activity tidak bisa dibuka (status: {$status->value}).",
+            "Dana belum ditahan, pekerjaan belum bisa dimulai (status: {$status->value}).",
             $status,
         );
     }

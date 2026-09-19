@@ -88,25 +88,25 @@ final class TaskHiring
             reason: $reason,
         );
 
-        // SEMENTARA — selama gerbang pembayaran dimatikan, penutupan lelang
-        // sekaligus membuka pekerjaannya.
+        // Penutupan lelang SEKALIGUS membuka pekerjaannya — satu activity per
+        // orang yang diterima, dan task berpindah ke `active`.
         //
-        // Tanpa ini task berhenti di `dealt` selamanya: satu-satunya jalan ke
-        // `active` adalah konfirmasi pengelola, dan mekanisme pembayarannya
-        // belum dikembangkan — pekerja melihat "menunggu pembayaran
-        // dikonfirmasi" untuk konfirmasi yang tidak akan pernah datang.
+        // Deal adalah kesepakatan siapa yang mengerjakan; sejak itu orangnya
+        // punya baris pekerjaan atas namanya. Dulu baris itu baru lahir saat
+        // dana terbukti masuk, sehingga pekerja yang sudah dipilih tidak
+        // menemukan kerjaannya di mana pun — ada di daftar pemberi kerja,
+        // tidak ada di daftarnya sendiri.
         //
-        // Pembayarannya TIDAK diubah: ia tetap `pending`. Yang dilewati
-        // pemeriksaannya, bukan catatannya — tidak ada baris yang menyatakan
-        // uang sudah masuk padahal belum. Lihat config/sekarya.payments.
-        if (! (bool) config('sekarya.payments.gate_enabled')) {
-            $this->opening->open(
-                $task,
-                $task->payment()->firstOrFail(),
-                ActorType::Poster,
-                $poster->getKey(),
-                'gerbang pembayaran dimatikan, pekerjaan dibuka bersama penutupan lelang',
-            );
-        }
+        // Uang tidak berhenti menjaga apa pun; ia pindah menjaga hal yang
+        // tepat. Yang dikunci `held` sekarang MULAI BEKERJA
+        // (`StartActivityAction`) dan pelepasan upah — bukan keberadaan
+        // barisnya. Lihat config/sekarya.payments.
+        $this->opening->open(
+            $task,
+            $task->payment()->firstOrFail(),
+            ActorType::Poster,
+            $poster->getKey(),
+            $reason,
+        );
     }
 }

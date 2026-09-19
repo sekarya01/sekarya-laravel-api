@@ -8,7 +8,6 @@ use App\Actions\Activity\ApproveActivityAction;
 use App\Actions\Activity\StartActivityAction;
 use App\Actions\Activity\SubmitActivityAction;
 use App\Actions\Bid\AcceptBidAction;
-use App\Actions\Task\StartWithCurrentWorkersAction;
 use App\Data\Activity\SubmitActivityData;
 use App\Enums\ActivityStatus;
 use App\Enums\BidStatus;
@@ -28,22 +27,22 @@ use Tests\TestCase;
 /**
  * Alur pekerjaan selagi gerbang pembayaran DIMATIKAN.
  *
- * Keadaan sementara: mekanisme pembayaran belum dikembangkan, jadi
- * `config('sekarya.payments.gate_enabled')` bawaannya mati dan pekerjaan
- * dibuka bersama penutupan lelang. Tanpa itu task berhenti di `dealt`
- * selamanya — satu-satunya jalan ke `active` adalah konfirmasi pengelola atas
- * transfer yang belum ada mekanismenya.
+ * Yang dijaga saklar ini tinggal dua: MULAI BEKERJA dan pembayaran upahnya.
+ * Keberadaan activity sudah tidak bergantung padanya — deal selalu membuka
+ * pekerjaan, dan itu diuji DealOpensWorkTest dengan gerbang hidup.
  *
- * Yang dijaga kelas ini bukan sekadar "pekerja bisa mulai", melainkan dua hal
- * yang mudah hilang saat pemeriksaan dilewati:
+ * Selama mati, tidak ada tagihan yang pernah beranjak dari `pending`, jadi:
  *
- *  1. Pembayaran TIDAK dipalsukan. Ia tetap `pending` dari awal sampai task
- *     selesai; tidak ada baris yang menyatakan uang sudah masuk.
- *  2. `pending → held` tetap mustahil. Gerbang yang mati melewati
- *     PEMERIKSAAN, bukan melonggarkan PaymentStatus::canTransitionTo().
+ *  1. `StartActivityAction` tidak menuntut `held` — kalau menuntut, tidak ada
+ *     pekerjaan yang pernah bisa dimulai.
+ *  2. Persetujuan hasil tidak melepas tagihan DAN tidak mengkreditkan upah.
+ *     Pekerjaannya tetap ditutup; yang tertunda uangnya.
  *
- * Suite ini berjalan dengan gerbang hidup (phpunit.xml), jadi setiap test di
- * sini mematikannya sendiri.
+ * Pembayaran tidak pernah dipalsukan jadi `held`, dan `pending → held` tetap
+ * mustahil: yang dilewati PEMERIKSAAN, bukan CATATAN.
+ *
+ * Suite berjalan dengan gerbang hidup (phpunit.xml), jadi setiap test di sini
+ * mematikannya sendiri.
  */
 final class PaymentGateDisabledTest extends TestCase
 {
@@ -93,20 +92,6 @@ final class PaymentGateDisabledTest extends TestCase
         return app(AcceptBidAction::class)->handle($bid ?? $this->pendingBid(), $this->poster);
     }
 
-    public function test_closing_the_auction_opens_the_work(): void
-    {
-        $this->accept();
-
-        $activity = Activity::query()->where('task_id', $this->task->getKey())->sole();
-
-        $this->assertSame(ActivityStatus::Open, $activity->status);
-        $this->assertSame($this->worker->getKey(), $activity->worker_id);
-        // Harga per orang, bukan total task.
-        $this->assertSame(220_000, (int) $activity->agreed_amount);
-        $this->assertNotNull($activity->opened_at);
-        $this->assertSame(TaskStatus::Active, $this->task->refresh()->status);
-    }
-
     /** Yang dilewati pemeriksaannya, bukan catatannya. */
     public function test_payment_is_not_faked_as_held(): void
     {
@@ -117,27 +102,6 @@ final class PaymentGateDisabledTest extends TestCase
         $this->assertSame(PaymentStatus::Pending, $payment->status);
         $this->assertNull($payment->paid_at);
         $this->assertNull($payment->held_at);
-    }
-
-    /** Jejaknya tetap lengkap: dealt DAN active, dengan alasan yang jujur. */
-    public function test_both_status_moves_are_recorded(): void
-    {
-        $this->accept();
-
-        $moves = TaskStatusLog::query()
-            ->where('task_id', $this->task->getKey())
-            ->orderBy('id')
-            ->pluck('to_status')
-            ->all();
-
-        $this->assertSame([TaskStatus::Dealt->value, TaskStatus::Active->value], $moves);
-        $this->assertStringContainsString(
-            'gerbang pembayaran dimatikan',
-            (string) TaskStatusLog::query()
-                ->where('task_id', $this->task->getKey())
-                ->where('to_status', TaskStatus::Active->value)
-                ->value('reason'),
-        );
     }
 
     public function test_worker_can_start_without_money_being_held(): void
@@ -210,64 +174,6 @@ final class PaymentGateDisabledTest extends TestCase
                 ->where('task_id', $this->task->getKey())
                 ->where('to_status', TaskStatus::Completed->value)
                 ->value('reason'),
-        );
-    }
-
-    /** Mulai lebih awal menutup lelang lewat jalur lain — hasilnya sama. */
-    public function test_starting_early_opens_the_work_too(): void
-    {
-        $this->task->forceFill(['workers_needed' => 3])->save();
-        $this->accept($this->pendingBid());
-
-        $this->assertSame(TaskStatus::Open, $this->task->refresh()->status);
-
-        app(StartWithCurrentWorkersAction::class)->handle($this->task->refresh(), $this->poster);
-
-        $this->assertSame(TaskStatus::Active, $this->task->refresh()->status);
-        $this->assertSame(1, Activity::query()->where('task_id', $this->task->getKey())->count());
-    }
-
-    /** Satu activity per pekerja, berapa pun jumlah yang diterima. */
-    public function test_every_hired_worker_gets_one_activity(): void
-    {
-        $this->task->forceFill(['workers_needed' => 2])->save();
-        $second = $this->activeUser();
-
-        $this->accept($this->pendingBid($this->worker, 200_000));
-        $this->accept($this->pendingBid($second, 180_000));
-
-        $activities = Activity::query()->where('task_id', $this->task->getKey())->get();
-
-        $this->assertCount(2, $activities);
-        $this->assertEqualsCanonicalizing(
-            [200_000, 180_000],
-            $activities->map(fn (Activity $a): int => (int) $a->agreed_amount)->all(),
-        );
-    }
-
-    /**
-     * Gerbang yang dinyalakan lagi tidak menggandakan apa pun.
-     *
-     * Pekerjaan sudah terbuka, lalu pembayarannya benar-benar dilaporkan dan
-     * dikonfirmasi. Yang terjadi hanya dananya ditahan — bukan activity kedua
-     * untuk orang yang sama, dan bukan `active → active`.
-     */
-    public function test_confirming_the_transfer_afterwards_is_idempotent(): void
-    {
-        $this->accept();
-
-        config(['sekarya.payments.gate_enabled' => true]);
-        $this->openActivities($this->task->refresh(), $this->poster);
-
-        $this->assertSame(1, Activity::query()->where('task_id', $this->task->getKey())->count());
-        $this->assertSame(TaskStatus::Active, $this->task->refresh()->status);
-        $this->assertSame(PaymentStatus::Held, $this->task->refresh()->payment->status);
-        $this->assertSame(
-            1,
-            TaskStatusLog::query()
-                ->where('task_id', $this->task->getKey())
-                ->where('to_status', TaskStatus::Active->value)
-                ->count(),
         );
     }
 

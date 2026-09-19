@@ -135,7 +135,8 @@ final class MultiWorkerTaskTest extends TestCase
         $this->asUser($this->poster)->postJson(route('v1.bids.accept', $bids[0]))->assertOk();
         $this->asUser($this->poster)->postJson(route('v1.bids.accept', $bids[1]))
             ->assertOk()
-            ->assertJsonPath('data.status', 'dealt');
+            // Slot terakhir menutup lelang DAN membuka pekerjaannya.
+            ->assertJsonPath('data.status', 'active');
 
         $this->assertSame('rejected', $this->asUser($this->workers[2])
             ->getJson(route('v1.bids.mine'))->json('data.0.status'));
@@ -168,7 +169,7 @@ final class MultiWorkerTaskTest extends TestCase
         // Slot terakhir menutup lelang.
         $this->asUser($this->poster)->postJson(route('v1.bids.accept', $bids[2]))
             ->assertOk()
-            ->assertJsonPath('data.status', 'dealt')
+            ->assertJsonPath('data.status', 'active')
             ->assertJsonPath('data.hiring.slots_remaining', 0)
             ->assertJsonPath('data.agreed_amount', 630_000);
     }
@@ -198,7 +199,7 @@ final class MultiWorkerTaskTest extends TestCase
 
         $this->asUser($this->poster)->postJson(route('v1.tasks.start', $task))
             ->assertOk()
-            ->assertJsonPath('data.status', 'dealt')
+            ->assertJsonPath('data.status', 'active')
             // Target diturunkan ke kenyataan, bukan dibiarkan kekurangan dua
             // orang selamanya.
             ->assertJsonPath('data.hiring.workers_needed', 1)
@@ -287,8 +288,14 @@ final class MultiWorkerTaskTest extends TestCase
         return $ids;
     }
 
-    /** Laporan transfer TIDAK membuka apa pun, berapa pun jumlah pekerjanya. */
-    public function test_reporting_a_transfer_opens_nothing(): void
+    /**
+     * Laporan transfer TIDAK mengizinkan apa pun dimulai.
+     *
+     * Pekerjaannya sudah terdaftar sejak deal — itu catatan siapa mengerjakan
+     * apa. Yang masih ditahan uang adalah MULAI BEKERJA, dan pernyataan
+     * "saya sudah transfer" bukan bukti uangnya masuk.
+     */
+    public function test_reporting_a_transfer_does_not_let_the_work_start(): void
     {
         $task = $this->dealtTask(3);
 
@@ -298,14 +305,20 @@ final class MultiWorkerTaskTest extends TestCase
             ->assertJsonPath('data.is_held', false);
 
         foreach (array_slice($this->workers, 0, 3) as $worker) {
-            $this->asUser($worker)->getJson(route('v1.activities.mine'))
+            $activity = $this->asUser($worker)->getJson(route('v1.activities.mine'))
                 ->assertOk()
-                ->assertJsonCount(0, 'data');
+                ->assertJsonCount(1, 'data')
+                ->assertJsonPath('data.0.status', 'open')
+                ->json('data.0.id');
+
+            $this->asUser($worker)->postJson(route('v1.activities.start', $activity))
+                ->assertStatus(422)
+                ->assertJsonPath('code', 'payment_not_held');
         }
 
         $this->asUser($this->poster)->getJson(route('v1.tasks.show', $task))
             ->assertOk()
-            ->assertJsonPath('data.status', 'dealt');
+            ->assertJsonPath('data.status', 'active');
     }
 
     public function test_one_transfer_opens_an_activity_for_every_worker(): void

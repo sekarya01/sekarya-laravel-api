@@ -43,7 +43,7 @@ final class ConfirmPaymentAction
     {
         return $this->db->transaction(function () use ($payment, $admin, $ip): Collection {
             // Row lock sungguhan di InnoDB: mencegah dua pengelola yang
-            // membuka antrean yang sama sama-sama membuka activity. unique
+            // membuka antrean yang sama sama-sama menahan dana. unique
             // (task_id, worker_id) di activities tetap jadi pengaman terakhir —
             // lock hanya berlaku di dalam transaksi, dan jalur tulis lain
             // belum tentu mengambilnya.

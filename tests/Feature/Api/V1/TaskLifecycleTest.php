@@ -466,15 +466,18 @@ final class TaskLifecycleTest extends TestCase
             ->postJson(route('v1.tasks.bids.store', $task), ['amount' => 220_000])
             ->json('data.id');
 
+        // `active`, bukan `dealt`: deal MEMBUKA pekerjaannya — activity untuk
+        // tiap orang yang diterima lahir di sini, bukan menunggu uang.
         $this->asUser($this->poster)->postJson(route('v1.bids.accept', $bid))
             ->assertOk()
-            ->assertJsonPath('data.status', 'dealt')
+            ->assertJsonPath('data.status', 'active')
             ->assertJsonPath('data.agreed_amount', 220_000);
 
-        // Pemberi kerja MELAPOR sudah transfer. Ini tidak membuka apa pun —
-        // dan itu inti perubahannya: dulu langkah ini langsung memindahkan
+        // Pemberi kerja MELAPOR sudah transfer. Ini tidak menahan dana —
+        // dan itu inti aturannya: dulu langkah ini langsung memindahkan
         // tagihan ke `held`, yang berarti pemberi kerja menyatakan sendiri
-        // uangnya sudah masuk.
+        // uangnya sudah masuk. Yang dibuka uang sekarang bukan keberadaan
+        // activity-nya, melainkan izin MEMULAINYA.
         $payment = $this->asUser($this->poster)
             ->postJson(route('v1.tasks.payment.hold', $task))
             ->assertOk()
@@ -483,7 +486,8 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonPath('data.is_held', false)
             ->json('data.id');
 
-        // Yang menahan dana — dan dengan itu membuka activity — pengelola.
+        // Yang menahan dana — dan dengan itu mengizinkan pekerjaan dimulai —
+        // pengelola.
         $this->asAdmin($this->admin())
             ->postJson(route('v1.admin.payments.confirm', $payment))
             ->assertOk()

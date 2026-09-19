@@ -21,7 +21,7 @@ use Illuminate\View\View;
  *
  * Bawaan `awaiting_confirmation`, urut `reported_at` (kapan pemberi kerja
  * mengaku transfer) — bukan `created_at`. Confirm adalah satu-satunya jalan
- * ke `held`, dan `held` membuka activity per pekerja yang diterima.
+ * ke `held`, dan `held` yang mengizinkan pekerjaan dimulai.
  *
  * Pagination BERNOMOR. Aturan saring & urut disalin dari
  * ListPaymentQueueAction — kalau Action itu berubah, samakan di sini.
@@ -71,7 +71,7 @@ final class PaymentController
         }
 
         return redirect()->route('super_admin.payments.show', $payment)
-            ->with('status', "Dana ditahan, {$activities->count()} activity dibuka.");
+            ->with('status', "Dana ditahan, {$activities->count()} pekerjaan boleh dimulai.");
     }
 
     public function reject(Request $request, Payment $payment, RejectPaymentAction $action): RedirectResponse

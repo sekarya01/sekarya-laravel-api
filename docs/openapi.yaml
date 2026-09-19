@@ -23,7 +23,7 @@ info:
       → worker ajukan penawaran
       → poster pilih SATU  ............ DEAL
       → poster transfer lalu MELAPOR
-      → PENGELOLA konfirmasi mutasi  .. dana DITAHAN, activity dibuka
+      → PENGELOLA konfirmasi mutasi  .. dana DITAHAN, pekerjaan boleh dimulai
       → worker kerjakan lalu serahkan
       → poster setujui  ............... task selesai, dana DILEPAS
       → penilaian dua arah
@@ -1801,11 +1801,10 @@ paths:
 
         Langkah berikutnya adalah `POST /tasks/{task}/payment/hold`.
 
-        **SEMENTARA — gerbang pembayaran dimatikan** (`SEKARYA_PAYMENT_GATE=false`,
-        bawaan hari ini). Mengisi slot terakhir sekaligus **membuka pekerjaan**: task
-        melanjut dari `dealt` ke `active` dan satu activity dibuat per pekerja yang
-        diterima, tanpa laporan transfer maupun konfirmasi pengelola. Tagihannya tetap
-        `pending` — tidak ada yang dicatat seolah uangnya sudah masuk.
+        Mengisi slot terakhir juga **membuka pekerjaannya**: task melanjut dari
+        `dealt` ke `active` dan satu activity dibuat per pekerja yang diterima.
+        Tagihannya tetap `pending` — yang ditahan uang bukan keberadaan activity,
+        melainkan izin MEMULAINYA (`POST /activities/{activity}/start`).
       responses:
         '200':
           $ref: '#/components/responses/SingleTask'
@@ -1867,7 +1866,7 @@ paths:
 
         Endpoint ini **tidak membuka apa pun.** Ia memindahkan tagihan ke
         `awaiting_confirmation` dan menaruhnya di antrean pengelola. Yang
-        menahan dana — dan dengan itu membuka activity — adalah
+        menahan dana — dan dengan itu mengizinkan pekerjaan dimulai — adalah
         `POST /admin/payments/{payment}/confirm`.
 
         Pemisahan itu inti aturannya: sebelum ini endpoint pemberi kerja
@@ -1969,7 +1968,7 @@ paths:
       summary: Mulai mengerjakan
       description: |
         Hanya penerima kerja. Status dana diperiksa **ulang** di sini: dana bisa
-        saja sudah dikembalikan sejak activity dibuka.
+        saja sudah dikembalikan sejak pekerjaannya dibuka.
       responses:
         '200':
           $ref: '#/components/responses/SingleActivity'
@@ -1986,7 +1985,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/DomainError'
               example:
-                message: 'Dana belum ditahan, activity tidak bisa dibuka (status: refunded).'
+                message: 'Dana belum ditahan, pekerjaan belum bisa dimulai (status: refunded).'
                 code: payment_not_held
                 context: { payment_status: refunded }
 
@@ -2629,31 +2628,31 @@ paths:
     post:
       tags: [Pengelola]
       operationId: confirmPayment
-      summary: Dana masuk — ditahan, activity dibuka
+      summary: Dana masuk — ditahan, pekerjaan boleh dimulai
       security:
         - adminAccessToken: []
       description: |
         **SATU-SATUNYA jalan menuju `held`**, dan `held` adalah gerbang yang
-        membuka pekerjaan. Panggil ini hanya setelah mutasi rekening
+        mengizinkan pekerjaan DIMULAI. Panggil ini hanya setelah mutasi rekening
         benar-benar terlihat.
 
-        Satu konfirmasi membuka **satu activity per pekerja** yang diterima,
-        masing-masing membawa harga penawarannya sendiri; tagihannya tetap satu
-        baris sebesar jumlah semuanya, karena pemberi kerja mentransfer sekali.
-        Task-nya pindah ke `active`, dan jejak statusnya menyebut **pengelola**
-        sebagai pelaku.
+        Tagihannya satu baris sebesar jumlah seluruh pekerja, karena pemberi kerja
+        mentransfer sekali; pembagiannya ada di `activities.agreed_amount`
+        masing-masing.
 
         Tagihan yang belum dilaporkan (`pending`) ditolak: tanpa laporan, tidak
         ada yang menyatakan transfernya ada.
 
-        **SEMENTARA — gerbang pembayaran dimatikan** (`SEKARYA_PAYMENT_GATE=false`,
-        bawaan hari ini), jadi pekerjaan sudah terbuka sejak lelang ditutup dan antrean
-        ini biasanya kosong. Mengonfirmasi tagihan yang tetap dilaporkan tetap aman:
-        dananya ditahan, activity yang sudah ada tidak digandakan, dan task yang sudah
-        `active` tidak dipindahkan dua kali.
+        Activity-nya sendiri sudah dibuka sejak lelang ditutup; yang ditambahkan
+        konfirmasi ini adalah izin memulainya. Untuk task warisan yang barisnya belum
+        ada, konfirmasi tetap membukanya. Aman diulang: activity tidak digandakan, dan
+        task yang sudah `active` tidak dipindahkan dua kali.
+
+        **SEMENTARA**, dengan `SEKARYA_PAYMENT_GATE=false` (bawaan hari ini), pemeriksaan
+        `held` di sisi mulai bekerja dilewati, jadi antrean ini praktis tidak terpakai.
       responses:
         '200':
-          description: Dana ditahan, activity dibuka untuk setiap pekerja.
+          description: Dana ditahan, pekerjaan boleh dimulai.
           content:
             application/json:
               schema:

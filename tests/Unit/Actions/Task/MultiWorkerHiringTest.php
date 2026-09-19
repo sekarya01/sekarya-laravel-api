@@ -158,7 +158,9 @@ final class MultiWorkerHiringTest extends TestCase
             $this->accept($applicants[$i]);
         }
 
-        $this->assertSame(TaskStatus::Dealt, $this->task->refresh()->status);
+        // `active`: slot terakhir yang terisi menutup lelang DAN membuka
+        // pekerjaannya sekaligus.
+        $this->assertSame(TaskStatus::Active, $this->task->refresh()->status);
 
         foreach ([3, 4, 5] as $i) {
             $this->assertSame(BidStatus::Rejected, $applicants[$i]->refresh()->status);
@@ -213,7 +215,7 @@ final class MultiWorkerHiringTest extends TestCase
 
         $this->assertSame(3, $task->workers_hired);
         $this->assertSame(0, $task->slotsRemaining());
-        $this->assertSame(TaskStatus::Dealt, $task->status);
+        $this->assertSame(TaskStatus::Active, $task->status);
         $this->assertNotNull($task->dealt_at);
         $this->assertSame(0, $task->bids_count);
     }
@@ -277,7 +279,7 @@ final class MultiWorkerHiringTest extends TestCase
         $this->assertSame(1, $task->workers_needed);
         $this->assertSame(1, $task->workers_hired);
         $this->assertSame(0, $task->slotsRemaining());
-        $this->assertSame(TaskStatus::Dealt, $task->status);
+        $this->assertSame(TaskStatus::Active, $task->status);
 
         // Pelamar yang menunggu ditutup — bukan dibiarkan menggantung.
         $this->assertSame(BidStatus::Rejected, $waiting->refresh()->status);

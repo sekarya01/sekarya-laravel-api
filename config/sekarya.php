@@ -241,32 +241,33 @@ return [
     | Gerbang pembayaran
     |--------------------------------------------------------------------------
     |
-    | SEMENTARA — mekanisme pembayaran belum dikembangkan.
+    | Yang dijaga uang adalah MULAI BEKERJA dan pelepasan upah — bukan
+    | keberadaan activity-nya. Deal selalu membuka pekerjaan: begitu lelang
+    | ditutup, setiap orang yang diterima punya baris atas namanya, dan task
+    | berpindah ke `active`. Itu berlaku apa pun isi saklar di bawah.
     |
-    | Saat gerbang ini HIDUP (perilaku yang dirancang): pekerjaan baru terbuka
-    | setelah pemberi kerja melapor sudah transfer DAN pengelola
-    | mengonfirmasinya. `payments.status = held` adalah pintunya, dan hanya
-    | pengelola yang memegang kuncinya.
+    | Saklar ini menentukan apakah pemeriksaan dananya berlaku:
     |
-    | Saat gerbang ini MATI (bawaan hari ini): activity dibuka begitu
-    | perekrutan ditutup, pekerja bisa langsung mulai, dan persetujuan hasil
-    | tidak menunggu dana. Pembayaran TIDAK dipalsukan menjadi `held` — ia
-    | tetap `pending`, jadi tidak ada baris data yang berbohong soal uang yang
-    | belum masuk. Yang dilewati adalah pemeriksaannya, bukan catatannya.
+    |  - HIDUP: `StartActivityAction` menuntut `payments.status = held`, dan
+    |    persetujuan hasil melepas tagihan + mengkreditkan upah.
+    |  - MATI (bawaan hari ini): kedua pemeriksaan dilewati. Mekanisme
+    |    pembayaran belum dikembangkan, jadi tagihan tidak pernah beranjak dari
+    |    `pending`; menuntut `held` berarti tidak ada pekerjaan yang pernah
+    |    bisa dimulai, apalagi selesai.
     |
-    | Uangnya ikut tertunda, bukan cuma statusnya: tanpa dana yang ditahan,
-    | persetujuan hasil tidak melepas tagihan DAN tidak mengkreditkan upah.
-    | Mengkreditkan upahnya saja akan melahirkan saldo yang bisa ditarik lewat
-    | POST /me/wallet/withdrawals — tagihan sungguhan atas uang yang tidak
-    | pernah ada.
-    |
-    | Aturan "`pending` tidak pernah boleh langsung jadi `held`" tetap utuh di
+    | Yang dilewati adalah PEMERIKSAANNYA, bukan CATATANNYA. Pembayaran tidak
+    | pernah dipalsukan jadi `held`, dan `pending → held` tetap mustahil di
     | PaymentStatus::canTransitionTo() — jangan pernah melonggarkannya sebagai
     | jalan pintas ke sini.
     |
-    | Menyalakan kembali cukup dengan SEKARYA_PAYMENT_GATE=true; suite test
-    | menjalankannya dalam keadaan hidup (lihat phpunit.xml) supaya alur yang
-    | dirancang tidak membusuk selagi dilewati.
+    | Upah pun ikut tertunda, bukan cuma statusnya: mengkreditkan upah tanpa
+    | dana yang masuk melahirkan saldo yang bisa ditarik lewat
+    | POST /me/wallet/withdrawals — tagihan sungguhan atas uang yang tidak
+    | pernah ada.
+    |
+    | Nyalakan dengan SEKARYA_PAYMENT_GATE=true begitu pembayaran siap. Suite
+    | test menjalankannya dalam keadaan HIDUP (lihat phpunit.xml) supaya alur
+    | yang dirancang tidak membusuk selagi dilewati.
     |
     */
 
