@@ -236,4 +236,45 @@ return [
         'admin_login' => (int) env('SEKARYA_RL_ADMIN_LOGIN', 5),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Gerbang pembayaran
+    |--------------------------------------------------------------------------
+    |
+    | SEMENTARA — mekanisme pembayaran belum dikembangkan.
+    |
+    | Saat gerbang ini HIDUP (perilaku yang dirancang): pekerjaan baru terbuka
+    | setelah pemberi kerja melapor sudah transfer DAN pengelola
+    | mengonfirmasinya. `payments.status = held` adalah pintunya, dan hanya
+    | pengelola yang memegang kuncinya.
+    |
+    | Saat gerbang ini MATI (bawaan hari ini): activity dibuka begitu
+    | perekrutan ditutup, pekerja bisa langsung mulai, dan persetujuan hasil
+    | tidak menunggu dana. Pembayaran TIDAK dipalsukan menjadi `held` — ia
+    | tetap `pending`, jadi tidak ada baris data yang berbohong soal uang yang
+    | belum masuk. Yang dilewati adalah pemeriksaannya, bukan catatannya.
+    |
+    | Uangnya ikut tertunda, bukan cuma statusnya: tanpa dana yang ditahan,
+    | persetujuan hasil tidak melepas tagihan DAN tidak mengkreditkan upah.
+    | Mengkreditkan upahnya saja akan melahirkan saldo yang bisa ditarik lewat
+    | POST /me/wallet/withdrawals — tagihan sungguhan atas uang yang tidak
+    | pernah ada.
+    |
+    | Aturan "`pending` tidak pernah boleh langsung jadi `held`" tetap utuh di
+    | PaymentStatus::canTransitionTo() — jangan pernah melonggarkannya sebagai
+    | jalan pintas ke sini.
+    |
+    | Menyalakan kembali cukup dengan SEKARYA_PAYMENT_GATE=true; suite test
+    | menjalankannya dalam keadaan hidup (lihat phpunit.xml) supaya alur yang
+    | dirancang tidak membusuk selagi dilewati.
+    |
+    */
+
+    'payments' => [
+        'gate_enabled' => filter_var(
+            env('SEKARYA_PAYMENT_GATE', false),
+            FILTER_VALIDATE_BOOLEAN,
+        ),
+    ],
+
 ];

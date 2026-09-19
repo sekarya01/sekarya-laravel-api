@@ -71,6 +71,17 @@
         <env name="AXIOM_TOKEN" value="test-token"/>
         <env name="AXIOM_DATASET" value="sekarya-test"/>
 
+        <!--
+            Gerbang pembayaran HIDUP di test.
+
+            Bawaannya mati (lihat config/sekarya.php) karena mekanisme
+            pembayaran belum dikembangkan, tapi alur yang dirancang — lapor
+            transfer → pengelola konfirmasi → activity dibuka — tidak boleh
+            membusuk selagi dilewati. Test yang menguji jalur sementara itu
+            mematikannya sendiri per test.
+        -->
+        <env name="SEKARYA_PAYMENT_GATE" value="true"/>
+
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

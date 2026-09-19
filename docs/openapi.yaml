@@ -1800,6 +1800,12 @@ paths:
         tagihan pembayaran dibuat berstatus `pending`.
 
         Langkah berikutnya adalah `POST /tasks/{task}/payment/hold`.
+
+        **SEMENTARA — gerbang pembayaran dimatikan** (`SEKARYA_PAYMENT_GATE=false`,
+        bawaan hari ini). Mengisi slot terakhir sekaligus **membuka pekerjaan**: task
+        melanjut dari `dealt` ke `active` dan satu activity dibuat per pekerja yang
+        diterima, tanpa laporan transfer maupun konfirmasi pengelola. Tagihannya tetap
+        `pending` — tidak ada yang dicatat seolah uangnya sudah masuk.
       responses:
         '200':
           $ref: '#/components/responses/SingleTask'
@@ -1869,9 +1875,10 @@ paths:
         sendiri** uangnya sudah masuk, dan pekerja yang menanggung akibatnya
         kalau ternyata tidak.
 
-        Perekrutan harus **selesai** lebih dulu (task berstatus `dealt`). Selama
-        masih ada slot kosong, endpoint ini menolak — kalau tidak, pekerja yang
-        direkrut belakangan tidak akan pernah punya activity.
+        Perekrutan harus **selesai** lebih dulu (task berstatus `dealt`, atau
+        `active` selagi gerbang pembayaran dimatikan). Selama masih ada slot kosong,
+        endpoint ini menolak — kalau tidak, pekerja yang direkrut belakangan tidak akan
+        pernah punya activity.
 
         Laporan baru mengosongkan `rejection_reason` sebelumnya.
       responses:
@@ -2638,6 +2645,12 @@ paths:
 
         Tagihan yang belum dilaporkan (`pending`) ditolak: tanpa laporan, tidak
         ada yang menyatakan transfernya ada.
+
+        **SEMENTARA — gerbang pembayaran dimatikan** (`SEKARYA_PAYMENT_GATE=false`,
+        bawaan hari ini), jadi pekerjaan sudah terbuka sejak lelang ditutup dan antrean
+        ini biasanya kosong. Mengonfirmasi tagihan yang tetap dilaporkan tetap aman:
+        dananya ditahan, activity yang sudah ada tidak digandakan, dan task yang sudah
+        `active` tidak dipindahkan dua kali.
       responses:
         '200':
           description: Dana ditahan, activity dibuka untuk setiap pekerja.

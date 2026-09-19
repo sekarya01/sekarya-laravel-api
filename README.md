@@ -321,6 +321,13 @@ diterima — bukan batas pelamar. Lelangnya tetap terbuka, dan pemberi kerja mem
 berdasarkan harga penawaran. Status task mengikuti **agregat** seluruh pekerja: dana
 dilepas hanya ketika pekerja terakhir disetujui.
 
+**Gerbang pembayaran sedang dimatikan (sementara).** Mekanisme pembayarannya belum
+dikembangkan, jadi `SEKARYA_PAYMENT_GATE` bawaannya `false`: pekerjaan dibuka bersama
+penutupan lelang, dan pekerja bisa langsung mulai. Tagihannya tetap `pending` — yang
+dilewati pemeriksaannya, bukan catatannya. Aturan di paragraf berikut tetap utuh di kode
+dan tetap diuji (suite test berjalan dengan gerbangnya hidup); nyalakan lagi dengan
+`SEKARYA_PAYMENT_GATE=true` begitu pembayarannya siap.
+
 **Tidak ada activity tanpa dana ditahan**, dan **yang menyatakan dana diterima bukan
 pihak yang membayar.** Pemberi kerja hanya bisa *melapor* sudah transfer; yang
 memindahkan tagihan ke `held` — dan dengan itu membuka pekerjaan — adalah pengelola yang

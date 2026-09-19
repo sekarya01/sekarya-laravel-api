@@ -526,6 +526,25 @@ curl -s "$BASE/tasks/$TASK" -H "Authorization: Bearer $AT" -H 'Accept: applicati
   | python3 -c 'import json,sys; print("activity:", json.load(sys.stdin)["data"].get("activities") or "BELUM ADA")'
 ```
 
+> **SEMENTARA — gerbang pembayaran dimatikan.**
+>
+> Mekanisme pembayaran belum dikembangkan, jadi bawaan `SEKARYA_PAYMENT_GATE=false`
+> membuat penutupan lelang sekaligus **membuka pekerjaan**: begitu slot terakhir terisi
+> (atau `POST /tasks/{task}/start` dipanggil), task langsung `active` dan activity-nya
+> ada — tanpa laporan transfer dan tanpa konfirmasi pengelola. Tagihannya **tetap
+> `pending`**: yang dilewati pemeriksaannya, bukan catatannya, jadi tidak ada baris yang
+> menyatakan uang sudah masuk. Karena itu `activities[].payment.status` di keadaan ini
+> `pending`, bukan `held`, dan persetujuan hasil **tidak** memindahkan tagihan ke
+> `released` **maupun mengkreditkan upah** ke saldo pekerja: yang dibagi adalah dana yang
+> ditahan, dan saldo yang lahir tanpa uang bisa ditarik lewat
+> `POST /me/wallet/withdrawals`. Pekerjaannya tetap ditutup — activity `approved`,
+> `tasks_completed` naik, task `completed`; yang tertunda uangnya.
+>
+> Dua langkah di bawah ini adalah alur yang dirancang dan yang berlaku lagi begitu
+> `SEKARYA_PAYMENT_GATE=true`. Ia tidak membusuk selagi dilewati: seluruh suite test
+> berjalan dengan gerbangnya HIDUP. Melaporkan lalu mengonfirmasi transfer di atas
+> pekerjaan yang sudah terbuka aman — dananya ditahan, activity-nya tidak digandakan.
+
 Sekarang transfer. **Dua langkah, dua orang berbeda** — dan itu inti aturannya:
 
 Path-nya masih `payment/hold` — nama lama dipertahankan supaya klien yang sudah ada
