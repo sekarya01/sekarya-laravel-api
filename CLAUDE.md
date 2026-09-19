@@ -140,6 +140,15 @@ Yang tidak boleh "dirapikan":
   yang membukanya. Sebelumnya baris itu baru lahir saat pengelola mengonfirmasi transfer,
   sehingga pekerja yang SUDAH dipilih tidak menemukan kerjaannya di mana pun: ada di
   daftar pemberi kerja, tidak ada di daftarnya sendiri, tanpa satu pun keterangan.
+- **Perjalanan ke lokasi dua langkah, dan pemiliknya berbeda.** `open` → pekerja
+  mengumumkan berangkat (`POST /activities/{activity}/depart`, → `on_the_way`) → PEMBERI
+  KERJA mengakui kedatangannya (`POST /activities/{activity}/arrived`, → `arrived`) →
+  pekerja mulai (`/start`, → `in_progress`). Jangan pernah membolehkan
+  `open → in_progress`: kalau yang datang boleh menyatakan sendiri ia tiba, "sudah
+  sampai" berhenti berarti apa pun dan pemberi kerja tidak punya satu titik pun untuk
+  menyanggah. `departed_at`, `arrived_at`, `started_at` disimpan terpisah — selisihnya
+  yang ditanyakan saat ada keluhan "kok lama". Berangkat ikut dijaga dana (waktu dan
+  ongkos pekerja); mengakui kedatangan TIDAK — orangnya sudah berdiri di sana.
 - **Uang menjaga MULAI BEKERJA, bukan keberadaan activity.** Aturan lama "tidak ada
   activity tanpa dana ditahan" diganti "tidak ada pekerjaan DIMULAI tanpa dana ditahan":
   `StartActivityAction` yang menuntut `held`, dan pelepasan upah menunggu hal yang sama.

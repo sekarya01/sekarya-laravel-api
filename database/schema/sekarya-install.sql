@@ -640,6 +640,8 @@ CREATE TABLE IF NOT EXISTS `activities` (
   `status` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
   `agreed_amount` bigint unsigned NOT NULL,
   `opened_at` timestamp NOT NULL,
+  `departed_at` timestamp NULL DEFAULT NULL,
+  `arrived_at` timestamp NULL DEFAULT NULL,
   `started_at` timestamp NULL DEFAULT NULL,
   `submitted_at` timestamp NULL DEFAULT NULL,
   `approved_at` timestamp NULL DEFAULT NULL,
@@ -720,7 +722,7 @@ INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `
 INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (41, 'input-data', 'Input data', 9, 1, 40, '2026-09-16 14:14:38', '2026-09-16 14:14:38');
 INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (42, 'fotografi', 'Fotografi', 9, 1, 41, '2026-09-16 14:14:38', '2026-09-16 14:14:38');
 
--- migrations: 33 baris
+-- migrations: 34 baris
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (1, '0001_01_01_000000_create_users_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (2, '0001_01_01_000001_create_cache_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (3, '0001_01_01_000002_create_jobs_table', 1);
@@ -754,5 +756,6 @@ INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (30, '2026_0
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (31, '2026_09_16_000001_create_wallet_tables', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (32, '2026_09_16_000002_create_wallet_request_tables', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (33, '2026_09_19_000001_open_stuck_dealt_tasks', 2);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (34, '2026_09_19_000002_add_travel_steps_to_activities', 3);
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -5,7 +5,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 | | |
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
-| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 78 operation cocok dengan 78 rute nyata |
+| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 80 operation cocok dengan 80 rute nyata |
 | **Uji otomatis** | `bash docs/smoke.sh` — 194 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
@@ -619,8 +619,9 @@ Kalau dananya tidak ditemukan, pengelola menolak laporannya dan tagihan **kembal
 
 > [!important] Ini **stub**
 > Mekanisme pembayaran belum diriset, jadi belum ada gateway. Nanti `confirm` dipicu
-> webhook, bukan tangan pengelola. Yang tidak akan berubah: **activity hanya boleh terbuka
-> ketika dana benar-benar ditahan**, dan yang menyatakannya bukan pihak yang membayar.
+> webhook, bukan tangan pengelola. Yang tidak akan berubah: **pekerjaan hanya boleh
+> DIMULAI ketika dana benar-benar ditahan**, dan yang menyatakannya bukan pihak yang
+> membayar.
 > Selama aturan itu dipegang, seluruh alur bisa dibangun dan diuji tanpa gateway sama
 > sekali.
 
@@ -632,9 +633,27 @@ langsung ke `held`.**
 
 ## 8. Kerjakan dan selesaikan
 
+Sebelum bekerja ada perjalanan, dan perjalanan itu **dua langkah dengan dua aktor**:
+
 ```bash
 export ACT=01M20DM2GTG81MH7QD8GAK1B1D
 
+# 1. penerima kerja: saya berangkat            -> on_the_way, departed_at terisi
+curl -s -X POST "$BASE/activities/$ACT/depart" -H "Authorization: Bearer $AT_PEKERJA" -H 'Accept: application/json'
+
+# 2. PEMBERI KERJA: orangnya sudah sampai      -> arrived, arrived_at terisi
+curl -s -X POST "$BASE/activities/$ACT/arrived" -H "Authorization: Bearer $AT" -H 'Accept: application/json'
+```
+
+Yang melihat orangnya berdiri di depan pintu adalah tuan rumah, bukan orang yang datang.
+Kalau pekerja boleh menyatakan sendiri ia tiba, "sudah sampai" berhenti berarti apa pun
+dan pemberi kerja tidak punya satu titik pun untuk menyanggah. Karena itu
+`open → in_progress` **tidak ada jalannya**: mulai bekerja hanya dari `arrived`.
+
+Ketiga waktunya disimpan terpisah — `departed_at`, `arrived_at`, `started_at` — karena
+selisih di antaranya persis yang ditanyakan saat ada keluhan "kok lama".
+
+```bash
 # penerima kerja
 curl -s -X POST "$BASE/activities/$ACT/start"  -H "Authorization: Bearer $AT_PEKERJA" -H 'Accept: application/json'
 curl -s -X POST "$BASE/activities/$ACT/submit" -H "Authorization: Bearer $AT_PEKERJA" \
@@ -1666,7 +1685,7 @@ Keempat tindakan itu tercatat di `admin_audit_logs` sebagai `wallet_topup.confir
 
 ## Ringkasan endpoint
 
-**78 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**80 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1759,8 +1778,10 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `GET` | `/activities/mine` | access | `api` | Pekerjaan yang saya kerjakan. |
 | `GET` | `/activities/{activity}` | access | `api` | Detail satu activity. |
 | `POST` | `/activities/{activity}/approve` | access | `api` | Setujui hasil. Dana dilepas saat pekerja **terakhir** disetujui. |
+| `POST` | `/activities/{activity}/arrived` | access | `api` | **Pemberi kerja** mengakui pekerjanya sudah sampai. |
+| `POST` | `/activities/{activity}/depart` | access | `api` | Pekerja berangkat ke lokasi. |
 | `POST` | `/activities/{activity}/reject` | access | `api` | Tolak hasil. Task jadi `disputed`, dana tetap ditahan. |
-| `POST` | `/activities/{activity}/start` | access | `api` | Pekerja mulai bekerja. |
+| `POST` | `/activities/{activity}/start` | access | `api` | Pekerja mulai bekerja. Hanya dari `arrived`. |
 | `POST` | `/activities/{activity}/submit` | access | `api` | Serahkan hasil + bukti foto. |
 
 **Penilaian**

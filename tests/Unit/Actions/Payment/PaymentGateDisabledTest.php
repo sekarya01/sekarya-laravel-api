@@ -33,8 +33,8 @@ use Tests\TestCase;
  *
  * Selama mati, tidak ada tagihan yang pernah beranjak dari `pending`, jadi:
  *
- *  1. `StartActivityAction` tidak menuntut `held` — kalau menuntut, tidak ada
- *     pekerjaan yang pernah bisa dimulai.
+ *  1. `DepartActivityAction` dan `StartActivityAction` tidak menuntut `held` —
+ *     kalau menuntut, tidak ada pekerjaan yang pernah bisa dijalani.
  *  2. Persetujuan hasil tidak melepas tagihan DAN tidak mengkreditkan upah.
  *     Pekerjaannya tetap ditutup; yang tertunda uangnya.
  *
@@ -109,7 +109,7 @@ final class PaymentGateDisabledTest extends TestCase
         $this->accept();
         $activity = Activity::query()->where('task_id', $this->task->getKey())->sole();
 
-        $started = app(StartActivityAction::class)->handle($activity);
+        $started = app(StartActivityAction::class)->handle($this->bringToSite($activity));
 
         $this->assertSame(ActivityStatus::InProgress, $started->status);
         $this->assertSame(PaymentStatus::Pending, $started->payment->refresh()->status);
@@ -121,7 +121,7 @@ final class PaymentGateDisabledTest extends TestCase
         $this->accept();
         $activity = Activity::query()->where('task_id', $this->task->getKey())->sole();
 
-        app(StartActivityAction::class)->handle($activity);
+        app(StartActivityAction::class)->handle($this->bringToSite($activity));
         app(SubmitActivityAction::class)->handle(
             new SubmitActivityData('Sudah beres', []),
             $activity->refresh(),
@@ -150,7 +150,7 @@ final class PaymentGateDisabledTest extends TestCase
         $this->accept();
         $activity = Activity::query()->where('task_id', $this->task->getKey())->sole();
 
-        app(StartActivityAction::class)->handle($activity);
+        app(StartActivityAction::class)->handle($this->bringToSite($activity));
         app(SubmitActivityAction::class)->handle(
             new SubmitActivityData('Sudah beres', []),
             $activity->refresh(),

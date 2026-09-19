@@ -245,8 +245,14 @@ final class Task extends Model
     public function everyWorkerHasSubmitted(): bool
     {
         return ! $this->activities()
+            // Setiap status yang BELUM menyerahkan hasil, termasuk dua langkah
+            // perjalanan. Didaftar apa adanya, bukan "selain submitted dan
+            // approved": status baru yang lupa dimasukkan ke daftar negatif
+            // akan diam-diam terhitung sebagai sudah menyerahkan.
             ->whereIn('status', [
                 ActivityStatus::Open,
+                ActivityStatus::OnTheWay,
+                ActivityStatus::Arrived,
                 ActivityStatus::InProgress,
                 ActivityStatus::Rejected,
             ])

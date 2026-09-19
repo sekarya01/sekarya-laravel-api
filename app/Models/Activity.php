@@ -47,6 +47,8 @@ final class Activity extends Model
             'agreed_amount' => 'integer',
             'proof_photos' => 'array',
             'opened_at' => 'datetime',
+            'departed_at' => 'datetime',
+            'arrived_at' => 'datetime',
             'started_at' => 'datetime',
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',

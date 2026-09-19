@@ -18,6 +18,11 @@ final class ActivityResource extends BaseResource
             'status' => $this->status->value,
             'agreed_amount' => $this->agreed_amount,
             'opened_at' => $this->iso($this->opened_at),
+            // Kapan berangkat dan kapan tiba dipisah dari kapan mulai bekerja:
+            // selisih di antaranya persis yang ditanyakan saat ada keluhan
+            // "kok lama".
+            'departed_at' => $this->iso($this->departed_at),
+            'arrived_at' => $this->iso($this->arrived_at),
             'started_at' => $this->iso($this->started_at),
             'submitted_at' => $this->iso($this->submitted_at),
             'approved_at' => $this->iso($this->approved_at),

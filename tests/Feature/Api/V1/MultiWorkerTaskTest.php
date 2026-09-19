@@ -311,7 +311,9 @@ final class MultiWorkerTaskTest extends TestCase
                 ->assertJsonPath('data.0.status', 'open')
                 ->json('data.0.id');
 
-            $this->asUser($worker)->postJson(route('v1.activities.start', $activity))
+            // Langkah pertama pekerja adalah BERANGKAT, dan itu yang dijaga
+            // dana: ia waktu dan ongkos yang sudah dikeluarkan orangnya.
+            $this->asUser($worker)->postJson(route('v1.activities.depart', $activity))
                 ->assertStatus(422)
                 ->assertJsonPath('code', 'payment_not_held');
         }
@@ -350,10 +352,19 @@ final class MultiWorkerTaskTest extends TestCase
             ->assertJsonPath('data.status', 'active');
     }
 
+    /** Antar satu pekerja sampai lokasi: berangkat, lalu diakui pemberi kerja. */
+    private function bringToSiteViaApi(string $activity, User $worker): void
+    {
+        $this->asUser($worker)->postJson(route('v1.activities.depart', $activity))->assertOk();
+        $this->asUser($this->poster)->postJson(route('v1.activities.arrived', $activity))->assertOk();
+    }
+
     public function test_each_worker_only_sees_and_drives_their_own_activity(): void
     {
         $task = $this->dealtTask(2);
         $ids = $this->confirmTransfer($task, 2);
+
+        $this->bringToSiteViaApi($ids[0], $this->workers[0]);
 
         // Pekerja kedua tidak boleh menyentuh pekerjaan pekerja pertama.
         $this->asUser($this->workers[1])
@@ -376,6 +387,7 @@ final class MultiWorkerTaskTest extends TestCase
         $ids = $this->confirmTransfer($task, 2);
 
         foreach ([0, 1] as $i) {
+            $this->bringToSiteViaApi($ids[$i], $this->workers[$i]);
             $this->asUser($this->workers[$i])->postJson(route('v1.activities.start', $ids[$i]))->assertOk();
             $this->asUser($this->workers[$i])
                 ->postJson(route('v1.activities.submit', $ids[$i]), ['worker_note' => 'beres'])
@@ -405,6 +417,7 @@ final class MultiWorkerTaskTest extends TestCase
         $ids = $this->confirmTransfer($task, 2);
 
         foreach ([0, 1] as $i) {
+            $this->bringToSiteViaApi($ids[$i], $this->workers[$i]);
             $this->asUser($this->workers[$i])->postJson(route('v1.activities.start', $ids[$i]))->assertOk();
             $this->asUser($this->workers[$i])
                 ->postJson(route('v1.activities.submit', $ids[$i]), ['worker_note' => 'beres'])->assertOk();
