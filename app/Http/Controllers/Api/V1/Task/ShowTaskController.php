@@ -22,7 +22,8 @@ final class ShowTaskController
             // dan mitra yang membuka ulang task yang sudah ia tawar melihat
             // "Ajukan Penawaran" hidup lagi seolah belum pernah menawar.
             $task->load([
-                'category', 'poster', 'workers', 'skills', 'payment', 'activities.worker',
+                // workers.skills: keahlian pekerja untuk layar profilnya.
+                'category', 'poster', 'workers.skills', 'skills', 'payment', 'activities.worker',
                 'myBid' => fn (Relation $q) => $q->where('bidder_id', $request->user()?->getKey()),
             ]),
         );

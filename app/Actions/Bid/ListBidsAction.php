@@ -29,11 +29,16 @@ final class ListBidsAction
         $query = Bid::query()
             ->where('task_id', $task->getKey())
             // Callback eager-load pada relasi menerima Relation, bukan Builder.
-            ->with(['bidder' => fn (Relation $q) => $q->withCount([
-                'verifications as identity_verified_count' => fn (Builder $v) => $v
-                    ->where('type', VerificationType::Identity)
-                    ->where('status', VerificationStatus::Verified),
-            ])]);
+            ->with([
+                'bidder' => fn (Relation $q) => $q->withCount([
+                    'verifications as identity_verified_count' => fn (Builder $v) => $v
+                        ->where('type', VerificationType::Identity)
+                        ->where('status', VerificationStatus::Verified),
+                ]),
+                // Keahlian penawar — dibaca pemberi kerja di layar profil
+                // penawar. PublicUserResource hanya mengirimnya bila dimuat.
+                'bidder.skills',
+            ]);
 
         // Pengurutan berdasarkan rating butuh join — tidak bisa dari kolom bid sendiri.
         //
