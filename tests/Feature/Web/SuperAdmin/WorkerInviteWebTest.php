@@ -39,11 +39,15 @@ final class WorkerInviteWebTest extends TestCase
             'max_uses' => 10,
             'expires_at' => now()->addDays(7)->format('Y-m-d\TH:i'),
             'note' => 'perekrutan',
+            'city' => 'Bandung',
+            'province' => 'Jawa Barat',
         ]);
 
         $code = WorkerInviteCode::query()->firstOrFail();
         $res->assertRedirect(route('super_admin.worker_invites.show', $code->getKey()));
         $this->assertSame(10, $code->max_uses);
+        $this->assertSame('Bandung', $code->city);
+        $this->assertSame('Jawa Barat', $code->province);
 
         // Plain tersimpan dan tampil terus — di daftar maupun saat detail
         // dimuat ulang kapan saja.

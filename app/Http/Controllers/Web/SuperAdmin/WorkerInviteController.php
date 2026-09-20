@@ -79,6 +79,8 @@ final class WorkerInviteController
                 'max_uses' => ['required', 'integer', 'min:1', 'max:100000'],
                 'expires_at' => ['nullable', 'date', 'after:now'],
                 'note' => ['nullable', 'string', 'max:255'],
+                'city' => ['nullable', 'string', 'max:80'],
+                'province' => ['nullable', 'string', 'max:80'],
             ],
             [
                 'max_uses.required' => 'Jumlah max hit wajib diisi.',
@@ -105,6 +107,8 @@ final class WorkerInviteController
                 isset($validated['note']) && $validated['note'] !== '' ? trim($validated['note']) : null,
                 $admin,
                 $request->ip(),
+                $validated['city'] ?? null,
+                $validated['province'] ?? null,
             );
         } catch (\Throwable $e) {
             report($e);

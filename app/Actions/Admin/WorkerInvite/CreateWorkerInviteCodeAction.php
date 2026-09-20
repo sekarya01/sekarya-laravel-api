@@ -32,6 +32,8 @@ final class CreateWorkerInviteCodeAction
         ?string $note,
         ?Admin $admin,
         ?string $ip = null,
+        ?string $city = null,
+        ?string $province = null,
     ): array {
         // Tabrakan sha256 praktis mustahil, tapi unique index tetap dijaga:
         // coba ulang maksimal 5x kalau hash sudah ada.
@@ -47,6 +49,8 @@ final class CreateWorkerInviteCodeAction
                     'expires_at' => $expiresAt,
                     'note' => $note,
                     'created_by_admin_id' => $admin?->getKey(),
+                    'city' => self::blankToNull($city),
+                    'province' => self::blankToNull($province),
                 ]);
 
                 // Jejak "siapa menerbitkan kode berkuota ini" — penting saat
@@ -70,5 +74,12 @@ final class CreateWorkerInviteCodeAction
         }
 
         throw new \RuntimeException('Gagal menerbitkan kode unik setelah 5 percobaan.');
+    }
+
+    private static function blankToNull(?string $value): ?string
+    {
+        $value = $value === null ? null : trim($value);
+
+        return $value === null || $value === '' ? null : $value;
     }
 }

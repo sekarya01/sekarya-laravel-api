@@ -98,6 +98,79 @@ class WorkerInviteCodeApiTest extends TestCase
         $this->postJson('/api/v1/me/worker/redeem', ['code' => $plain])->assertOk();
     }
 
+    // ── Ketersediaan per wilayah (boolean, tanpa isi kode) ────────────────
+
+    private function available(string $city = 'Bandung', string $province = 'Jawa Barat'): bool
+    {
+        return $this->getJson("/api/v1/me/worker/invite-availability?city={$city}&province={$province}")
+            ->assertOk()
+            ->json('data.available');
+    }
+
+    public function test_availability_true_bila_kode_sekota_hidup(): void
+    {
+        $user = User::factory()->create();
+        $this->auth($user);
+        WorkerInviteCode::factory()->create(['city' => 'Bandung', 'province' => 'Jawa Barat']);
+
+        $this->assertTrue($this->available());
+    }
+
+    public function test_availability_false_bila_kota_beda(): void
+    {
+        $user = User::factory()->create();
+        $this->auth($user);
+        WorkerInviteCode::factory()->create(['city' => 'Surabaya', 'province' => 'Jawa Timur']);
+
+        $this->assertFalse($this->available());
+    }
+
+    public function test_availability_kode_nasional_cocok_untuk_siapa_saja(): void
+    {
+        $user = User::factory()->create();
+        $this->auth($user);
+        WorkerInviteCode::factory()->create(['city' => null, 'province' => null]);
+
+        $this->assertTrue($this->available('Medan', 'Sumatera Utara'));
+    }
+
+    public function test_availability_mengabaikan_kode_mati(): void
+    {
+        $user = User::factory()->create();
+        $this->auth($user);
+        WorkerInviteCode::factory()->create([
+            'city' => 'Bandung', 'province' => 'Jawa Barat', 'expires_at' => now()->subDay(),
+        ]);
+        WorkerInviteCode::factory()->create([
+            'city' => 'Bandung', 'province' => 'Jawa Barat', 'max_uses' => 1, 'used_count' => 1,
+        ]);
+        WorkerInviteCode::factory()->create([
+            'city' => 'Bandung', 'province' => 'Jawa Barat', 'is_active' => false,
+        ]);
+
+        $this->assertFalse($this->available());
+    }
+
+    public function test_availability_case_insensitive_dan_tanpa_isi_kode(): void
+    {
+        $user = User::factory()->create();
+        $this->auth($user);
+        WorkerInviteCode::factory()->create(['city' => 'BANDUNG', 'province' => 'jawa barat']);
+
+        $res = $this->getJson('/api/v1/me/worker/invite-availability?city=bandung&province=Jawa Barat');
+        $res->assertOk()->assertJsonPath('data.available', true);
+        $this->assertArrayNotHasKey('code', (array) $res->json('data'));
+        $this->assertArrayNotHasKey('code_hash', (array) $res->json('data'));
+    }
+
+    public function test_availability_butuh_kota_dan_provinsi(): void
+    {
+        $user = User::factory()->create();
+        $this->auth($user);
+
+        $this->getJson('/api/v1/me/worker/invite-availability?city=Bandung')->assertStatus(422);
+    }
+
     public function test_generator_selalu_8char_empat_kelompok(): void
     {
         for ($i = 0; $i < 50; $i++) {

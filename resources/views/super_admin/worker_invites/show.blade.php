@@ -39,7 +39,7 @@
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <p class="text-xs uppercase tracking-widest font-bold text-slate-400">Kode {{ $code->displayCode() }}</p>
-            <p class="mt-1 text-sm text-slate-500">{{ $code->note ?? 'Tanpa catatan' }} · dibuat {{ $code->created_at?->format('d M Y H:i') }} oleh {{ $code->creator?->email ?? 'sistem' }}</p>
+            <p class="mt-1 text-sm text-slate-500">{{ $code->note ?? 'Tanpa catatan' }} · {{ $code->areaLabel() }} · dibuat {{ $code->created_at?->format('d M Y H:i') }} oleh {{ $code->creator?->email ?? 'sistem' }}</p>
             <div class="mt-2 flex flex-wrap gap-2">
                 @if ($code->isUsable())
                     @include('super_admin.partials.badge', ['text' => 'bisa dipakai', 'tone' => 'green'])

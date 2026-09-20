@@ -894,6 +894,53 @@ paths:
                 nonaktif:
                   value: { message: Kode undangan ini sudah dinonaktifkan., code: worker_invite_inactive }
 
+  /me/worker/invite-availability:
+    get:
+      tags: [Akun]
+      operationId: checkWorkerInviteAvailability
+      summary: Ada kode mitra yang hidup di wilayah saya?
+      description: |
+        Jawabannya boolean saja — **tanpa isi kode**. Isi kode tidak boleh
+        keluar di endpoint user: daftar kode yang terbuka untuk umum bukan
+        lagi undangan. Aplikasi memakai jawaban ini untuk hint ("pendaftaran
+        mitra dibuka di kotamu — minta kodenya ke pengelola").
+
+        "Saat ini" dibaca dari jam server, bukan jam perangkat: jam perangkat
+        bisa dimundurkan untuk mengintip kode yang sebenarnya sudah mati.
+
+        Kecocokan wilayah case-insensitive; kode tanpa kota/provinsi berlaku
+        nasional dan cocok untuk siapa saja.
+      parameters:
+        - name: city
+          in: query
+          required: true
+          schema: { type: string, maxLength: 80 }
+        - name: province
+          in: query
+          required: true
+          schema: { type: string, maxLength: 80 }
+      responses:
+        '200':
+          description: Sinyal ketersediaan.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [available]
+                    properties:
+                      available:
+                        type: boolean
+                        example: true
+              example:
+                data: { available: true }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
   /me/verifications:
     get:
       tags: [Akun]
@@ -3204,6 +3251,14 @@ paths:
                   type: string
                   maxLength: 255
                   description: Catatan internal, mis. batch perekrutan.
+                city:
+                  type: string
+                  maxLength: 80
+                  description: Kota cakupan; kosong = nasional.
+                province:
+                  type: string
+                  maxLength: 80
+                  description: Provinsi cakupan; kosong = nasional.
       responses:
         '201':
           description: Kode diterbitkan; catat `plain_code` sekarang.
@@ -5470,6 +5525,9 @@ components:
         is_active: { type: boolean }
         is_usable: { type: boolean }
         note: { type: string, nullable: true }
+        city: { type: string, nullable: true, description: Null = nasional. }
+        province: { type: string, nullable: true, description: Null = nasional. }
+        area_label: { type: string, example: Bandung, Jawa Barat }
         redemptions_count: { type: integer }
         created_by: { type: string, nullable: true, description: Email penerbit. }
         created_at: { type: string, format: date-time }
