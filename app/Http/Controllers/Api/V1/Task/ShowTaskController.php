@@ -24,6 +24,8 @@ final class ShowTaskController
             $task->load([
                 // workers.skills: keahlian pekerja untuk layar profilnya.
                 'category', 'poster', 'workers.skills', 'skills', 'payment', 'activities.worker',
+                // cancel_request pending: popup persetujuan di Detail Kerjaan.
+                'pendingCancelRequest',
                 'myBid' => fn (Relation $q) => $q->where('bidder_id', $request->user()?->getKey()),
             ]),
         );

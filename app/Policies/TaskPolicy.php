@@ -44,6 +44,15 @@ final class TaskPolicy
         return $this->isPoster($user, $task) || $this->isWorker($user, $task);
     }
 
+    /**
+     * Meminta persetujuan pembatalan = poster saja. Syarat "sudah deal" dan
+     * "belum ada yang pending" dijaga Action (aturan bisnis), bukan di sini.
+     */
+    public function requestCancel(User $user, Task $task): bool
+    {
+        return $this->isPoster($user, $task);
+    }
+
     public function review(User $user, Task $task): bool
     {
         return $this->isPoster($user, $task) || $this->isWorker($user, $task);

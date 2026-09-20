@@ -39,6 +39,11 @@ use App\Http\Controllers\Api\V1\Admin\Wallet\ListTopupQueueController;
 use App\Http\Controllers\Api\V1\Admin\Wallet\ListWithdrawalQueueController;
 use App\Http\Controllers\Api\V1\Admin\Wallet\RejectTopupController;
 use App\Http\Controllers\Api\V1\Admin\Wallet\RejectWithdrawalController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\CreateWorkerInviteCodeController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\DeactivateWorkerInviteCodeController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ListWorkerInviteCodesController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ListWorkerInviteRedemptionsController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ShowWorkerInviteCodeController;
 use App\Http\Controllers\Api\V1\Auth\CheckAvailabilityController;
 use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
@@ -58,21 +63,21 @@ use App\Http\Controllers\Api\V1\Payment\ShowTaskPaymentController;
 use App\Http\Controllers\Api\V1\Review\CreateReviewController;
 use App\Http\Controllers\Api\V1\Review\ListUserReviewsController;
 use App\Http\Controllers\Api\V1\Skill\ListSkillsController;
+use App\Http\Controllers\Api\V1\Task\ApproveTaskCancelController;
 use App\Http\Controllers\Api\V1\Task\CancelTaskController;
 use App\Http\Controllers\Api\V1\Task\CreateTaskController;
 use App\Http\Controllers\Api\V1\Task\ListMyPostedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListMyWorkedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListOpenTasksController;
 use App\Http\Controllers\Api\V1\Task\PublishTaskController;
+use App\Http\Controllers\Api\V1\Task\RejectTaskCancelController;
+use App\Http\Controllers\Api\V1\Task\RequestTaskCancelController;
+use App\Http\Controllers\Api\V1\Task\ShowTaskCancelRequestController;
 use App\Http\Controllers\Api\V1\Task\ShowTaskController;
 use App\Http\Controllers\Api\V1\Task\StartTaskController;
 use App\Http\Controllers\Api\V1\Task\UpdateTaskController;
+use App\Http\Controllers\Api\V1\Task\WithdrawTaskCancelController;
 use App\Http\Controllers\Api\V1\Upload\StoreUploadController;
-use App\Http\Controllers\Api\V1\Admin\WorkerInvite\CreateWorkerInviteCodeController;
-use App\Http\Controllers\Api\V1\Admin\WorkerInvite\DeactivateWorkerInviteCodeController;
-use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ListWorkerInviteCodesController;
-use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ListWorkerInviteRedemptionsController;
-use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ShowWorkerInviteCodeController;
 use App\Http\Controllers\Api\V1\User\CheckWorkerInviteAvailabilityController;
 use App\Http\Controllers\Api\V1\User\ListVerificationsController;
 use App\Http\Controllers\Api\V1\User\ListWorkersController;
@@ -241,6 +246,21 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
             ->can('update', 'task')->name('tasks.publish');
         Route::post('tasks/{task}/cancel', CancelTaskController::class)
             ->can('cancel', 'task')->name('tasks.cancel');
+        // Pembatalan ber-PERSETUJUAN: dipakai bila sudah ada pekerja yang
+        // deal — `POST cancel` langsung hanya untuk task yang belum deal.
+        // Poster meminta, pekerja menyetujui/menolak dari popup di Detail
+        // Kerjaan (dibaca lewat `cancel_request` di `GET tasks/{task}`).
+        Route::post('tasks/{task}/cancel-requests', RequestTaskCancelController::class)
+            ->middleware('throttle:write')
+            ->can('requestCancel', 'task')->name('tasks.cancel-requests.store');
+        Route::get('tasks/{task}/cancel-request', ShowTaskCancelRequestController::class)
+            ->can('view', 'task')->name('tasks.cancel-request.show');
+        Route::post('tasks/{task}/cancel-requests/{cancelRequest}/approve', ApproveTaskCancelController::class)
+            ->scopeBindings()->can('approve', 'cancelRequest')->name('tasks.cancel-requests.approve');
+        Route::post('tasks/{task}/cancel-requests/{cancelRequest}/reject', RejectTaskCancelController::class)
+            ->scopeBindings()->can('reject', 'cancelRequest')->name('tasks.cancel-requests.reject');
+        Route::post('tasks/{task}/cancel-requests/{cancelRequest}/withdraw', WithdrawTaskCancelController::class)
+            ->scopeBindings()->can('withdraw', 'cancelRequest')->name('tasks.cancel-requests.withdraw');
         // Berhenti merekrut lebih awal: target dikunci di jumlah yang sudah
         // diterima, lelang ditutup, task masuk deal.
         Route::post('tasks/{task}/start', StartTaskController::class)
