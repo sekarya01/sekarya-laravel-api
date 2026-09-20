@@ -188,6 +188,16 @@ Yang tidak boleh "dirapikan":
   pemberi kerja yang merekrut 30 orang hanya bisa menilai satu dari mereka.
 - `POST /tasks/{task}/start` menurunkan target ke jumlah yang sudah diterima lalu menutup
   lelang — untuk pekerjaan bertanggal yang tidak mendapat pelamar sebanyak targetnya.
+- **Pembatalan dua jalur, dipilih dari keadaan.** Belum ada yang deal → `POST
+  /tasks/{task}/cancel` LANGSUNG (tidak ada yang perlu dimintai setuju). Sudah deal →
+  `POST /tasks/{task}/cancel-requests` MEMINTA (alasan opsional); pekerja menjawab dari
+  popup di Detail Kerjaan — `.../approve` membatalkan task TETAP atas nama pemberi kerja
+  (`cancelled_by: poster`, penghitung `cancellations` miliknya), `.../reject` melanjutkan
+  task, `.../withdraw` menarik permintaan yang masih `pending`. Satu task satu antrean
+  (`cancel_request_pending` bila meminta lagi). Permintaan yang menunggu terbaca lewat
+  `cancel_request` di `GET /tasks/{task}` dan `GET /tasks/{task}/cancel-request`;
+  menjawab yang sudah dijawab/ditarik = `no_pending_cancel_request` (keadaan akhir,
+  bukan galat — pola yang sama dengan `review_not_allowed`).
 
 ## Profil pekerja dipisah dari akun
 

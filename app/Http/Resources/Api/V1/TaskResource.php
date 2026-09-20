@@ -67,6 +67,10 @@ final class TaskResource extends BaseResource
             'my_bid' => BidResource::make($this->whenLoaded('myBid')),
             'workers' => PublicUserResource::collection($this->whenLoaded('workers')),
             'payment' => PaymentResource::make($this->whenLoaded('payment')),
+            // Permintaan pembatalan yang menunggu jawaban — hanya yang
+            // `pending` (relasi `pendingCancelRequest`), supaya mobile bisa
+            // memunculkan popup persetujuan di Detail Kerjaan.
+            'cancel_request' => TaskCancelRequestResource::make($this->whenLoaded('pendingCancelRequest')),
             'activities' => ActivityResource::collection($this->whenLoaded('activities')),
             'created_at' => $this->iso($this->created_at),
             'updated_at' => $this->iso($this->updated_at),

@@ -1681,6 +1681,114 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /tasks/{task}/cancel-requests:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    post:
+      tags: [Task]
+      operationId: requestTaskCancel
+      summary: Minta persetujuan pembatalan ke pekerja
+      description: |
+        Dipakai bila SUDAH ada pekerja yang deal — `POST /tasks/{task}/cancel`
+        langsung hanya untuk task yang belum deal (`no_workers_hired` bila
+        dipakai di sini).
+
+        Membuat permintaan `pending`; pekerja melihatnya sebagai popup di
+        Detail Kerjaan (lewat `cancel_request` di `GET /tasks/{task}`) lalu
+        menyetujui atau menolak. Satu task satu antrean: meminta lagi selagi
+        masih pending = `cancel_request_pending`.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: [string, 'null'], maxLength: 255 }
+            example: { reason: Jadwal berubah }
+      responses:
+        '201':
+          $ref: '#/components/responses/SingleCancelRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /tasks/{task}/cancel-request:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    get:
+      tags: [Task]
+      operationId: showTaskCancelRequest
+      summary: Baca permintaan pembatalan yang menunggu
+      description: |
+        Yang di-poll mobile untuk popup persetujuan. Tanpa yang pending =
+        `no_pending_cancel_request` (keadaan akhir, bukan galat).
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleCancelRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /tasks/{task}/cancel-requests/{cancelRequest}/approve:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+      - $ref: '#/components/parameters/CancelRequestUlid'
+    post:
+      tags: [Task]
+      operationId: approveTaskCancel
+      summary: Pekerja menyetujui pembatalan
+      description: |
+        Hanya pekerja yang deal di task itu. Task dibatalkan — dana kembali,
+        lelang ditutup — TETAP atas nama pemberi kerja (`cancelled_by:
+        poster`); pekerja hanya menyetujui, bukan membatalkan.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleTask'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /tasks/{task}/cancel-requests/{cancelRequest}/reject:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+      - $ref: '#/components/parameters/CancelRequestUlid'
+    post:
+      tags: [Task]
+      operationId: rejectTaskCancel
+      summary: Pekerja menolak pembatalan
+      description: |
+        Hanya pekerja yang deal di task itu. Task jalan terus, antrean kosong
+        lagi — peminta boleh meminta lagi nanti.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleCancelRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /tasks/{task}/cancel-requests/{cancelRequest}/withdraw:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+      - $ref: '#/components/parameters/CancelRequestUlid'
+    post:
+      tags: [Task]
+      operationId: withdrawTaskCancel
+      summary: Pemberi kerja menarik permintaannya
+      description: |
+        Hanya peminta, dan hanya selagi masih `pending`. Task jalan terus.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleCancelRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /tasks/{task}/start:
     parameters:
       - $ref: '#/components/parameters/TaskUlid'
@@ -3968,6 +4076,12 @@ components:
       required: true
       description: ULID activity.
       schema: { type: string, minLength: 26, maxLength: 26 }
+    CancelRequestUlid:
+      name: cancelRequest
+      in: path
+      required: true
+      description: ULID permintaan pembatalan.
+      schema: { type: string, minLength: 26, maxLength: 26 }
     PaymentUlid:
       name: payment
       in: path
@@ -4047,6 +4161,16 @@ components:
             properties:
               data:
                 $ref: '#/components/schemas/Task'
+    SingleCancelRequest:
+      description: Satu permintaan pembatalan.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                $ref: '#/components/schemas/TaskCancelRequest'
     SingleUpload:
       description: Hasil unggahan satu berkas.
       content:
@@ -4780,6 +4904,11 @@ components:
         payment:
           description: Satu tagihan untuk seluruh task, sebesar `agreed_amount`.
           $ref: '#/components/schemas/Payment'
+        cancel_request:
+          description: Permintaan pembatalan yang menunggu jawaban. Null bila tidak ada.
+          oneOf:
+            - $ref: '#/components/schemas/TaskCancelRequest'
+            - type: 'null'
         activities:
           type: array
           description: Satu activity per pekerja yang diterima.
@@ -4898,6 +5027,21 @@ components:
         worker: { $ref: '#/components/schemas/PublicUser' }
         payment: { $ref: '#/components/schemas/Payment' }
         created_at: { type: [string, 'null'], format: date-time }
+    TaskCancelRequest:
+      type: object
+      description: |
+        Permintaan pembatalan yang menunggu jawaban pekerja. Satu task satu
+        antrean — hanya yang `pending` yang dibaca mobile (`cancel_request`
+        di task).
+      required: [id, task_id, status, requested_at]
+      properties:
+        id: { type: string, description: ULID }
+        task_id: { type: string, description: ULID task pemilik }
+        status: { type: string, enum: [pending, approved, rejected, withdrawn] }
+        reason: { type: [string, 'null'], maxLength: 255 }
+        requested_at: { type: [string, 'null'], format: date-time }
+        decided_at: { type: [string, 'null'], format: date-time }
+        withdrawn_at: { type: [string, 'null'], format: date-time }
     Review:
       type: object
       required: [id, rating, reviewer_role]
@@ -5576,6 +5720,8 @@ components:
             - bid_below_minimum
             - task_already_dealt
             - no_workers_hired
+            - cancel_request_pending
+            - no_pending_cancel_request
             - review_target_required
             - payment_not_held
             - invalid_status_transition

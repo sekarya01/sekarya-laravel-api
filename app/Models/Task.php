@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\ActivityStatus;
 use App\Enums\BidStatus;
+use App\Enums\CancelRequestStatus;
 use App\Enums\TaskStatus;
 use App\Models\Concerns\HasUlid;
 use App\Support\SearchTerms;
@@ -203,6 +204,25 @@ final class Task extends Model
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class);
+    }
+
+    /** @return HasMany<TaskCancelRequest, $this> */
+    public function cancelRequests(): HasMany
+    {
+        return $this->hasMany(TaskCancelRequest::class);
+    }
+
+    /**
+     * Permintaan pembatalan yang menunggu jawaban pekerja — nol atau satu.
+     * Mobile memakainya untuk popup di Detail Kerjaan.
+     *
+     * @return HasOne<TaskCancelRequest, $this>
+     */
+    public function pendingCancelRequest(): HasOne
+    {
+        return $this->hasOne(TaskCancelRequest::class)
+            ->where('status', CancelRequestStatus::Pending)
+            ->latestOfMany('id');
     }
 
     /** @return HasMany<TaskStatusLog, $this> */

@@ -5,7 +5,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 | | |
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
-| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 80 operation cocok dengan 80 rute nyata |
+| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 92 operation cocok dengan 92 rute nyata |
 | **Uji otomatis** | `bash docs/smoke.sh` — 194 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
@@ -1685,7 +1685,7 @@ Keempat tindakan itu tercatat di `admin_audit_logs` sebagai `wallet_topup.confir
 
 ## Ringkasan endpoint
 
-**80 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**92 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1694,7 +1694,7 @@ Semua di bawah `/api/v1`. Kolom **Token**: `access` = token pendek 8 jam, `long_
 token 30 hari yang HANYA bisa refresh, `admin` = token pengelola, `—` = tanpa token.
 Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya.php`.
 
-> [!important] 49 endpoint pertama untuk PENGGUNA, 28 terakhir untuk PENGELOLA, dan
+> [!important] 56 endpoint pertama untuk PENGGUNA, 33 terakhir untuk PENGELOLA, dan
 > tokennya **tidak bisa ditukar**. Akun pengelola ada di tabelnya sendiri dengan
 > guard-nya sendiri: token pengguna di `/admin` menghasilkan `401`, dan token pengelola
 > di endpoint pengguna juga `401`. Lihat bagian **Pengelola** di bawah.
@@ -1721,6 +1721,8 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `PATCH` | `/me` | access | `api` | Ubah profil. `extras` divalidasi per peran. |
 | `GET` | `/me/worker` | access | `api` | Profil pekerja sendiri. Membacanya tidak membuat baris. |
 | `PUT` | `/me/worker` | access | `api` | Isi/ubah profil pekerja. `null` = kembali ikut akun. |
+| `POST` | `/me/worker/redeem` | access | `write` | Tukar kode undangan mitra menjadi baris `user_workers` + `active_mode = working`. |
+| `GET` | `/me/worker/invite-availability` | access | `api` | Sinyal ketersediaan kode undangan di kota/provinsi (boolean saja). |
 | `GET` | `/me/verifications` | access | `api` | Status verifikasi identitas. Hanya status, bukan artefaknya. |
 | `POST` | `/me/verifications` | access | `api` | Ajukan verifikasi identitas (KTP, selfie, rekening). |
 | `GET` | `/skills` | access | `api` | Katalog keahlian. |
@@ -1735,9 +1737,14 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/tasks` | access | `write` | Buat task. `workers_needed` menentukan berapa orang direkrut. |
 | `GET` | `/tasks/posted` | access | `api` | Task yang saya posting. |
 | `GET` | `/tasks/worked` | access | `api` | Task yang saya kerjakan. |
-| `GET` | `/tasks/{task}` | access | `api` | Detail satu task, termasuk `hiring`, `workers`, `payment`, `activities`. |
+| `GET` | `/tasks/{task}` | access | `api` | Detail satu task, termasuk `hiring`, `workers`, `payment`, `activities`, `cancel_request`. |
 | `PUT` | `/tasks/{task}` | access | `write` | Sunting isi task. Parsial; hanya `draft`/`open`. |
-| `POST` | `/tasks/{task}/cancel` | access | `api` | Batalkan. Dana dikembalikan, penawaran ditutup. |
+| `POST` | `/tasks/{task}/cancel` | access | `api` | Batalkan LANGSUNG — hanya bila belum ada pekerja yang deal. |
+| `POST` | `/tasks/{task}/cancel-requests` | access | `write` | Minta persetujuan pembatalan ke pekerja (sudah deal). |
+| `GET` | `/tasks/{task}/cancel-request` | access | `api` | Baca permintaan pembatalan yang menunggu. |
+| `POST` | `/tasks/{task}/cancel-requests/{cancelRequest}/approve` | access | `api` | Pekerja menyetujui — task batal atas nama pemberi kerja. |
+| `POST` | `/tasks/{task}/cancel-requests/{cancelRequest}/reject` | access | `api` | Pekerja menolak — task jalan terus. |
+| `POST` | `/tasks/{task}/cancel-requests/{cancelRequest}/withdraw` | access | `api` | Pemberi kerja menarik permintaannya yang masih menunggu. |
 | `POST` | `/tasks/{task}/publish` | access | `api` | `draft` -> `open`. Lelang dibuka. |
 | `POST` | `/tasks/{task}/start` | access | `api` | Berhenti merekrut lebih awal: target turun ke jumlah yang sudah diterima. |
 
@@ -1823,6 +1830,11 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/admin/admins` | admin | `admin` | Buat pengelola baru. **Hanya `super_admin`.** Perannya dipaksa `admin`. |
 | `GET` | `/admin/admins/{admin}` | admin | `admin` | Detail satu akun pengelola. **Hanya `super_admin`.** |
 | `DELETE` | `/admin/admins/{admin}` | admin | `admin` | Hapus pengelola. **Hanya `super_admin`**, dan `super_admin` tidak bisa dihapus. |
+| `GET` | `/admin/worker-invite-codes` | admin | `admin` | Daftar kode undangan mitra. |
+| `POST` | `/admin/worker-invite-codes` | admin | `admin` | Buat kode undangan mitra. |
+| `GET` | `/admin/worker-invite-codes/{code}` | admin | `admin` | Detail satu kode undangan beserta kuotanya. |
+| `POST` | `/admin/worker-invite-codes/{code}/deactivate` | admin | `admin` | Nonaktifkan kode yang bocor; redeem berhenti. |
+| `GET` | `/admin/worker-invite-codes/{code}/redemptions` | admin | `admin` | Siapa saja yang memakai kode ini. |
 
 Tidak ada `POST /admin/auth/register`, dan itu disengaja: akun pengelola hanya lahir dari
 `php artisan sekarya:admin create` (super_admin, sekali seumur pemasangan) dan
