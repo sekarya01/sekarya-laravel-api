@@ -22,9 +22,9 @@ use Illuminate\View\View;
  * Menu Kode Mitra: terbitkan kode undangan + lihat siapa memakainya.
  *
  * Kodenya dibuat acak oleh SERVER saat tombol ditekan (8 char string:
- * huruf kecil + KAPITAL + angka + special char) dan plain-nya hanya tampil
- * SEKALI di halaman detail sesudah dibuat — tidak tersimpan di mana pun,
- * jadi pengelola wajib mencatatnya saat itu juga.
+ * huruf kecil + KAPITAL + angka + special char) dan tampil TERUS di
+ * daftar/detail supaya bisa dibagikan kapan saja — lihat catatan keputusan
+ * di migrasi `2026_09_21_000002`.
  *
  * Halaman detail sekaligus meja verifikasi: daftar pekerja yang menukar kode
  * ini beserta status verifikasi identitasnya — yang belum terverifikasi
@@ -114,8 +114,7 @@ final class WorkerInviteController
         }
 
         return redirect()->route('super_admin.worker_invites.show', $result['code']->getKey())
-            ->with('plain_code', $result['plain'])
-            ->with('status', 'Kode undangan diterbitkan. Catat sekarang — kode aslinya tidak disimpan dan tidak bisa ditampilkan lagi.');
+            ->with('status', "Kode {$result['plain']} diterbitkan dan tampil terus di halaman ini.");
     }
 
     public function show(WorkerInviteCode $code): View
@@ -135,8 +134,6 @@ final class WorkerInviteController
         return view('super_admin.worker_invites.show', [
             'code' => $code,
             'redemptions' => $redemptions,
-            // Plain hanya ada di flash sesi sesudah create — refresh = hilang.
-            'plainCode' => session('plain_code'),
         ]);
     }
 

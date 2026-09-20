@@ -23,7 +23,7 @@ class WorkerInviteCode extends Model
     use HasFactory;
 
     protected $fillable = [
-        'code_hash', 'prefix', 'max_uses', 'used_count',
+        'code_hash', 'code_plain', 'prefix', 'max_uses', 'used_count',
         'expires_at', 'is_active', 'note', 'created_by_admin_id',
     ];
 
@@ -48,6 +48,15 @@ class WorkerInviteCode extends Model
     public function redemptions(): HasMany
     {
         return $this->hasMany(WorkerInviteRedemption::class, 'invite_code_id');
+    }
+
+    /**
+     * Kode untuk ditampilkan ke pengelola — plain kalau ada, kalau tidak
+     * (baris lama sebelum kolomnya ada) jatuh ke prefix bertopeng.
+     */
+    public function displayCode(): string
+    {
+        return $this->code_plain ?? ($this->prefix.'······');
     }
 
     /**

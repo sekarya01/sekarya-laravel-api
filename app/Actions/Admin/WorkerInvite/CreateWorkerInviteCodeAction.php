@@ -12,8 +12,12 @@ use App\Support\WorkerInviteCodeGenerator;
 use Carbon\CarbonInterface;
 
 /**
- * Terbitkan satu kode undangan baru. Plain-nya hanya keluar SEKALI di respons
- * ini — tidak tersimpan di mana pun, jadi admin wajib mencatatnya saat itu juga.
+ * Terbitkan satu kode undangan baru.
+ *
+ * Plain-nya ikut TERSIMPAN (`code_plain`) supaya pengelola bisa melihatnya
+ * terus-menerus di menu Kode Mitra — lihat catatan keputusannya di migrasi
+ * `2026_09_21_000002`. Respons tetap mengembalikannya juga agar pembuatnya
+ * langsung bisa menyalin tanpa membuka detail.
  */
 final class CreateWorkerInviteCodeAction
 {
@@ -37,6 +41,7 @@ final class CreateWorkerInviteCodeAction
             if (! WorkerInviteCode::query()->where('code_hash', $hash)->exists()) {
                 $code = WorkerInviteCode::create([
                     'code_hash' => $hash,
+                    'code_plain' => $plain,
                     'prefix' => mb_substr($plain, 0, 2),
                     'max_uses' => $maxUses,
                     'expires_at' => $expiresAt,
@@ -46,7 +51,8 @@ final class CreateWorkerInviteCodeAction
 
                 // Jejak "siapa menerbitkan kode berkuota ini" — penting saat
                 // kode bocor ke publik: tanpa ini tak ada yang bisa menjawab
-                // siapa yang membuatnya. Plain-nya TIDAK dicatat.
+                // siapa yang membuatnya. Plain-nya TIDAK dicatat di jejak
+                // (cukup tersimpan di baris kodenya).
                 if ($admin !== null) {
                     $this->audit->record(
                         $admin,

@@ -9,9 +9,11 @@ use App\Models\WorkerInviteCode;
 use Illuminate\Http\Request;
 
 /**
- * Baris kode untuk antrean admin — tanpa hash. Hash sha256 keluar di sini
- * sama saja memberikan kunci brankas beserta alamatnya: siapa pun yang bisa
- * membaca antrean bisa redeem tanpa tahu kode aslinya.
+ * Baris kode untuk pengelola — plain-nya ikut (`code`), hash-nya tidak.
+ * Hash sha256 keluar di sini sama saja memberikan kunci brankas beserta
+ * alamatnya. Plain boleh keluar karena endpoint ini khusus pengelola
+ * (guard admin + jejak audit), sesuai kebutuhan: kode harus terlihat
+ * terus-menerus untuk dibagikan ke calon mitra.
  *
  * @mixin WorkerInviteCode
  */
@@ -22,6 +24,9 @@ final class AdminWorkerInviteCodeResource extends BaseResource
     {
         return [
             'id' => $this->resource->id,
+            // Kode apa adanya; baris lama (sebelum kolomnya ada) tampil
+            // sebagai prefix bertopeng.
+            'code' => $this->resource->displayCode(),
             'prefix' => $this->resource->prefix,
             'max_uses' => $this->resource->max_uses,
             'used_count' => $this->resource->used_count,

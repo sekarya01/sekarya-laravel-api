@@ -31,7 +31,12 @@
             @forelse ($codes as $c)
                 <tr class="table-row">
                     <td>
-                        <p class="font-mono font-bold" style="color: #163C68;">{{ $c->prefix }}······</p>
+                        <div class="flex items-center gap-2">
+                            <p class="font-mono font-bold tracking-wider" style="color: #163C68;">{{ $c->displayCode() }}</p>
+                            @if ($c->code_plain)
+                            <button type="button" data-copy="{{ $c->code_plain }}" class="text-xs font-bold hover:underline shrink-0" style="color: #C2570B;">Salin</button>
+                            @endif
+                        </div>
                         <p class="text-xs text-slate-400">oleh {{ $c->creator?->email ?? 'sistem' }} · {{ $c->created_at?->format('d M Y H:i') }}</p>
                     </td>
                     <td class="text-slate-500 text-xs"><span class="marq" title="{{ $c->note ?? '—' }}"><span class="marq-in">{{ $c->note ?? '—' }}</span></span></td>
@@ -105,7 +110,7 @@
         </div>
         <form method="POST" action="{{ route('super_admin.worker_invites.store') }}" class="px-6 py-5 space-y-4 text-sm flex-1">
             @csrf
-            <p class="text-xs leading-relaxed text-slate-300/90">Masa hidup dua pintu — yang tercapai lebih dulu yang menutup. Kode aslinya <strong class="text-orange-300">tampil sekali</strong> sesudah dibuat.</p>
+            <p class="text-xs leading-relaxed text-slate-300/90">Masa hidup dua pintu — yang tercapai lebih dulu yang menutup. Kodenya dibuat otomatis dan <strong class="text-orange-300">tampil terus</strong> di daftar.</p>
             <div>
                 <label class="label-dark" for="c-max">Jumlah max hit (berapa kali boleh dipakai)</label>
                 <input id="c-max" name="max_uses" type="number" required min="1" max="100000" value="{{ old('max_uses', 10) }}" class="field-dark">
@@ -128,5 +133,17 @@
     @if (session('open_modal') === 'create-invite')
         setRdrawer('createDrawer', true);
     @endif
+    // Salin cepat per baris — tanpa pindah halaman.
+    document.querySelectorAll('[data-copy]').forEach(btn => btn.addEventListener('click', async () => {
+        const code = btn.dataset.copy ?? '';
+        try { await navigator.clipboard.writeText(code); } catch (_) {
+            const ta = document.createElement('textarea');
+            ta.value = code; document.body.appendChild(ta); ta.select();
+            document.execCommand('copy'); ta.remove();
+        }
+        const label = btn.textContent;
+        btn.textContent = 'Tersalin ✓';
+        setTimeout(() => { btn.textContent = label; }, 2000);
+    }));
 </script>
 @endsection
