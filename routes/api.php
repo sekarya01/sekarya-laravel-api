@@ -397,9 +397,9 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
 
             // ── Kode undangan mitra ───────────────────────────────────────
             //
-            // Plain 8 char hanya keluar saat dibuat (respons create / artisan).
-            // Daftar di sini tidak memuat hash — hash keluar sama saja
-            // memberikan kuncinya.
+            // Plain 8 char tampil terus di sini (kolom `code`) supaya bisa
+            // dibagikan kapan saja — keputusan produk, lihat migrasi
+            // `2026_09_21_000002`. Yang tidak pernah keluar adalah hash.
             Route::get('worker-invite-codes', ListWorkerInviteCodesController::class)
                 ->name('worker-invites.index');
             Route::post('worker-invite-codes', CreateWorkerInviteCodeController::class)

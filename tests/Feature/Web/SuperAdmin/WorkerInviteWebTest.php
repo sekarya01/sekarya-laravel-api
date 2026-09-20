@@ -31,7 +31,7 @@ final class WorkerInviteWebTest extends TestCase
             ->assertDontSee('code_hash', false);
     }
 
-    public function test_generate_membuat_kode_dan_menampilkannya_sekali(): void
+    public function test_generate_menyimpan_dan_menampilkan_kode_terus(): void
     {
         $this->actingAs($this->superAdmin(), 'admin_web');
 
@@ -45,18 +45,22 @@ final class WorkerInviteWebTest extends TestCase
         $res->assertRedirect(route('super_admin.worker_invites.show', $code->getKey()));
         $this->assertSame(10, $code->max_uses);
 
-        // Plain tampil di halaman detail sesudah generate…
-        $plain = session('plain_code');
+        // Plain tersimpan dan tampil terus — di daftar maupun saat detail
+        // dimuat ulang kapan saja.
+        $plain = $code->code_plain;
         $this->assertIsString($plain);
         $this->assertTrue(WorkerInviteCodeGenerator::isWellFormed($plain));
+        $this->assertSame(WorkerInviteCode::hash($plain), $code->code_hash);
+
+        $this->get(route('super_admin.worker_invites.index'))
+            ->assertOk()
+            ->assertSee($plain, false);
         $this->get(route('super_admin.worker_invites.show', $code->getKey()))
             ->assertOk()
             ->assertSee($plain, false);
-
-        // …tapi hilang saat dimuat ulang (flash sekali).
         $this->get(route('super_admin.worker_invites.show', $code->getKey()))
             ->assertOk()
-            ->assertDontSee($plain, false);
+            ->assertSee($plain, false);
     }
 
     public function test_generate_menolak_tanpa_masa_hidup_yang_jelas(): void

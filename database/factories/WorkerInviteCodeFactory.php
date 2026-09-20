@@ -22,6 +22,7 @@ class WorkerInviteCodeFactory extends Factory
 
         return [
             'code_hash' => WorkerInviteCode::hash($plain),
+            'code_plain' => $plain,
             'prefix' => mb_substr($plain, 0, 2),
             'max_uses' => 10,
             'used_count' => 0,

@@ -8,16 +8,17 @@
     <a href="{{ route('super_admin.worker_invites.index') }}" class="text-sm font-bold hover:underline" style="color: #163C68;">← Kembali ke daftar kode</a>
 </div>
 
-{{-- Kode asli: hanya ada di flash sesi sesudah generate — refresh = hilang selamanya --}}
-@if ($plainCode)
+{{-- Kode tampil terus — dibagikan ke calon mitra kapan saja --}}
 <div class="anim-rise ad-1 mt-4 card overflow-hidden" style="border-left: 4px solid #F97316;">
     <div class="p-5 sm:p-6">
-        <p class="text-xs uppercase tracking-widest font-bold" style="color: #C2570B;">Kode baru — tampil sekali, catat sekarang</p>
+        <p class="text-xs uppercase tracking-widest font-bold" style="color: #C2570B;">Kode undangan — bagikan ke calon mitra</p>
         <div class="mt-3 flex flex-wrap items-center gap-3">
-            <code id="plainCode" class="font-mono text-2xl sm:text-3xl font-extrabold tracking-widest px-4 py-2 rounded-xl" style="background: #FFF1E4; color: #0A1E35;">{{ $plainCode }}</code>
+            <code id="plainCode" class="font-mono text-2xl sm:text-3xl font-extrabold tracking-widest px-4 py-2 rounded-xl" style="background: #FFF1E4; color: #0A1E35;">{{ $code->displayCode() }}</code>
+            @if ($code->code_plain)
             <button type="button" id="copyCode" class="btn btn-navy text-xs!">Salin kode</button>
+            @endif
         </div>
-        <p class="mt-2 text-xs text-slate-500">Muat ulang halaman dan kode ini tidak bisa ditampilkan lagi — yang tersimpan di server hanya hash-nya.</p>
+        <p class="mt-2 text-xs text-slate-500">Kode ini tampil terus di sini. Kalau bocor ke publik, nonaktifkan di bawah lalu terbitkan yang baru.</p>
     </div>
 </div>
 <script>
@@ -33,12 +34,11 @@
         setTimeout(() => { btn.textContent = 'Salin kode'; }, 2000);
     });
 </script>
-@endif
 
 <div class="anim-rise ad-2 mt-4 card p-5 sm:p-6">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-            <p class="text-xs uppercase tracking-widest font-bold text-slate-400">Kode {{ $code->prefix }}······</p>
+            <p class="text-xs uppercase tracking-widest font-bold text-slate-400">Kode {{ $code->displayCode() }}</p>
             <p class="mt-1 text-sm text-slate-500">{{ $code->note ?? 'Tanpa catatan' }} · dibuat {{ $code->created_at?->format('d M Y H:i') }} oleh {{ $code->creator?->email ?? 'sistem' }}</p>
             <div class="mt-2 flex flex-wrap gap-2">
                 @if ($code->isUsable())

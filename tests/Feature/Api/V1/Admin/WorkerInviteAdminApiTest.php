@@ -42,6 +42,7 @@ final class WorkerInviteAdminApiTest extends TestCase
             ->assertJsonMissingPath('data.code_hash');
 
         $plain = $res->json('data.plain_code');
+        $this->assertSame($plain, $res->json('data.code'));
         $this->assertSame(8, mb_strlen((string) $plain));
         $this->assertTrue(WorkerInviteCodeGenerator::isWellFormed((string) $plain));
 
@@ -64,6 +65,7 @@ final class WorkerInviteAdminApiTest extends TestCase
         $res->assertOk();
         $this->assertCount(2, $res->json('data'));
         $this->assertArrayNotHasKey('code_hash', $res->json('data.0'));
+        $this->assertSame(8, mb_strlen((string) $res->json('data.0.code')));
     }
 
     public function test_deactivate_mematikan_dan_mencatat_audit(): void

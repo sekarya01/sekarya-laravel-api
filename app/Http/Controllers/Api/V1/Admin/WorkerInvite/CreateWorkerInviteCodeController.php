@@ -28,14 +28,15 @@ final class CreateWorkerInviteCodeController
 
         $result['code']->loadCount('redemptions')->load('creator');
 
-        // Plain hanya keluar di sini — responsnya memakai envelope yang sama
-        // (`data` + `message`) supaya klien mobile tidak perlu cabang khusus.
+        // `plain_code` tetap dikembalikan agar pembuatnya langsung bisa
+        // menyalin — tapi tidak wajib dicatat saat itu juga: kodenya tampil
+        // terus di daftar/detail (kolom `code`).
         return response()->json([
             'data' => [
                 ...AdminWorkerInviteCodeResource::make($result['code'])->toArray($request),
                 'plain_code' => $result['plain'],
             ],
-            'message' => 'Kode undangan mitra dibuat. Catat sekarang — kode aslinya tidak disimpan.',
+            'message' => 'Kode undangan mitra dibuat. Kodenya tampil terus di menu Kode Mitra.',
         ], 201);
     }
 }
