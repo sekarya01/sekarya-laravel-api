@@ -5722,6 +5722,7 @@ components:
             - no_workers_hired
             - cancel_request_pending
             - no_pending_cancel_request
+            - not_cancel_responder
             - review_target_required
             - payment_not_held
             - invalid_status_transition

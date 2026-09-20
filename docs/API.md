@@ -1867,6 +1867,9 @@ Bercabanglah pada `code`, **jangan** pada `message`.
 | `invalid_status_transition` | 422 | Perpindahan status tidak diizinkan |
 | `task_not_editable` | 422 | Isi task tidak bisa diubah lagi (bukan `draft`/`open`) |
 | `workers_needed_below_hired` | 422 | Target pekerja diturunkan di bawah yang sudah diterima |
+| `cancel_request_pending` | 422 | Sudah ada permintaan pembatalan yang menunggu jawaban |
+| `no_pending_cancel_request` | 422 | Tidak ada permintaan yang menggantung — sudah dijawab atau ditarik |
+| `not_cancel_responder` | 403 | Bukan pekerja yang dimintai persetujuan pada permintaan ini |
 | `review_not_allowed` | 422 | Belum selesai, atau sudah menilai |
 | `admin_access_denied` | 403 | Pengelola dinonaktifkan, atau perannya tidak mencakup tindakan itu (`context.reason`) |
 | `super_admin_protected` | 403 | `super_admin` tidak bisa dihapus maupun dinonaktifkan |

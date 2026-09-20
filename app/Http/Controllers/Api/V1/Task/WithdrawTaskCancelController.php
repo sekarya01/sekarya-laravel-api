@@ -17,7 +17,7 @@ final class WithdrawTaskCancelController
     {
         $cancelRequest = $this->action
             ->handle($cancelRequest)
-            ->load('task');
+            ->load(['task', 'approvals']);
 
         return TaskCancelRequestResource::make($cancelRequest);
     }

@@ -17,7 +17,7 @@ final class RequestTaskCancelController
     {
         $cancelRequest = $this->action
             ->handle($task, $request->user(), $request->input('reason'))
-            ->load('task');
+            ->load(['task', 'approvals']);
 
         return TaskCancelRequestResource::make($cancelRequest);
     }

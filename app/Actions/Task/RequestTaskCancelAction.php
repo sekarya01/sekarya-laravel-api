@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Task;
 
+use App\Enums\CancelApprovalStatus;
 use App\Enums\CancelRequestStatus;
 use App\Exceptions\Domain\CancelRequestPendingException;
 use App\Exceptions\Domain\NoWorkersHiredException;
@@ -46,12 +47,35 @@ final class RequestTaskCancelAction
                 throw new CancelRequestPendingException;
             }
 
-            return TaskCancelRequest::query()->create([
+            $created = TaskCancelRequest::query()->create([
                 'task_id' => $task->getKey(),
                 'requested_by' => $requester->getKey(),
                 'reason' => $reason,
                 'status' => CancelRequestStatus::Pending,
             ]);
+
+            // Daftar penjawab DIKUNCI di sini. Pekerja yang diterima sesudah
+            // permintaan dibuat tidak ikut menentukan: kalau daftarnya boleh
+            // bertambah di tengah jalan, kebulatan yang sudah tercapai bisa
+            // dibatalkan lagi oleh orang yang baru masuk.
+            //
+            // Peminta dikecualikan bila ia sendiri pekerja di task ini —
+            // menunggu seseorang menyetujui permintaannya sendiri akan
+            // menggantung selamanya di satu suara yang tak pernah ia berikan.
+            $workerIds = $task->workers()
+                ->pluck('users.id')
+                ->map(static fn (mixed $id): int => (int) $id)
+                ->reject(static fn (int $id): bool => $id === $requester->getKey())
+                ->values();
+
+            $created->approvals()->createMany(
+                $workerIds->map(static fn (int $id): array => [
+                    'worker_id' => $id,
+                    'status' => CancelApprovalStatus::Pending,
+                ])->all(),
+            );
+
+            return $created;
         });
     }
 }
