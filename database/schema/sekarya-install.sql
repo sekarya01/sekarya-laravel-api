@@ -678,6 +678,52 @@ CREATE TABLE IF NOT EXISTS `task_fund_movements` (
   CONSTRAINT `task_fund_movements_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+-- Permintaan pembatalan untuk task yang sudah deal.
+-- Poster meminta, pekerja menjawab; satu permintaan pending per task.
+CREATE TABLE IF NOT EXISTS `task_cancel_requests` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `ulid` varchar(26) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `task_id` bigint unsigned NOT NULL,
+  `requested_by` bigint unsigned NOT NULL,
+  `reason` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `decided_by` bigint unsigned DEFAULT NULL,
+  `decided_at` timestamp NULL DEFAULT NULL,
+  `withdrawn_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `task_cancel_requests_ulid_unique` (`ulid`),
+  KEY `task_cancel_requests_decided_by_foreign` (`decided_by`),
+  KEY `task_cancel_requests_task_id_status_id_index` (`task_id`,`status`,`id`),
+  KEY `task_cancel_requests_requested_by_created_at_id_index` (`requested_by`,`created_at`,`id`),
+  CONSTRAINT `task_cancel_requests_decided_by_foreign` FOREIGN KEY (`decided_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `task_cancel_requests_requested_by_foreign` FOREIGN KEY (`requested_by`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `task_cancel_requests_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Suara tiap pekerja atas satu permintaan pembatalan.
+-- Semua pekerja harus setuju sebelum task benar-benar dibatalkan, jadi
+-- jumlah 'sudah setuju' butuh satu baris per orang. Barisnya dibuat
+-- sekaligus saat permintaan lahir sehingga daftar penjawab terkunci di
+-- titik itu.
+CREATE TABLE IF NOT EXISTS `task_cancel_approvals` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `cancel_request_id` bigint unsigned NOT NULL,
+  `worker_id` bigint unsigned NOT NULL,
+  `status` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `responded_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `task_cancel_approvals_cancel_request_id_worker_id_unique` (`cancel_request_id`,`worker_id`),
+  KEY `task_cancel_approvals_worker_id_foreign` (`worker_id`),
+  KEY `task_cancel_approvals_cancel_request_id_status_index` (`cancel_request_id`,`status`),
+  CONSTRAINT `task_cancel_approvals_cancel_request_id_foreign` FOREIGN KEY (`cancel_request_id`) REFERENCES `task_cancel_requests` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `task_cancel_approvals_worker_id_foreign` FOREIGN KEY (`worker_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ---------- DATA ACUAN ----------
 -- Kategori dan keahlian: aplikasi tidak berjalan tanpanya.
 -- Riwayat migrasi: supaya `php artisan migrate` tahu semuanya sudah jalan.
@@ -737,7 +783,7 @@ INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `
 INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (41, 'input-data', 'Input data', 9, 1, 40, '2026-09-19 06:01:55', '2026-09-19 06:01:55');
 INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (42, 'fotografi', 'Fotografi', 9, 1, 41, '2026-09-19 06:01:55', '2026-09-19 06:01:55');
 
--- migrations: 35 baris
+-- migrations: 37 baris
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (1, '0001_01_01_000000_create_users_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (2, '0001_01_01_000001_create_cache_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (3, '0001_01_01_000002_create_jobs_table', 1);
@@ -773,5 +819,7 @@ INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (32, '2026_0
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (33, '2026_09_19_000001_open_stuck_dealt_tasks', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (34, '2026_09_19_000002_add_travel_steps_to_activities', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (35, '2026_09_20_000001_create_task_fund_movements_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (36, '2026_09_22_000001_create_task_cancel_requests_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (37, '2026_09_23_000001_create_task_cancel_approvals_table', 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -9,6 +9,7 @@ use App\Models\Concerns\HasUlid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 final class TaskCancelRequest extends Model
 {
@@ -51,6 +52,17 @@ final class TaskCancelRequest extends Model
     public function decider(): BelongsTo
     {
         return $this->belongsTo(User::class, 'decided_by');
+    }
+
+    /**
+     * Suara tiap pekerja. Dibuat sekaligus saat permintaan lahir, jadi
+     * jumlah barisnya = jumlah orang yang harus setuju.
+     *
+     * @return HasMany<TaskCancelApproval, $this>
+     */
+    public function approvals(): HasMany
+    {
+        return $this->hasMany(TaskCancelApproval::class, 'cancel_request_id');
     }
 
     public function isPending(): bool

@@ -27,6 +27,6 @@ final class ShowTaskCancelRequestController
             throw new NoPendingCancelRequestException;
         }
 
-        return TaskCancelRequestResource::make($cancelRequest->load('task'));
+        return TaskCancelRequestResource::make($cancelRequest->load(['task', 'approvals']));
     }
 }

@@ -25,7 +25,7 @@ final class ShowTaskController
                 // workers.skills: keahlian pekerja untuk layar profilnya.
                 'category', 'poster', 'workers.skills', 'skills', 'payment', 'activities.worker',
                 // cancel_request pending: popup persetujuan di Detail Kerjaan.
-                'pendingCancelRequest',
+                'pendingCancelRequest.approvals',
                 'myBid' => fn (Relation $q) => $q->where('bidder_id', $request->user()?->getKey()),
             ]),
         );
