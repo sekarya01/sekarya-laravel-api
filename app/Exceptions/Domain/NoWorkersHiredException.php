@@ -18,6 +18,16 @@ final class NoWorkersHiredException extends DomainException
         return new self('Belum ada pelamar yang diterima, jadi pekerjaan belum bisa dimulai.');
     }
 
+    /**
+     * Jalur permintaan-persetujuan dipakai di tempat yang salah: task yang
+     * belum deal tidak butuh persetujuan siapa pun — batalkan langsung lewat
+     * `POST tasks/{task}/cancel`.
+     */
+    public static function forCancelRequest(): self
+    {
+        return new self('Belum ada pekerja yang menerima, jadi tugas bisa dibatalkan langsung.');
+    }
+
     public function errorCode(): string
     {
         return 'no_workers_hired';
