@@ -9,6 +9,7 @@ use App\Http\Controllers\Web\SuperAdmin\AuthController;
 use App\Http\Controllers\Web\SuperAdmin\DashboardController;
 use App\Http\Controllers\Web\SuperAdmin\PaymentController;
 use App\Http\Controllers\Web\SuperAdmin\WalletTopupController;
+use App\Http\Controllers\Web\SuperAdmin\WorkerInviteController;
 use App\Http\Controllers\Web\SuperAdmin\UserController;
 use App\Http\Controllers\Web\SuperAdmin\VerificationController;
 use App\Http\Controllers\Web\SuperAdmin\WorkerController;
@@ -78,6 +79,13 @@ Route::prefix('access/super_admin')->name('super_admin.')->group(function (): vo
 
         Route::get('workers', [WorkerController::class, 'index'])->name('workers.index');
         Route::get('workers/{worker}', [WorkerController::class, 'show'])->name('workers.show');
+
+        // Kode undangan mitra: daftar + terbitkan (kode dibuat server,
+        // plain-nya tampil sekali) + detail pemakai + nonaktifkan.
+        Route::get('worker-invites', [WorkerInviteController::class, 'index'])->name('worker_invites.index');
+        Route::post('worker-invites', [WorkerInviteController::class, 'store'])->name('worker_invites.store');
+        Route::get('worker-invites/{code}', [WorkerInviteController::class, 'show'])->name('worker_invites.show');
+        Route::post('worker-invites/{code}/deactivate', [WorkerInviteController::class, 'deactivate'])->name('worker_invites.deactivate');
 
         Route::get('admins', [AdminAccountController::class, 'index'])->name('admins.index');
         Route::post('admins', [AdminAccountController::class, 'store'])->name('admins.store');

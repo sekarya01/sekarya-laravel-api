@@ -68,8 +68,14 @@ use App\Http\Controllers\Api\V1\Task\ShowTaskController;
 use App\Http\Controllers\Api\V1\Task\StartTaskController;
 use App\Http\Controllers\Api\V1\Task\UpdateTaskController;
 use App\Http\Controllers\Api\V1\Upload\StoreUploadController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\CreateWorkerInviteCodeController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\DeactivateWorkerInviteCodeController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ListWorkerInviteCodesController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ListWorkerInviteRedemptionsController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ShowWorkerInviteCodeController;
 use App\Http\Controllers\Api\V1\User\ListVerificationsController;
 use App\Http\Controllers\Api\V1\User\ListWorkersController;
+use App\Http\Controllers\Api\V1\User\RedeemWorkerInviteCodeController;
 use App\Http\Controllers\Api\V1\User\ShowMeController;
 use App\Http\Controllers\Api\V1\User\ShowWorkerProfileController;
 use App\Http\Controllers\Api\V1\User\SubmitVerificationController;
@@ -161,6 +167,11 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // keadaan yang sama.
         Route::get('me/worker', ShowWorkerProfileController::class)->name('me.worker.show');
         Route::put('me/worker', UpsertWorkerProfileController::class)->name('me.worker.update');
+        // Pendaftaran mitra pakai kode undangan 8 char (hash sha256 di DB).
+        // POST: menukar kode sekali pakai/kuota-terbatas menjadi baris
+        // `user_workers` + `active_mode = working`.
+        Route::post('me/worker/redeem', RedeemWorkerInviteCodeController::class)
+            ->middleware('throttle:write')->name('me.worker.redeem');
 
         Route::get('me/verifications', ListVerificationsController::class)->name('me.verifications.index');
         Route::post('me/verifications', SubmitVerificationController::class)->name('me.verifications.store');
@@ -383,6 +394,25 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
             // Menolak MENGEMBALIKAN tahanan itu.
             Route::post('wallet/withdrawals/{withdrawal}/reject', RejectWithdrawalController::class)
                 ->name('wallet.withdrawals.reject');
+
+            // ── Kode undangan mitra ───────────────────────────────────────
+            //
+            // Plain 8 char hanya keluar saat dibuat (respons create / artisan).
+            // Daftar di sini tidak memuat hash — hash keluar sama saja
+            // memberikan kuncinya.
+            Route::get('worker-invite-codes', ListWorkerInviteCodesController::class)
+                ->name('worker-invites.index');
+            Route::post('worker-invite-codes', CreateWorkerInviteCodeController::class)
+                ->name('worker-invites.store');
+            Route::get('worker-invite-codes/{code}', ShowWorkerInviteCodeController::class)
+                ->name('worker-invites.show');
+            // Pintu darurat kalau kode bocor: redeem berhenti, jejak yang
+            // sudah terjadi tetap ada.
+            Route::post('worker-invite-codes/{code}/deactivate', DeactivateWorkerInviteCodeController::class)
+                ->name('worker-invites.deactivate');
+            // Siapa saja yang memakai kode ini — dasar meja verifikasi.
+            Route::get('worker-invite-codes/{code}/redemptions', ListWorkerInviteRedemptionsController::class)
+                ->name('worker-invites.redemptions.index');
 
             // ── Moderasi pengguna ─────────────────────────────────────────
             Route::get('users', ListUsersController::class)->name('users.index');

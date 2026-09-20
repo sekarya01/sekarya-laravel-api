@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Models\UserVerification;
 use App\Models\UserWorker;
 use App\Models\WalletTopup;
+use App\Models\WorkerInviteCode;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\View\View;
 
@@ -46,6 +47,16 @@ final class DashboardController
         $activeUsers = User::query()->where('status', UserStatus::Active)->count();
         $totalAdmins = Admin::query()->count();
 
+        // Kode undangan yang masih bisa dipakai: aktif, kuota tersisa,
+        // tanggal belum lewat.
+        $activeInviteCodes = WorkerInviteCode::query()
+            ->where('is_active', true)
+            ->whereColumn('used_count', '<', 'max_uses')
+            ->where(fn (Builder $q) => $q
+                ->whereNull('expires_at')
+                ->orWhere('expires_at', '>', now()))
+            ->count();
+
         $recentAudits = AdminAuditLog::query()
             ->with('admin')
             ->orderByDesc('id')
@@ -73,6 +84,7 @@ final class DashboardController
             'totalAdmins' => $totalAdmins,
             'openTasks' => $openTasks,
             'readyWorkers' => $readyWorkers,
+            'activeInviteCodes' => $activeInviteCodes,
             'recentAudits' => $recentAudits,
         ]);
     }

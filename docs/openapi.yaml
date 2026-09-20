@@ -829,6 +829,71 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationFailed'
 
+  /me/worker/redeem:
+    post:
+      tags: [Akun]
+      operationId: redeemWorkerInviteCode
+      summary: Daftar jadi mitra pakai kode undangan
+      description: |
+        Menukar kode undangan 8 karakter (huruf kecil + KAPITAL + angka +
+        karakter unik) menjadi baris `user_workers` dan `active_mode: working`.
+
+        Kode 8 char case-sensitive — `Ab3!Xy9#` dan `ab3!xy9#` adalah dua kode
+        berbeda. Server hanya menyimpan **hash sha256**-nya; kode aslinya
+        tidak tersimpan di mana pun.
+
+        Kode mati bila **kuotanya habis** (`used_count >= max_uses`) atau
+        **tanggalnya lewat** (`expires_at`) — yang tercapai lebih dulu yang
+        menutup. Dua redeem bersamaan pada sisa kuota terakhir tidak bisa
+        lolos dua-duanya (kunci baris di dalam transaksi).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  minLength: 8
+                  maxLength: 8
+                  example: Ab3!Xy9#
+      responses:
+        '200':
+          description: Terdaftar sebagai mitra; keadaan kodenya untuk kalimat konfirmasi.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkerInviteRedemption'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          description: Kode tidak ditemukan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Kode undangan tidak ditemukan. Periksa kembali kode Anda.
+                code: worker_invite_invalid
+        '422':
+          description: Kode mati atau sudah dipakai akun ini.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              examples:
+                kedaluwarsa:
+                  value: { message: Kode undangan ini sudah kedaluwarsa., code: worker_invite_expired }
+                kuota-habis:
+                  value: { message: Kode undangan ini sudah mencapai batas pemakaian., code: worker_invite_exhausted }
+                nonaktif:
+                  value: { message: Kode undangan ini sudah dinonaktifkan., code: worker_invite_inactive }
+
   /me/verifications:
     get:
       tags: [Akun]
@@ -3074,6 +3139,202 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationFailed'
 
+  /admin/worker-invite-codes:
+    get:
+      tags: [Pengelola]
+      operationId: listWorkerInviteCodes
+      summary: Daftar kode undangan mitra
+      security:
+        - adminAccessToken: []
+      description: |
+        Tanpa hash — hash sha256 yang keluar sama saja memberikan kuncinya.
+        `plain_code` hanya ada di respons pembuatan, tidak di sini.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          description: Satu halaman kode.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/WorkerInviteCode' }
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+    post:
+      tags: [Pengelola]
+      operationId: createWorkerInviteCode
+      summary: Terbitkan kode undangan (dibuat otomatis)
+      security:
+        - adminAccessToken: []
+      description: |
+        Kode 8 karakter dibuat acak oleh SERVER — pengelola tidak mengetik
+        kodenya, hanya masa hidupnya (jumlah max hit dan/atau tanggal
+        kedaluwarsa) plus catatan. Kode asli (`plain_code`) keluar **sekali**
+        di respons ini; yang tersimpan hanya hash sha256-nya.
+
+        Tercatat di `admin_audit_logs` sebagai `worker_invite.created`
+        (tanpa plain-nya).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                max_uses:
+                  type: integer
+                  minimum: 1
+                  maximum: 100000
+                  default: 1
+                  description: Berapa kali kode boleh dipakai sebelum mati.
+                expires_at:
+                  type: string
+                  format: date-time
+                  description: Tanggal kedaluwarsa; null = tanpa batas tanggal.
+                note:
+                  type: string
+                  maxLength: 255
+                  description: Catatan internal, mis. batch perekrutan.
+      responses:
+        '201':
+          description: Kode diterbitkan; catat `plain_code` sekarang.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, message]
+                properties:
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/WorkerInviteCode'
+                      - type: object
+                        required: [plain_code]
+                        properties:
+                          plain_code:
+                            type: string
+                            example: Ab3!Xy9#
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /admin/worker-invite-codes/{code}:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Pengelola]
+      operationId: showWorkerInviteCode
+      summary: Detail satu kode undangan
+      security:
+        - adminAccessToken: []
+      responses:
+        '200':
+          description: Keadaan kode + jumlah pemakai.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkerInviteCode'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/worker-invite-codes/{code}/deactivate:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema: { type: integer }
+    post:
+      tags: [Pengelola]
+      operationId: deactivateWorkerInviteCode
+      summary: Nonaktifkan kode (pintu darurat)
+      security:
+        - adminAccessToken: []
+      description: |
+        Mematikan kode sebelum waktunya — dipakai kalau kode bocor atau
+        disalahgunakan. Redeem berhenti; jejak yang sudah terjadi tetap ada
+        dan pekerja yang sudah masuk tetap mitra. Idempoten: mematikan kode
+        yang sudah mati tetap sukses.
+
+        Tercatat di `admin_audit_logs` sebagai `worker_invite.deactivated`.
+      responses:
+        '200':
+          description: Kode nonaktif.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkerInviteCode'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/worker-invite-codes/{code}/redemptions:
+    parameters:
+      - name: code
+        in: path
+        required: true
+        schema: { type: integer }
+    get:
+      tags: [Pengelola]
+      operationId: listWorkerInviteRedemptions
+      summary: Siapa saja memakai kode ini
+      security:
+        - adminAccessToken: []
+      description: |
+        Dasar meja verifikasi: pengelola melihat pekerja yang masuk lewat kode,
+        lalu memverifikasi identitasnya di antrean verifikasi seperti biasa —
+        kode hanya membuka pintu, bukan menyatakan lolos.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200':
+          description: Satu halaman jejak redeem, terbaru dulu.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/WorkerInviteRedemption' }
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /admin/users:
     get:
       tags: [Pengelola]
@@ -5194,6 +5455,36 @@ components:
           additionalProperties:
             type: array
             items: { type: string }
+    WorkerInviteCode:
+      type: object
+      description: |
+        Kode undangan mitra — tanpa hash. `remaining_uses: 0` berarti pemakaian
+        terakhir sebelum kuota habis.
+      properties:
+        id: { type: integer }
+        prefix: { type: string, description: 'Dua char depan untuk dikenali, bukan rahasia.' }
+        max_uses: { type: integer }
+        used_count: { type: integer }
+        remaining_uses: { type: integer }
+        expires_at: { type: string, format: date-time, nullable: true }
+        is_active: { type: boolean }
+        is_usable: { type: boolean }
+        note: { type: string, nullable: true }
+        redemptions_count: { type: integer }
+        created_by: { type: string, nullable: true, description: Email penerbit. }
+        created_at: { type: string, format: date-time }
+
+    WorkerInviteRedemption:
+      type: object
+      description: Satu jejak tukar kode — siapa, kapan, sudah verifikasi KTP atau belum.
+      properties:
+        user_id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        phone: { type: string, nullable: true }
+        identity_verified: { type: boolean }
+        redeemed_at: { type: string, format: date-time }
+
     DomainError:
       type: object
       title: DomainError
@@ -5238,6 +5529,12 @@ components:
             - bank_account_not_verified
             - wallet_request_not_pending
             - too_many_pending_wallet_requests
+            - worker_invite_invalid
+            - worker_invite_inactive
+            - worker_invite_expired
+            - worker_invite_exhausted
+            - worker_invite_already_redeemed
+            - worker_already_registered
         context:
           type: object
           additionalProperties: true
