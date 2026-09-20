@@ -14,6 +14,8 @@ final class ListWorkerInviteCodesController
     public function __invoke(Request $request): AnonymousResourceCollection
     {
         $codes = WorkerInviteCode::query()
+            ->withCount('redemptions')
+            ->with('creator')
             ->latest('id')
             ->paginate(20)
             ->withQueryString();

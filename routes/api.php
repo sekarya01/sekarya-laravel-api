@@ -69,7 +69,10 @@ use App\Http\Controllers\Api\V1\Task\StartTaskController;
 use App\Http\Controllers\Api\V1\Task\UpdateTaskController;
 use App\Http\Controllers\Api\V1\Upload\StoreUploadController;
 use App\Http\Controllers\Api\V1\Admin\WorkerInvite\CreateWorkerInviteCodeController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\DeactivateWorkerInviteCodeController;
 use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ListWorkerInviteCodesController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ListWorkerInviteRedemptionsController;
+use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ShowWorkerInviteCodeController;
 use App\Http\Controllers\Api\V1\User\ListVerificationsController;
 use App\Http\Controllers\Api\V1\User\ListWorkersController;
 use App\Http\Controllers\Api\V1\User\RedeemWorkerInviteCodeController;
@@ -401,6 +404,15 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
                 ->name('worker-invites.index');
             Route::post('worker-invite-codes', CreateWorkerInviteCodeController::class)
                 ->name('worker-invites.store');
+            Route::get('worker-invite-codes/{code}', ShowWorkerInviteCodeController::class)
+                ->name('worker-invites.show');
+            // Pintu darurat kalau kode bocor: redeem berhenti, jejak yang
+            // sudah terjadi tetap ada.
+            Route::post('worker-invite-codes/{code}/deactivate', DeactivateWorkerInviteCodeController::class)
+                ->name('worker-invites.deactivate');
+            // Siapa saja yang memakai kode ini — dasar meja verifikasi.
+            Route::get('worker-invite-codes/{code}/redemptions', ListWorkerInviteRedemptionsController::class)
+                ->name('worker-invites.redemptions.index');
 
             // ── Moderasi pengguna ─────────────────────────────────────────
             Route::get('users', ListUsersController::class)->name('users.index');

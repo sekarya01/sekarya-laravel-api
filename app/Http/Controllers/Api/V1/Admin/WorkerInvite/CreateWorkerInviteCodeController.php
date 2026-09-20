@@ -26,6 +26,8 @@ final class CreateWorkerInviteCodeController
             $request->user(),
         );
 
+        $result['code']->loadCount('redemptions')->load('creator');
+
         // Plain hanya keluar di sini — responsnya memakai envelope yang sama
         // (`data` + `message`) supaya klien mobile tidak perlu cabang khusus.
         return response()->json([

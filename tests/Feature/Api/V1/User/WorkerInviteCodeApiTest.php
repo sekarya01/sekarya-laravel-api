@@ -79,12 +79,34 @@ class WorkerInviteCodeApiTest extends TestCase
         $res->assertStatus(404)->assertJsonPath('code', 'worker_invite_invalid');
     }
 
-    public function test_generator_selalu_8char_dan_tiga_kelompok(): void
+    /**
+     * Huruf kecil dan KAPITAL adalah simbol berbeda — salah kapitalisasi
+     * berarti kode asing, bukan kode yang sama. Kalau hash dilowercase dulu,
+     * separuh alfabetnya hilang dan syarat "kombinasi" jadi dusta.
+     */
+    public function test_redeem_case_sensitive_salah_kapital_ditolak(): void
+    {
+        $user = User::factory()->create();
+        $this->auth($user);
+        $plain = 'Ab3!Xy9#';
+        $this->makeCode($plain);
+
+        $this->postJson('/api/v1/me/worker/redeem', ['code' => mb_strtolower($plain)])
+            ->assertStatus(404)->assertJsonPath('code', 'worker_invite_invalid');
+
+        // Yang benar tetap lolos.
+        $this->postJson('/api/v1/me/worker/redeem', ['code' => $plain])->assertOk();
+    }
+
+    public function test_generator_selalu_8char_empat_kelompok(): void
     {
         for ($i = 0; $i < 50; $i++) {
             $code = WorkerInviteCodeGenerator::generate();
             $this->assertSame(8, mb_strlen($code));
             $this->assertTrue(WorkerInviteCodeGenerator::isWellFormed($code), "kode tak berbentuk: $code");
+            $this->assertMatchesRegularExpression('/[a-z]/', $code);
+            $this->assertMatchesRegularExpression('/[A-Z]/', $code);
+            $this->assertMatchesRegularExpression('/[0-9]/', $code);
         }
     }
 }

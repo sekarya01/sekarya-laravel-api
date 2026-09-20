@@ -50,10 +50,18 @@ class WorkerInviteCode extends Model
         return $this->hasMany(WorkerInviteRedemption::class, 'invite_code_id');
     }
 
-    /** Hash deterministik untuk lookup: sha256 lowercase hex. */
+    /**
+     * Hash deterministik untuk lookup: sha256 hex dari kode apa adanya
+     * (hanya trim tepi).
+     *
+     * SENGAJA case-sensitive: huruf kecil dan KAPITAL adalah dua simbol
+     * berbeda dalam syarat kode. Melowercase dulu akan membuat `Ab3!Xy9#`
+     * dan `ab3!xy9#` menjadi kode yang sama — separuh alfabetnya hilang dan
+     * brute force jadi jauh lebih murah.
+     */
     public static function hash(string $plain): string
     {
-        return hash('sha256', mb_strtolower(trim($plain)));
+        return hash('sha256', trim($plain));
     }
 
     public function isDateExpired(): bool

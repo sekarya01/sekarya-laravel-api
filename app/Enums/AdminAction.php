@@ -46,6 +46,9 @@ enum AdminAction: string
     case AdminCreated = 'admin.created';
     case AdminDeleted = 'admin.deleted';
 
+    case WorkerInviteCreated = 'worker_invite.created';
+    case WorkerInviteDeactivated = 'worker_invite.deactivated';
+
     /**
      * Slug tabel yang disentuh, bukan nama kelas PHP.
      *
@@ -76,6 +79,9 @@ enum AdminAction: string
 
             self::AdminCreated,
             self::AdminDeleted => 'admin',
+
+            self::WorkerInviteCreated,
+            self::WorkerInviteDeactivated => 'worker_invite_code',
         };
     }
 

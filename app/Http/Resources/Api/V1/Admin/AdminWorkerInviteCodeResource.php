@@ -30,6 +30,13 @@ final class AdminWorkerInviteCodeResource extends BaseResource
             'is_active' => $this->resource->is_active,
             'is_usable' => $this->resource->isUsable(),
             'note' => $this->resource->note,
+            // Jumlah jejak redeem — dihitung dari tabelnya, bukan dari
+            // `used_count`, supaya selisih keduanya (kalau pernah ada)
+            // terlihat, bukan tertutup.
+            'redemptions_count' => $this->whenCounted('redemptions'),
+            'created_by' => $this->resource->relationLoaded('creator')
+                ? $this->resource->creator?->email
+                : null,
             'created_at' => $this->iso($this->resource->created_at),
         ];
     }
