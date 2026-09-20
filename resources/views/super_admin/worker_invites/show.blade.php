@@ -18,7 +18,11 @@
             <button type="button" id="copyCode" class="btn btn-navy text-xs!">Salin kode</button>
             @endif
         </div>
+        @if ($code->isArchived())
+        <p class="mt-3 text-xs leading-relaxed rounded-xl p-3" style="background: #FFF6E0; color: #92400E;">Kode ini dibuat sebelum sistem menyimpan kode aslinya — isinya <strong>tak bisa dipulihkan</strong> (yang tersimpan hanya hash). Nonaktifkan di bawah lalu tekan <a href="{{ route('super_admin.worker_invites.index') }}" class="font-bold underline">Generate kode</a> untuk penggantinya.</p>
+        @else
         <p class="mt-2 text-xs text-slate-500">Kode ini tampil terus di sini. Kalau bocor ke publik, nonaktifkan di bawah lalu terbitkan yang baru.</p>
+        @endif
     </div>
 </div>
 <script>
