@@ -35,6 +35,9 @@ final class AdminWorkerInviteCodeResource extends BaseResource
             'is_active' => $this->resource->is_active,
             'is_usable' => $this->resource->isUsable(),
             'note' => $this->resource->note,
+            'city' => $this->resource->city,
+            'province' => $this->resource->province,
+            'area_label' => $this->resource->areaLabel(),
             // Jumlah jejak redeem — dihitung dari tabelnya, bukan dari
             // `used_count`, supaya selisih keduanya (kalau pernah ada)
             // terlihat, bukan tertutup.

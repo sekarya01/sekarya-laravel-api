@@ -73,6 +73,7 @@ use App\Http\Controllers\Api\V1\Admin\WorkerInvite\DeactivateWorkerInviteCodeCon
 use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ListWorkerInviteCodesController;
 use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ListWorkerInviteRedemptionsController;
 use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ShowWorkerInviteCodeController;
+use App\Http\Controllers\Api\V1\User\CheckWorkerInviteAvailabilityController;
 use App\Http\Controllers\Api\V1\User\ListVerificationsController;
 use App\Http\Controllers\Api\V1\User\ListWorkersController;
 use App\Http\Controllers\Api\V1\User\RedeemWorkerInviteCodeController;
@@ -172,6 +173,12 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // `user_workers` + `active_mode = working`.
         Route::post('me/worker/redeem', RedeemWorkerInviteCodeController::class)
             ->middleware('throttle:write')->name('me.worker.redeem');
+        // Sinyal ketersediaan (boolean saja, tanpa isi kode): ada kode yang
+        // hidup di kota/provinsi ini? "Saat ini" = jam server, bukan jam
+        // perangkat. Didaftarkan SEBELUM `me/worker/redeem` bukan masalah —
+        // path-nya beda, tidak tertangkap sebagai `{code}`.
+        Route::get('me/worker/invite-availability', CheckWorkerInviteAvailabilityController::class)
+            ->name('me.worker.invite-availability');
 
         Route::get('me/verifications', ListVerificationsController::class)->name('me.verifications.index');
         Route::post('me/verifications', SubmitVerificationController::class)->name('me.verifications.store');

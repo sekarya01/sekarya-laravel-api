@@ -15,6 +15,10 @@ final class StoreWorkerInviteCodeRequest extends FormRequest
             'max_uses' => ['sometimes', 'integer', 'min:1', 'max:100000'],
             'expires_at' => ['sometimes', 'nullable', 'date', 'after:now'],
             'note' => ['sometimes', 'nullable', 'string', 'max:255'],
+            // Cakupan wilayah: keduanya NULL = nasional. Parsial boleh
+            // (kota saja atau provinsi saja) — pencocokannya per kolom.
+            'city' => ['sometimes', 'nullable', 'string', 'max:80'],
+            'province' => ['sometimes', 'nullable', 'string', 'max:80'],
         ];
     }
 }

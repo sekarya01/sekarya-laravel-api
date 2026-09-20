@@ -25,7 +25,7 @@
     <div class="overflow-x-auto">
         <table class="w-full text-sm min-w-[760px]">
             <thead><tr class="table-head">
-                <th>Kode</th><th>Catatan</th><th class="th-c">Terpakai</th><th class="th-c">Kedaluwarsa</th><th class="th-c">Status</th><th class="th-c">Aksi</th>
+                <th>Kode</th><th>Catatan</th><th class="th-c">Wilayah</th><th class="th-c">Terpakai</th><th class="th-c">Kedaluwarsa</th><th class="th-c">Status</th><th class="th-c">Aksi</th>
             </tr></thead>
             <tbody>
             @forelse ($codes as $c)
@@ -35,11 +35,14 @@
                             <p class="font-mono font-bold tracking-wider" style="color: #163C68;">{{ $c->displayCode() }}</p>
                             @if ($c->code_plain)
                             <button type="button" data-copy="{{ $c->code_plain }}" class="text-xs font-bold hover:underline shrink-0" style="color: #C2570B;">Salin</button>
+                            @else
+                            <span class="text-xs text-slate-400" title="Dibuat sebelum kode disimpan — isinya tak bisa dipulihkan. Nonaktifkan dan terbitkan ulang bila perlu dibagikan.">arsip</span>
                             @endif
                         </div>
                         <p class="text-xs text-slate-400">oleh {{ $c->creator?->email ?? 'sistem' }} · {{ $c->created_at?->format('d M Y H:i') }}</p>
                     </td>
                     <td class="text-slate-500 text-xs"><span class="marq" title="{{ $c->note ?? '—' }}"><span class="marq-in">{{ $c->note ?? '—' }}</span></span></td>
+                    <td class="td-c text-xs text-slate-500 whitespace-nowrap">{{ $c->areaLabel() }}</td>
                     <td class="td-c whitespace-nowrap font-bold" style="color: #163C68;">{{ $c->used_count }}/{{ $c->max_uses }}</td>
                     <td class="td-c whitespace-nowrap text-xs text-slate-500">{{ $c->expires_at?->format('d M Y H:i') ?? 'tanpa batas' }}</td>
                     <td class="td-c">
@@ -58,7 +61,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="6">@include('super_admin.partials.empty', ['title' => 'Belum ada kode', 'hint' => 'Tekan Generate kode — kode 8 karakter dibuat server dan tampil sekali.'])</td></tr>
+                <tr><td colspan="7">@include('super_admin.partials.empty', ['title' => 'Belum ada kode', 'hint' => 'Tekan Generate kode — kode 8 karakter dibuat server dan tampil terus.'])</td></tr>
             @endforelse
             </tbody>
         </table>
@@ -123,6 +126,17 @@
                 <label class="label-dark" for="c-note">Catatan (opsional)</label>
                 <input id="c-note" name="note" maxlength="255" value="{{ old('note') }}" class="field-dark" placeholder="cth. Batch perekrutan Bandung">
             </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="label-dark" for="c-city">Kota (opsional)</label>
+                    <input id="c-city" name="city" maxlength="80" value="{{ old('city') }}" class="field-dark" placeholder="cth. Bandung">
+                </div>
+                <div>
+                    <label class="label-dark" for="c-province">Provinsi (opsional)</label>
+                    <input id="c-province" name="province" maxlength="80" value="{{ old('province') }}" class="field-dark" placeholder="cth. Jawa Barat">
+                </div>
+            </div>
+            <p class="-mt-2 text-xs leading-relaxed text-slate-300/70">Kosongkan keduanya = berlaku nasional. Aplikasi memeriksa kecocokan ini saat user membuka pendaftaran mitra.</p>
             <button class="btn btn-accent w-full py-3!">Generate & tampilkan kode</button>
         </form>
         <p class="px-6 pb-6 text-xs text-slate-400/70">Esc untuk menutup · klik latar untuk menutup</p>

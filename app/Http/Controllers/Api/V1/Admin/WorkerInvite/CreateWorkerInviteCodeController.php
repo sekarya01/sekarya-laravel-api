@@ -24,6 +24,9 @@ final class CreateWorkerInviteCodeController
                 : null,
             $data['note'] ?? null,
             $request->user(),
+            $request->ip(),
+            $data['city'] ?? null,
+            $data['province'] ?? null,
         );
 
         $result['code']->loadCount('redemptions')->load('creator');

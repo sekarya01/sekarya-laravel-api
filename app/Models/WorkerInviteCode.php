@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Database\Factories\WorkerInviteCodeFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,6 +26,7 @@ class WorkerInviteCode extends Model
     protected $fillable = [
         'code_hash', 'code_plain', 'prefix', 'max_uses', 'used_count',
         'expires_at', 'is_active', 'note', 'created_by_admin_id',
+        'city', 'province',
     ];
 
     /** @return array<string, string> */
@@ -57,6 +59,59 @@ class WorkerInviteCode extends Model
     public function displayCode(): string
     {
         return $this->code_plain ?? ($this->prefix.'······');
+    }
+
+    /** Plain-nya memang tidak tersimpan (baris lama) — hanya topengnya. */
+    public function isArchived(): bool
+    {
+        return $this->code_plain === null;
+    }
+
+    /**
+     * Kode yang HIDUP untuk suatu wilayah pada saat ini: aktif, kuota
+     * tersisa, tanggal belum lewat, dan cakupannya cocok — NULL berarti
+     * nasional (berlaku di mana saja).
+     *
+     * Perbandingan case-insensitive: "bandung" dan "Bandung" adalah kota
+     * yang sama, dan ejaan pengelola tidak bisa diasumsikan rapi.
+     *
+     * @param  Builder<$this>  $query
+     */
+    public function scopeUsable(Builder $query): void
+    {
+        $query
+            ->where('is_active', true)
+            ->whereColumn('used_count', '<', 'max_uses')
+            ->where(fn (Builder $w) => $w
+                ->whereNull('expires_at')
+                ->orWhere('expires_at', '>', now()));
+    }
+
+    /**
+     * @param  Builder<$this>  $query
+     */
+    public function scopeForArea(Builder $query, string $city, string $province): void
+    {
+        $city = mb_strtolower(trim($city));
+        $province = mb_strtolower(trim($province));
+
+        $query
+            ->where(fn (Builder $w) => $w
+                ->whereNull('city')
+                ->orWhereRaw('LOWER(city) = ?', [$city]))
+            ->where(fn (Builder $w) => $w
+                ->whereNull('province')
+                ->orWhereRaw('LOWER(province) = ?', [$province]));
+    }
+
+    /** Label cakupan untuk daftar: "Bandung, Jawa Barat" atau "Nasional". */
+    public function areaLabel(): string
+    {
+        if ($this->city === null && $this->province === null) {
+            return 'Nasional';
+        }
+
+        return trim(($this->city ?? '').(($this->city !== null && $this->province !== null) ? ', ' : '').($this->province ?? ''));
     }
 
     /**

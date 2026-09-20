@@ -9,13 +9,14 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 
 /**
- * Terbitkan kode undangan mitra dari terminal. Plain-nya dicetak SEKALI —
- * tidak tersimpan, tidak bisa ditampilkan lagi.
+ * Terbitkan kode undangan mitra dari terminal. Kodenya tampil terus di
+ * menu Kode Mitra (tersimpan plain di barisnya) — yang dicetak di sini
+ * untuk langsung disalin.
  */
 class GenerateWorkerInviteCodeCommand extends Command
 {
-    protected $signature = 'sekarya:worker-code {--max-uses=1 : Berapa kali kode boleh dipakai} {--expires= : Tanggal kedaluwarsa (Y-m-d H:i)} {--note= : Catatan admin}';
-    protected $description = 'Terbitkan kode undangan pendaftaran mitra pekerja (8 char, disimpan sebagai hash)';
+    protected $signature = 'sekarya:worker-code {--max-uses=1 : Berapa kali kode boleh dipakai} {--expires= : Tanggal kedaluwarsa (Y-m-d H:i)} {--note= : Catatan admin} {--city= : Kota cakupan (kosong = nasional)} {--province= : Provinsi cakupan (kosong = nasional)}';
+    protected $description = 'Terbitkan kode undangan pendaftaran mitra pekerja (8 char, hash + plain tersimpan)';
 
     public function handle(CreateWorkerInviteCodeAction $action): int
     {
@@ -28,11 +29,15 @@ class GenerateWorkerInviteCodeCommand extends Command
             $expires,
             $this->option('note') !== null ? (string) $this->option('note') : null,
             null,
+            null,
+            $this->option('city') !== null ? (string) $this->option('city') : null,
+            $this->option('province') !== null ? (string) $this->option('province') : null,
         );
 
         $this->line('Kode: <info>'.$result['plain'].'</info>');
         $this->line('Maks pakai: '.$result['code']->max_uses);
         $this->line('Kedaluwarsa: '.($result['code']->expires_at?->toDateTimeString() ?? '-'));
+        $this->line('Wilayah: '.$result['code']->areaLabel());
 
         return self::SUCCESS;
     }

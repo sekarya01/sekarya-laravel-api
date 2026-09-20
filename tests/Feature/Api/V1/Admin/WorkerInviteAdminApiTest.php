@@ -56,6 +56,24 @@ final class WorkerInviteAdminApiTest extends TestCase
         ]);
     }
 
+    public function test_create_menyimpan_wilayah(): void
+    {
+        $res = $this->asAdmin($this->admin)->postJson(
+            route('v1.admin.worker-invites.store'),
+            ['max_uses' => 3, 'city' => 'Bandung', 'province' => 'Jawa Barat'],
+        );
+
+        $res->assertCreated()
+            ->assertJsonPath('data.city', 'Bandung')
+            ->assertJsonPath('data.province', 'Jawa Barat')
+            ->assertJsonPath('data.area_label', 'Bandung, Jawa Barat');
+
+        $this->assertDatabaseHas('worker_invite_codes', [
+            'city' => 'Bandung',
+            'province' => 'Jawa Barat',
+        ]);
+    }
+
     public function test_list_tidak_pernah_memuat_hash(): void
     {
         WorkerInviteCode::factory()->count(2)->create();
