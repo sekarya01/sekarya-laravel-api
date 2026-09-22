@@ -5,7 +5,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 | | |
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
-| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 92 operation cocok dengan 92 rute nyata |
+| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 94 operation cocok dengan 94 rute nyata |
 | **Uji otomatis** | `bash docs/smoke.sh` — 194 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
@@ -1685,7 +1685,7 @@ Keempat tindakan itu tercatat di `admin_audit_logs` sebagai `wallet_topup.confir
 
 ## Ringkasan endpoint
 
-**92 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**94 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1725,6 +1725,8 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `GET` | `/me/worker/invite-availability` | access | `api` | Sinyal ketersediaan kode undangan di kota/provinsi (boolean saja). |
 | `GET` | `/me/verifications` | access | `api` | Status verifikasi identitas. Hanya status, bukan artefaknya. |
 | `POST` | `/me/verifications` | access | `api` | Ajukan verifikasi identitas (KTP, selfie, rekening). |
+| `POST` | `/me/devices` | access | `write` | Daftarkan token perangkat FCM untuk push. Token sama = berpindah pemilik. |
+| `DELETE` | `/me/devices/{token}` | access | `api` | Lepaskan token perangkat saat logout. Idempoten. |
 | `GET` | `/skills` | access | `api` | Katalog keahlian. |
 | `GET` | `/workers` | access | `api` | Daftar pekerja. Filter: `city`, `province`, `gender`, `ready_to_work`. Cursor. |
 | `POST` | `/uploads` | access | `write` | Unggah gambar (foto task, avatar). Maks 10 MB; balasannya `path` untuk `photos[]`. |

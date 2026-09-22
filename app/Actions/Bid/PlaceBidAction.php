@@ -9,9 +9,11 @@ use App\Enums\BidStatus;
 use App\Exceptions\Domain\BidBelowMinimumException;
 use App\Exceptions\Domain\CannotBidOwnTaskException;
 use App\Exceptions\Domain\TaskNotBiddableException;
+use App\Jobs\SendPushNotification;
 use App\Models\Bid;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\Push\PushMessages;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -28,7 +30,7 @@ final class PlaceBidAction
 
     public function handle(PlaceBidData $data, Task $task, User $bidder): Bid
     {
-        return $this->db->transaction(function () use ($data, $task, $bidder): Bid {
+        $bid = $this->db->transaction(function () use ($data, $task, $bidder): Bid {
             $this->assertBiddable($task, $bidder, $data->amount);
 
             // Satu orang satu penawaran: mengubah tawaran = update baris yang sama,
@@ -62,6 +64,16 @@ final class PlaceBidAction
 
             return $bid;
         });
+
+        // Di LUAR transaksi: notifikasi hanya lahir kalau penawarannya benar-
+        // benar tersimpan (transaksi gagal = tidak ada notifikasi palsu), dan
+        // pemberi kerja tidak menunggu antrean/jaringan.
+        SendPushNotification::dispatch(
+            $task->poster_id,
+            PushMessages::bidPlaced($task, $bid, $bidder),
+        );
+
+        return $bid;
     }
 
     private function assertBiddable(Task $task, User $bidder, int $amount): void

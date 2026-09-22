@@ -8,9 +8,11 @@ use App\Enums\BidStatus;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
 use App\Exceptions\Domain\TaskAlreadyDealtException;
 use App\Exceptions\Domain\TaskNotBiddableException;
+use App\Jobs\SendPushNotification;
 use App\Models\Bid;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\Push\PushMessages;
 use App\Support\TaskHiring;
 use Illuminate\Database\ConnectionInterface;
 
@@ -38,7 +40,7 @@ final class AcceptBidAction
 
     public function handle(Bid $bid, User $poster): Task
     {
-        return $this->db->transaction(function () use ($bid, $poster): Task {
+        $task = $this->db->transaction(function () use ($bid, $poster): Task {
             // Row lock sungguhan: MySQL/InnoDB menerjemahkan ini ke
             // SELECT ... FOR UPDATE. Tanpa itu ada jendela di mana dua
             // penerimaan paralel sama-sama melihat slot terakhir masih kosong
@@ -92,5 +94,15 @@ final class AcceptBidAction
 
             return $task->refresh();
         });
+
+        // Di LUAR transaksi: pekerja baru diberi tahu setelah penerimaannya
+        // benar-benar tersimpan. Kalau transaksi gagal, tidak ada notifikasi
+        // "diterima" untuk penawaran yang sebenarnya tidak diterima.
+        SendPushNotification::dispatch(
+            $bid->bidder_id,
+            PushMessages::bidAccepted($task, $bid),
+        );
+
+        return $task;
     }
 }

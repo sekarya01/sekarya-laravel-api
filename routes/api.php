@@ -79,9 +79,11 @@ use App\Http\Controllers\Api\V1\Task\UpdateTaskController;
 use App\Http\Controllers\Api\V1\Task\WithdrawTaskCancelController;
 use App\Http\Controllers\Api\V1\Upload\StoreUploadController;
 use App\Http\Controllers\Api\V1\User\CheckWorkerInviteAvailabilityController;
+use App\Http\Controllers\Api\V1\User\ForgetDeviceController;
 use App\Http\Controllers\Api\V1\User\ListVerificationsController;
 use App\Http\Controllers\Api\V1\User\ListWorkersController;
 use App\Http\Controllers\Api\V1\User\RedeemWorkerInviteCodeController;
+use App\Http\Controllers\Api\V1\User\RegisterDeviceController;
 use App\Http\Controllers\Api\V1\User\ShowMeController;
 use App\Http\Controllers\Api\V1\User\ShowWorkerProfileController;
 use App\Http\Controllers\Api\V1\User\SubmitVerificationController;
@@ -187,6 +189,14 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
 
         Route::get('me/verifications', ListVerificationsController::class)->name('me.verifications.index');
         Route::post('me/verifications', SubmitVerificationController::class)->name('me.verifications.store');
+
+        // Perangkat untuk push notification. Klien mendaftarkan tokennya tiap
+        // aplikasi dibuka (bukan hanya sekali saat login) supaya perpindahan
+        // akun di satu ponsel ikut tersegarkan, lalu melepasnya saat logout.
+        Route::post('me/devices', RegisterDeviceController::class)
+            ->middleware('throttle:write')->name('me.devices.store');
+        Route::delete('me/devices/{token}', ForgetDeviceController::class)
+            ->name('me.devices.destroy');
 
         // ── Saldo ──────────────────────────────────────────────────────────
         //

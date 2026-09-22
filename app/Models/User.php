@@ -273,6 +273,19 @@ class User extends Authenticatable
         return $this->hasMany(Bid::class, 'bidder_id');
     }
 
+    /**
+     * Perangkat yang boleh menerima push untuk orang ini.
+     *
+     * Banyak baris: satu akun bisa terbuka di lebih dari satu pemasangan
+     * aplikasi, dan semuanya harus menerima notifikasi yang sama.
+     *
+     * @return HasMany<DeviceToken, $this>
+     */
+    public function deviceTokens(): HasMany
+    {
+        return $this->hasMany(DeviceToken::class);
+    }
+
     /** @return HasMany<Activity, $this> */
     public function activities(): HasMany
     {
