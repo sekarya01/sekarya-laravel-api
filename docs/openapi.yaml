@@ -1011,6 +1011,76 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationFailed'
 
+  /me/devices:
+    post:
+      tags: [Akun]
+      operationId: registerDevice
+      summary: Daftarkan token perangkat untuk push
+      description: |
+        Dipanggil setiap aplikasi dibuka, bukan sekali saat login. Satu ponsel
+        yang dipakai bergantian beberapa akun menerbitkan token FCM yang sama,
+        jadi token yang sudah terdaftar **berpindah pemilik** — bukan menambah
+        baris kedua yang sama-sama mengaku berhak menerima notifikasi.
+
+        Token perangkat tidak pernah dikembalikan di respons.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDeviceRequest'
+            examples:
+              android:
+                value:
+                  token: 'fcm-token-abc:APA91bF...'
+                  platform: android
+      responses:
+        '201':
+          description: Perangkat baru terdaftar.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/DeviceToken'
+        '200':
+          description: Token yang sama didaftarkan ulang (diperbarui).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/DeviceToken'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /me/devices/{token}:
+    delete:
+      tags: [Akun]
+      operationId: forgetDevice
+      summary: Lepaskan token perangkat saat keluar
+      description: |
+        Hanya baris milik pengguna ini yang dihapus: kalau ponsel sudah
+        berpindah ke akun lain, token yang sama kini milik akun itu dan logout
+        akun lama tidak boleh mematikannya. Idempoten — token yang sudah tidak
+        ada bukan galat.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string, maxLength: 255 }
+      responses:
+        '204':
+          description: Terlepas (atau memang sudah tidak ada).
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
   # ─────────────────────────────── TASK ───────────────────────────────
   # ─────────────────────────────── SALDO ──────────────────────────────
   /me/wallet:
@@ -4342,6 +4412,9 @@ components:
     ReviewerRole:
       type: string
       enum: [poster, worker]
+    DevicePlatform:
+      type: string
+      enum: [android, ios]
 
     # ── token ──
     TokenPair:
@@ -5258,6 +5331,28 @@ components:
         account_number: { type: string, maxLength: 40 }
         account_holder_name: { type: string, maxLength: 120 }
       additionalProperties: false
+    RegisterDeviceRequest:
+      type: object
+      required: [token, platform]
+      properties:
+        token:
+          type: string
+          maxLength: 255
+          description: Token registrasi FCM dari perangkat.
+        platform: { $ref: '#/components/schemas/DevicePlatform' }
+      additionalProperties: false
+    DeviceToken:
+      type: object
+      title: DeviceToken
+      description: |
+        Satu pemasangan aplikasi yang boleh menerima push. Token perangkatnya
+        sendiri tidak pernah keluar dari API.
+      required: [id, platform]
+      properties:
+        id: { type: integer }
+        platform: { $ref: '#/components/schemas/DevicePlatform' }
+        last_used_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
     CreateTaskRequest:
       type: object
       required: [category_id, title, description, budget_min]
