@@ -41,7 +41,7 @@ final class FcmClient
      * aplikasi; kalau tidak, Android memakai pengaturan bawaan dan
      * kustomisasi kanal (bunyi, kepentingan) hilang tanpa galat.
      */
-    private const ANDROID_CHANNEL_ID = 'sekarya_default';
+    private const ANDROID_CHANNEL_ID = 'sekarya_notification_task';
 
     /** @var array{project_id: string, client_email: string, private_key: string}|null */
     private ?array $account = null;
