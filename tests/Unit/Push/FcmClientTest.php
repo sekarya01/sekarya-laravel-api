@@ -133,7 +133,7 @@ final class FcmClientTest extends TestCase
                 && ($message['notification']['title'] ?? null) === 'Penawaran baru'
                 && ($message['data']['type'] ?? null) === 'bid_placed'
                 && ($message['data']['task_id'] ?? null) === '01JABC'
-                && ($message['android']['notification']['channel_id'] ?? null) === 'sekarya_default';
+                && ($message['android']['notification']['channel_id'] ?? null) === 'sekarya_notification_task';
         });
     }
 
