@@ -6,7 +6,9 @@ namespace App\Actions\Activity;
 
 use App\Enums\ActivityStatus;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
+use App\Jobs\SendPushNotification;
 use App\Models\Activity;
+use App\Support\Push\PushMessages;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -27,7 +29,7 @@ final class ConfirmArrivalAction
 
     public function handle(Activity $activity): Activity
     {
-        return $this->db->transaction(function () use ($activity): Activity {
+        $activity = $this->db->transaction(function () use ($activity): Activity {
             if (! $activity->status->canTransitionTo(ActivityStatus::Arrived)) {
                 throw InvalidStatusTransitionException::between(
                     $activity->status->value,
@@ -42,5 +44,14 @@ final class ConfirmArrivalAction
 
             return $activity;
         });
+
+        // Di LUAR transaksi: pekerja diberi tahu kedatangannya diakui.
+        $task = $activity->task;
+        SendPushNotification::dispatch(
+            $activity->worker_id,
+            PushMessages::activityArrived($task, $activity),
+        );
+
+        return $activity;
     }
 }
