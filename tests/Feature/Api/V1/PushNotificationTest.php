@@ -67,6 +67,9 @@ final class PushNotificationTest extends TestCase
         $this->assertSame('bid_placed', $message->data['type']);
         // Deep-link memakai id PUBLIK (ULID) — itulah yang dibaca layar detail.
         $this->assertSame($task->ulid, $message->data['task_id']);
+        // Jumlah penawar ikut agar kartu di list tugas poster bisa
+        // diperbarui langsung tanpa refresh — sama dengan TaskResource.
+        $this->assertSame('1', $message->data['bids_count']);
     }
 
     /** Penawaran yang ditolak tidak menghasilkan notifikasi. */

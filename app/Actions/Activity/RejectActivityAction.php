@@ -8,8 +8,10 @@ use App\Enums\ActivityStatus;
 use App\Enums\ActorType;
 use App\Enums\TaskStatus;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
+use App\Jobs\SendPushNotification;
 use App\Models\Activity;
 use App\Models\User;
+use App\Support\Push\PushMessages;
 use App\Support\TaskStatusRecorder;
 use Illuminate\Database\ConnectionInterface;
 
@@ -26,7 +28,7 @@ final class RejectActivityAction
 
     public function handle(Activity $activity, User $poster, ?string $note = null): Activity
     {
-        return $this->db->transaction(function () use ($activity, $poster, $note): Activity {
+        $activity = $this->db->transaction(function () use ($activity, $poster, $note): Activity {
             if (! $activity->status->canTransitionTo(ActivityStatus::Rejected)) {
                 throw InvalidStatusTransitionException::between(
                     $activity->status->value,
@@ -59,5 +61,14 @@ final class RejectActivityAction
 
             return $activity;
         });
+
+        // Di LUAR transaksi: pekerja diberi tahu hasilnya ditolak.
+        $task = $activity->task;
+        SendPushNotification::dispatch(
+            $activity->worker_id,
+            PushMessages::activityRejected($task, $activity),
+        );
+
+        return $activity;
     }
 }

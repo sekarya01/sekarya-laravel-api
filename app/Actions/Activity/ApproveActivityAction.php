@@ -10,8 +10,10 @@ use App\Enums\PaymentStatus;
 use App\Enums\TaskStatus;
 use App\Enums\WalletEntryType;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
+use App\Jobs\SendPushNotification;
 use App\Models\Activity;
 use App\Models\User;
+use App\Support\Push\PushMessages;
 use App\Support\TaskStatusRecorder;
 use App\Support\WalletLedger;
 use Illuminate\Database\ConnectionInterface;
@@ -50,7 +52,7 @@ final class ApproveActivityAction
 
     public function handle(Activity $activity, User $poster, ?string $note = null): Activity
     {
-        return $this->db->transaction(function () use ($activity, $poster, $note): Activity {
+        $activity = $this->db->transaction(function () use ($activity, $poster, $note): Activity {
             if (! $activity->status->canTransitionTo(ActivityStatus::Approved)) {
                 throw InvalidStatusTransitionException::between(
                     $activity->status->value,
@@ -146,5 +148,14 @@ final class ApproveActivityAction
 
             return $activity;
         });
+
+        // Di LUAR transaksi: pekerja diberi tahu hasilnya disetujui.
+        $task = $activity->task;
+        SendPushNotification::dispatch(
+            $activity->worker_id,
+            PushMessages::activityApproved($task, $activity),
+        );
+
+        return $activity;
     }
 }

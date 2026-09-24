@@ -7,7 +7,9 @@ namespace App\Actions\Activity;
 use App\Enums\ActivityStatus;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
 use App\Exceptions\Domain\PaymentNotHeldException;
+use App\Jobs\SendPushNotification;
 use App\Models\Activity;
+use App\Support\Push\PushMessages;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -27,7 +29,7 @@ final class DepartActivityAction
 
     public function handle(Activity $activity): Activity
     {
-        return $this->db->transaction(function () use ($activity): Activity {
+        $activity = $this->db->transaction(function () use ($activity): Activity {
             if ((bool) config('sekarya.payments.gate_enabled')
                 && ! $activity->payment->status->opensActivity()) {
                 throw PaymentNotHeldException::becauseStatus($activity->payment->status);
@@ -47,5 +49,15 @@ final class DepartActivityAction
 
             return $activity;
         });
+
+        // Di LUAR transaksi: pemberi kerja diberi tahu hanya kalau status
+        // benar-benar tersimpan, meniru PlaceBidAction.
+        $task = $activity->task;
+        SendPushNotification::dispatch(
+            $task->poster_id,
+            PushMessages::activityOnTheWay($task, $activity),
+        );
+
+        return $activity;
     }
 }

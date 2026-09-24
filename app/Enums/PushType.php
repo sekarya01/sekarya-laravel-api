@@ -19,4 +19,10 @@ enum PushType: string
 {
     case BidPlaced = 'bid_placed';
     case BidAccepted = 'bid_accepted';
+    case ActivityOnTheWay = 'activity_on_the_way';
+    case ActivityArrived = 'activity_arrived';
+    case ActivityInProgress = 'activity_in_progress';
+    case ActivitySubmitted = 'activity_submitted';
+    case ActivityApproved = 'activity_approved';
+    case ActivityRejected = 'activity_rejected';
 }
