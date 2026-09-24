@@ -63,6 +63,10 @@ final class ListTasksAction
         return $this->base($data)
             ->where('tasks.poster_id', $poster->getKey())
             ->when($data->status, fn (Builder $q, TaskStatus $s) => $q->where('tasks.status', $s))
+            // Pemberi kerja melihat status pekerja tiap tugas yang sedang
+            // dikerjakan dari daftar — tanpa ini kartu hanya bisa menulis
+            // "Dikerjakan" dan berselisih dengan Detail.
+            ->with('activities.worker')
             ->cursorPaginate($data->page->perPage);
     }
 
@@ -84,6 +88,9 @@ final class ListTasksAction
                 ->where('bids.bidder_id', $worker->getKey())
                 ->where('bids.status', BidStatus::Accepted->value))
             ->when($data->status, fn (Builder $q, TaskStatus $s) => $q->where('tasks.status', $s))
+            // Mitra melihat status pekerjaannya sendiri dari daftar (mis.
+            // "Sudah sampai"), bukan hanya "Dikerjakan".
+            ->with('activities.worker')
             ->cursorPaginate($data->page->perPage);
     }
 
