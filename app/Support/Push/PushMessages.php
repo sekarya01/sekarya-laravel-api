@@ -53,7 +53,7 @@ final class PushMessages
         return new PushMessage(
             title: 'Penawaran diterima',
             body: sprintf(
-                'Penawaran Anda untuk "%s" diterima. Ketuk untuk membuka detail kerjaan.',
+                'Penawaran Anda untuk "%s" diterima.',
                 $task->title,
             ),
             data: self::taskData(PushType::BidAccepted, $task),
