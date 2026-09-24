@@ -13,7 +13,7 @@ badan usaha. Semua pihak perseorangan.
 | Basis data | MySQL 8+ / InnoDB — **bukan** SQLite, lihat [Kenapa MySQL](#kenapa-mysql-bukan-sqlite) |
 | Autentikasi | Laravel Sanctum `^4.0`, sepasang token |
 | Test | PHPUnit `^11.5` — 1.137 test, 4.254 asersi, 79 berkas (ukur coverage: `composer test-report`) |
-| Kontrak API | OpenAPI 3.1 di `docs/openapi.yaml` — 77 endpoint (49 pengguna + 28 pengelola) |
+| Kontrak API | OpenAPI 3.1 di `docs/openapi.yaml` — 94 endpoint (61 pengguna + 33 pengelola) |
 | Observability | Axiom (opsional, mati secara bawaan) |
 
 Diuji pada PHP 8.5.10, Laravel 11.55.1, MySQL 26.7 (Homebrew), Composer 2.10.
