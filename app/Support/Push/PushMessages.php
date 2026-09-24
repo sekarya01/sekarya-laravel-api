@@ -31,11 +31,10 @@ final class PushMessages
     public static function bidPlaced(Task $task, Bid $bid, User $bidder): PushMessage
     {
         return new PushMessage(
-            title: 'Penawaran baru',
+            title: $task->title,
             body: sprintf(
-                '%s menawar "%s" sebesar Rp%s.',
+                '%s menawar sebesar Rp%s.',
                 $bidder->name,
-                $task->title,
                 self::rupiah($bid->amount),
             ),
             data: self::data(PushType::BidPlaced, $task, null, (int) $task->bids_count),
@@ -45,18 +44,13 @@ final class PushMessages
     /**
      * Pekerja diberi tahu penawarannya diterima.
      *
-     * Menyebut "Detail Kerjaan" — istilah layar mitra — supaya yang menerima
-     * tahu notifikasi ini mengantarnya ke pekerjaan, bukan sekadar membuka
-     * tugas.
+     * Judul notifikasi adalah judul task; isi mengabarkan peristiwanya saja.
      */
     public static function bidAccepted(Task $task, Bid $bid): PushMessage
     {
         return new PushMessage(
-            title: 'Penawaran diterima',
-            body: sprintf(
-                'Penawaran Anda untuk "%s" diterima.',
-                $task->title,
-            ),
+            title: $task->title,
+            body: 'Penawaran Anda diterima.',
             data: self::data(PushType::BidAccepted, $task),
         );
     }
@@ -65,11 +59,8 @@ final class PushMessages
     public static function activityOnTheWay(Task $task, Activity $activity): PushMessage
     {
         return new PushMessage(
-            title: 'Pekerja berangkat',
-            body: sprintf(
-                'Pekerja berangkat ke "%s".',
-                $task->title,
-            ),
+            title: $task->title,
+            body: 'Pekerja berangkat ke lokasi.',
             data: self::data(PushType::ActivityOnTheWay, $task, $activity),
         );
     }
@@ -78,11 +69,8 @@ final class PushMessages
     public static function activityArrived(Task $task, Activity $activity): PushMessage
     {
         return new PushMessage(
-            title: 'Kedatangan dikonfirmasi',
-            body: sprintf(
-                'Kedatangan Anda untuk "%s" dikonfirmasi.',
-                $task->title,
-            ),
+            title: $task->title,
+            body: 'Kedatangan Anda dikonfirmasi.',
             data: self::data(PushType::ActivityArrived, $task, $activity),
         );
     }
@@ -91,11 +79,8 @@ final class PushMessages
     public static function activityInProgress(Task $task, Activity $activity): PushMessage
     {
         return new PushMessage(
-            title: 'Pekerjaan dimulai',
-            body: sprintf(
-                'Pekerjaan "%s" mulai dikerjakan.',
-                $task->title,
-            ),
+            title: $task->title,
+            body: 'Pekerjaan mulai dikerjakan.',
             data: self::data(PushType::ActivityInProgress, $task, $activity),
         );
     }
@@ -104,11 +89,8 @@ final class PushMessages
     public static function activitySubmitted(Task $task, Activity $activity): PushMessage
     {
         return new PushMessage(
-            title: 'Hasil dikirim',
-            body: sprintf(
-                'Hasil "%s" dikirim, menunggu persetujuan.',
-                $task->title,
-            ),
+            title: $task->title,
+            body: 'Hasil dikirim, menunggu persetujuan.',
             data: self::data(PushType::ActivitySubmitted, $task, $activity),
         );
     }
@@ -117,11 +99,8 @@ final class PushMessages
     public static function activityApproved(Task $task, Activity $activity): PushMessage
     {
         return new PushMessage(
-            title: 'Hasil disetujui',
-            body: sprintf(
-                'Hasil "%s" disetujui.',
-                $task->title,
-            ),
+            title: $task->title,
+            body: 'Hasil disetujui.',
             data: self::data(PushType::ActivityApproved, $task, $activity),
         );
     }
@@ -130,11 +109,8 @@ final class PushMessages
     public static function activityRejected(Task $task, Activity $activity): PushMessage
     {
         return new PushMessage(
-            title: 'Hasil ditolak',
-            body: sprintf(
-                'Hasil "%s" ditolak, periksa catatannya.',
-                $task->title,
-            ),
+            title: $task->title,
+            body: 'Hasil ditolak, periksa catatannya.',
             data: self::data(PushType::ActivityRejected, $task, $activity),
         );
     }
