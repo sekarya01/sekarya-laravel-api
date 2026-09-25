@@ -15,12 +15,17 @@ final readonly class CreateReviewData
     /**
      * @param  list<ReviewTag>  $tags
      */
+    /**
+     * @param  list<ReviewTag>  $tags
+     * @param  list<string>  $photos
+     */
     public function __construct(
         public int $rating,
         public ?string $comment = null,
         /** ULID pekerja yang dinilai; null = biarkan Action yang menyimpulkan. */
         public ?string $workerUlid = null,
         array $tags = [],
+        public array $photos = [],
     ) {
         // Duplikat dibuang di sini juga, bukan hanya di aturan `distinct`:
         // DTO harus aman saat Action dipanggil dari luar jalur HTTP.
@@ -47,6 +52,10 @@ final readonly class CreateReviewData
                 ? trim($request->string('worker_id')->value())
                 : null,
             tags: array_map(static fn (string $tag): ReviewTag => ReviewTag::from($tag), $tags),
+            photos: array_values(array_filter(array_map(
+                static fn (mixed $path): string => trim((string) $path),
+                (array) $request->input('photos', []),
+            ))),
         );
     }
 }

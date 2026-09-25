@@ -53,6 +53,8 @@ final class PublicUserResource extends BaseResource
             // pekerja, bukan kolom — lihat User::readyToWork().
             'ready_to_work' => $this->resource->readyToWork(),
             'as_worker' => [
+                // Judul/profesi mitra (U16) — "Teknisi AC". null bila tidak diisi.
+                'headline' => $worker->resolvedHeadline(),
                 'rating_avg' => (float) $worker->worker_rating_avg,
                 'rating_count' => $worker->worker_rating_count,
                 'tasks_completed' => $worker->tasks_completed,
@@ -71,6 +73,8 @@ final class PublicUserResource extends BaseResource
                 'rating_avg' => (float) $this->poster_rating_avg,
                 'rating_count' => $this->poster_rating_count,
                 'tasks_posted' => $this->tasks_posted,
+                // "Layanan Selesai" (U15).
+                'tasks_completed' => (int) $this->poster_tasks_completed,
             ],
             'member_since' => $this->iso($this->created_at),
         ];

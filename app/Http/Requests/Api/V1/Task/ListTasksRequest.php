@@ -41,6 +41,15 @@ final class ListTasksRequest extends FormRequest
             // pencari kerja bisa melihat & mengubah tawarannya.
             'exclude_my_bids' => ['sometimes', 'boolean'],
 
+            // Jadwal pelaksanaan (U14): "Hari ini / Besok / Minggu ini".
+            // ISO-8601 beroffset; `needed_from` inklusif, `needed_to` eksklusif.
+            // Boleh salah satu: rentang terbuka ("mulai besok") tetap sah.
+            'needed_from' => ['sometimes', 'date'],
+            'needed_to' => [
+                'sometimes', 'date',
+                ...($this->filled('needed_from') ? ['after_or_equal:needed_from'] : []),
+            ],
+
             // Waktu: seberapa baru task-nya diposting. Jam, bukan tanggal —
             // pencari kerja yang memantau feed berpikir dalam "sejak tadi
             // pagi", bukan dalam rentang kalender. Batas 720 jam (30 hari)

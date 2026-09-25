@@ -30,6 +30,8 @@ final readonly class UpdateTaskData
         public ?int $budgetMin = null,
         public ?int $budgetMax = null,
         public array $options = [],
+        /** @var list<string> langkah checklist pekerjaan (B10) */
+        public array $checklist = [],
         public array $photos = [],
         public ?string $locationText = null,
         public ?string $area = null,
@@ -61,7 +63,7 @@ final readonly class UpdateTaskData
         /** @var list<string> $fields */
         $fields = [
             'category_id', 'title', 'description', 'budget_min', 'budget_max',
-            'options', 'photos', 'location_text', 'area', 'city', 'latitude', 'longitude',
+            'options', 'checklist', 'photos', 'location_text', 'area', 'city', 'latitude', 'longitude',
             'is_remote', 'workers_needed', 'needed_at', 'end_at', 'bidding_closes_at',
             'skills',
         ];
@@ -81,6 +83,10 @@ final readonly class UpdateTaskData
             budgetMin: $request->filled('budget_min') ? $request->integer('budget_min') : null,
             budgetMax: $request->filled('budget_max') ? $request->integer('budget_max') : null,
             options: $request->array('options'),
+            checklist: array_values(array_filter(array_map(
+                static fn (mixed $step): string => trim((string) $step),
+                $request->array('checklist'),
+            ))),
             photos: array_values($request->array('photos')),
             locationText: $request->filled('location_text')
                 ? trim($request->string('location_text')->value())

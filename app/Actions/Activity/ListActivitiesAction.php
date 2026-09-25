@@ -20,7 +20,7 @@ final class ListActivitiesAction
             // worker wajib: mobile memakai worker.name sebagai syarat
             // tampil stepper status pengerjaan di detail.
             ->with([
-                'worker', 'task.category', 'task.poster', 'payment',
+                'worker', 'task.category', 'task.poster', 'payment', 'latestUpdate',
                 // Penentu lokasi presisi (Task::revealsLocationTo) tanpa
                 // satu kueri per baris.
                 'task.myBid' => fn (Relation $q) => $q->where('bidder_id', $worker->getKey()),

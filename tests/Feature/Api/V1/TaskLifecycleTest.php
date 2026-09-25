@@ -8,6 +8,8 @@ use App\Enums\TaskStatus;
 use App\Models\Admin;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\UserNotification;
+use App\Models\UserWorker;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -304,6 +306,37 @@ final class TaskLifecycleTest extends TestCase
             ->getJson(route('v1.tasks.posted', ['status' => 'entah']))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['status']);
+    }
+
+    /** Hitungan judul tab, dihitung server (B7). */
+    public function test_posted_status_counts_include_every_status(): void
+    {
+        $this->createTask();
+        $this->createTask(['publish_now' => false]);
+
+        $counts = $this->asUser($this->poster)
+            ->getJson(route('v1.tasks.posted.counts'))
+            ->assertOk()
+            ->json('data');
+
+        $this->assertSame(1, $counts['open']);
+        $this->assertSame(1, $counts['draft']);
+        $this->assertSame(0, $counts['completed']);
+        $this->assertSame(
+            array_map(static fn (TaskStatus $s): string => $s->value, TaskStatus::cases()),
+            array_keys($counts),
+        );
+    }
+
+    public function test_worked_status_counts_start_at_zero(): void
+    {
+        $this->createTask();
+
+        $this->asUser($this->worker)
+            ->getJson(route('v1.tasks.worked.counts'))
+            ->assertOk()
+            ->assertJsonPath('data.open', 0)
+            ->assertJsonPath('data.completed', 0);
     }
 
     /**
@@ -622,6 +655,137 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonPath('code', 'invalid_status_transition');
     }
 
+    // ── lokasi langsung, catatan kemajuan, checklist (B8/B9/B10) ──────────
+
+    /** Task yang sudah deal dan pekerjanya sedang di perjalanan. */
+    private function dealtOnTheWay(array $taskOverrides = []): string
+    {
+        $task = $this->createTask($taskOverrides);
+        $bid = $this->asUser($this->worker)
+            ->postJson(route('v1.tasks.bids.store', $task), ['amount' => 220_000])
+            ->json('data.id');
+        $this->asUser($this->poster)->postJson(route('v1.bids.accept', $bid))->assertOk();
+
+        $activity = $this->asUser($this->worker)
+            ->getJson(route('v1.activities.mine'))
+            ->json('data.0.id');
+
+        $this->asUser($this->worker)
+            ->postJson(route('v1.activities.depart', $activity))
+            ->assertOk();
+
+        return $activity;
+    }
+
+    /** Tugas yang tayang mengabari mitra tersedia di sekitar (B13). */
+    public function test_publishing_notifies_nearby_available_workers(): void
+    {
+        $tetangga = $this->activeUser();
+        UserWorker::factory()->create([
+            'user_id' => $tetangga->getKey(),
+            'latitude' => -6.2,
+            'longitude' => 106.8,
+            'is_available' => true,
+        ]);
+
+        $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.store'), $this->payload([
+                'latitude' => -6.2, 'longitude' => 106.8, 'publish_now' => true,
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('meta.notified_workers', 1);
+
+        $this->assertTrue(UserNotification::query()
+            ->where('user_id', $tetangga->getKey())
+            ->where('type', 'task_published')
+            ->exists());
+    }
+
+    /** Kontak hanya setelah deal, dan hanya untuk peserta (B17). */
+    public function test_contacts_are_shared_after_a_deal(): void
+    {
+        [$task] = $this->throughToActivity();
+
+        $contacts = $this->asUser($this->poster)
+            ->getJson(route('v1.tasks.contacts', $task))
+            ->assertOk()
+            ->json('data');
+
+        $roles = array_column($contacts, 'role');
+        $this->assertContains('poster', $roles);
+        $this->assertContains('worker', $roles);
+
+        $this->asUser($this->worker)->getJson(route('v1.tasks.contacts', $task))->assertOk();
+        $this->asUser($this->stranger)->getJson(route('v1.tasks.contacts', $task))->assertForbidden();
+    }
+
+    public function test_contacts_are_hidden_before_a_deal(): void
+    {
+        $task = $this->createTask();
+
+        $this->asUser($this->poster)
+            ->getJson(route('v1.tasks.contacts', $task))
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'invalid_status_transition');
+    }
+
+    public function test_live_location_is_reported_while_on_the_way(): void
+    {
+        $activity = $this->dealtOnTheWay(['latitude' => -6.2, 'longitude' => 106.8]);
+
+        $response = $this->asUser($this->worker)
+            ->postJson(route('v1.activities.location', $activity), [
+                'latitude' => -6.21, 'longitude' => 106.81,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'on_the_way');
+
+        $this->assertNotNull($response->json('data.live.distance_km'));
+        $this->assertIsInt($response->json('data.live.eta_minutes'));
+    }
+
+    public function test_live_location_is_refused_outside_the_trip(): void
+    {
+        [, , $activity] = $this->throughToArrival();
+
+        $this->asUser($this->worker)
+            ->postJson(route('v1.activities.location', $activity), [
+                'latitude' => -6.2, 'longitude' => 106.8,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'invalid_status_transition');
+    }
+
+    public function test_activity_updates_are_recorded_and_shown_as_latest(): void
+    {
+        $activity = $this->dealtOnTheWay();
+
+        $this->asUser($this->worker)
+            ->postJson(route('v1.activities.updates.store', $activity), ['note' => 'Tiba di lokasi'])
+            ->assertCreated()
+            ->assertJsonPath('data.note', 'Tiba di lokasi');
+
+        $this->asUser($this->worker)
+            ->getJson(route('v1.activities.show', $activity))
+            ->assertOk()
+            ->assertJsonPath('data.latest_update.note', 'Tiba di lokasi');
+    }
+
+    public function test_checklist_state_must_match_the_task_checklist(): void
+    {
+        $activity = $this->dealtOnTheWay(['checklist' => ['Angkut', 'Susun', 'Bersihkan']]);
+
+        $this->asUser($this->worker)
+            ->putJson(route('v1.activities.checklist', $activity), ['state' => [true, false]])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'checklist_state_mismatch');
+
+        $this->asUser($this->worker)
+            ->putJson(route('v1.activities.checklist', $activity), ['state' => [true, true, false]])
+            ->assertOk()
+            ->assertJsonPath('data.checklist_state', [true, true, false]);
+    }
+
     /**
      * Sampai pekerjanya berdiri di lokasi.
      *
@@ -767,6 +931,46 @@ final class TaskLifecycleTest extends TestCase
 
         $this->asUser($this->poster)->getJson(route('v1.tasks.payment.show', $task))
             ->assertJsonPath('data.status', 'released');
+
+        // "Layanan Selesai" pemberi kerja (U15) naik saat task benar-benar selesai.
+        $this->asUser($this->poster)->getJson(route('v1.me.show'))
+            ->assertOk()
+            ->assertJsonPath('data.as_poster.tasks_completed', 1);
+    }
+
+    public function test_approve_all_completes_every_submitted_activity(): void
+    {
+        [$task] = $this->submitted();
+
+        $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.approve-all', $task))
+            ->assertOk()
+            ->assertJsonPath('data.status', 'completed')
+            ->assertJsonPath('data.activities.0.status', 'approved');
+
+        $this->asUser($this->poster)->getJson(route('v1.me.show'))
+            ->assertOk()
+            ->assertJsonPath('data.as_poster.tasks_completed', 1);
+    }
+
+    /** Menekan tombol tanpa hasil yang diserahkan bukan no-op senyap (B16). */
+    public function test_approve_all_without_submitted_work_is_refused(): void
+    {
+        $task = $this->createTask();
+
+        $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.approve-all', $task))
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'no_submitted_activities');
+    }
+
+    public function test_only_the_poster_can_approve_all(): void
+    {
+        [$task] = $this->submitted();
+
+        $this->asUser($this->stranger)
+            ->postJson(route('v1.tasks.approve-all', $task))
+            ->assertForbidden();
     }
 
     public function test_rejecting_disputes_the_task_and_keeps_the_money(): void
@@ -817,6 +1021,61 @@ final class TaskLifecycleTest extends TestCase
             ->postJson(route('v1.tasks.reviews.store', $task), ['rating' => 4])
             ->assertCreated()
             ->assertJsonPath('data.reviewer_role', 'worker');
+    }
+
+    /** Foto ulasan disimpan dan bisa disaring "Dengan Foto" (B15). */
+    public function test_review_photos_are_stored_and_filterable(): void
+    {
+        [$task, , $activity] = $this->submitted();
+        $this->asUser($this->poster)->postJson(route('v1.activities.approve', $activity))->assertOk();
+
+        $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.reviews.store', $task), [
+                'rating' => 5,
+                'photos' => ['uploads/tasks/a.jpg', 'uploads/tasks/b.jpg'],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.has_photos', true)
+            ->assertJsonCount(2, 'data.photos');
+
+        $this->asUser($this->worker)
+            ->postJson(route('v1.tasks.reviews.store', $task), ['rating' => 4])
+            ->assertCreated()
+            ->assertJsonPath('data.has_photos', false);
+
+        $denganFoto = $this->asUser($this->poster)
+            ->getJson(route('v1.users.reviews.index', ['user' => $this->worker->ulid, 'has_photos' => 1]))
+            ->assertOk();
+        $this->assertCount(1, $denganFoto->json('data'));
+        $this->assertTrue($denganFoto->json('data.0.has_photos'));
+
+        $tanpaFoto = $this->asUser($this->poster)
+            ->getJson(route('v1.users.reviews.index', ['user' => $this->worker->ulid, 'has_photos' => 0]))
+            ->assertOk();
+        $this->assertCount(0, $tanpaFoto->json('data'));
+    }
+
+    /** Simpan tugas: idempoten, muncul di daftar, ditandai di feed (B11). */
+    public function test_a_task_can_be_bookmarked_and_listed(): void
+    {
+        $task = $this->createTask();
+        $saya = $this->stranger;
+
+        $this->asUser($saya)->getJson(route('v1.tasks.index'))
+            ->assertOk()->assertJsonPath('data.0.is_bookmarked', false);
+
+        $this->asUser($saya)->putJson(route('v1.tasks.bookmark.store', $task))->assertNoContent();
+        $this->asUser($saya)->putJson(route('v1.tasks.bookmark.store', $task))->assertNoContent();
+
+        $this->asUser($saya)->getJson(route('v1.tasks.bookmarked'))
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $task);
+
+        $this->asUser($saya)->getJson(route('v1.tasks.index'))
+            ->assertOk()->assertJsonPath('data.0.is_bookmarked', true);
+
+        $this->asUser($saya)->deleteJson(route('v1.tasks.bookmark.destroy', $task))->assertNoContent();
+        $this->asUser($saya)->getJson(route('v1.tasks.bookmarked'))
+            ->assertOk()->assertJsonCount(0, 'data');
     }
 
     public function test_reviewing_before_completion_is_rejected(): void

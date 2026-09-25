@@ -30,6 +30,8 @@ final class UpsertWorkerProfileRequest extends FormRequest
             // Itulah kenapa profil ini bisa dikosongkan sebagian tanpa
             // kehilangan datanya — nama dan nomor tetap ada di `users`.
             'display_name' => ['sometimes', 'nullable', 'string', 'max:120'],
+            // Judul/profesi mitra (U16) — "Teknisi AC". Null = tidak diisi.
+            'headline' => ['sometimes', 'nullable', 'string', 'max:60'],
             'contact_phone' => [
                 'sometimes', 'nullable', 'string', 'max:20',
                 'regex:/^\+?[0-9]{9,19}$/',

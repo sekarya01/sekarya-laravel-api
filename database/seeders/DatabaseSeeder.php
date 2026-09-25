@@ -21,6 +21,7 @@ final class DatabaseSeeder extends Seeder
             CategorySeeder::class,
             // Keahlian merujuk kategori, jadi harus setelahnya.
             SkillSeeder::class,
+            CitySeeder::class,
         ]);
     }
 }

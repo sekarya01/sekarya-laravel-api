@@ -29,4 +29,6 @@ enum PushType: string
     case CancelRequested = 'cancel_requested';
     case CancelRequestResolved = 'cancel_request_resolved';
     case TaskCancelled = 'task_cancelled';
+    // Tugas baru ke mitra terdekat yang tersedia (B13).
+    case TaskPublished = 'task_published';
 }

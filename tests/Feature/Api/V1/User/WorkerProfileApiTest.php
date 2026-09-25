@@ -398,6 +398,24 @@ final class WorkerProfileApiTest extends TestCase
         );
     }
 
+    /** Judul/profesi mitra (U16) tersimpan dan terbaca di `own`. */
+    public function test_a_headline_can_be_set(): void
+    {
+        $user = $this->worker();
+
+        $this->asUser($user)
+            ->putJson(route('v1.me.worker.update'), ['headline' => 'Teknisi AC'])
+            ->assertCreated()
+            ->assertJsonPath('data.headline', 'Teknisi AC')
+            ->assertJsonPath('data.own.headline', 'Teknisi AC');
+
+        // Tidak ada padanannya di akun: null tetap null.
+        $this->asUser($user)
+            ->putJson(route('v1.me.worker.update'), ['headline' => null])
+            ->assertOk()
+            ->assertJsonPath('data.headline', null);
+    }
+
     /**
      * Ketersediaan hanya berarti bagi yang SUDAH pekerja. Tanpa penjaga ini,
      * akun pemberi kerja yang menekan sakelar "siap menerima kerja" akan

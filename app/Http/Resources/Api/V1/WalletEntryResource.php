@@ -41,6 +41,10 @@ final class WalletEntryResource extends BaseResource
                 'id' => $this->task->ulid,
                 'task_number' => $this->task->task_number,
                 'title' => $this->task->title,
+                'category' => $this->task->category === null ? null : [
+                    'slug' => $this->task->category->slug,
+                    'name' => $this->task->category->name,
+                ],
             ]),
             'created_at' => $this->iso($this->created_at),
         ];

@@ -390,12 +390,17 @@ paths:
     post:
       tags: [Auth]
       operationId: login
-      summary: Masuk dengan email atau username
+      summary: Masuk dengan email, username, atau nomor HP
       security: []
       description: |
-        Kirim `email` **atau** `username`, bersama `password`.
+        Kirim **tepat satu** dari `email`, `username`, atau `phone`, bersama
+        `password`. Dua identitas sekaligus ditolak `422`.
 
-        Balasan untuk email tak terdaftar dan kata sandi salah **identik** —
+        Nomor HP boleh diketik dalam ejaan lokal (`0812…`); server menormalkannya
+        ke `+62…` saat mencari, jadi akun yang mendaftar dengan ejaan mana pun
+        tetap ditemukan.
+
+        Balasan untuk identitas tak terdaftar dan kata sandi salah **identik** —
         termasuk waktu responsnya — agar endpoint ini tidak bisa dipakai
         memeriksa keberadaan akun.
       requestBody:
@@ -409,6 +414,8 @@ paths:
                 value: { email: budi@example.com, password: RahasiaKuat2026 }
               username:
                 value: { username: budi.prasetyo, password: RahasiaKuat2026 }
+              phone:
+                value: { phone: '081234567890', password: RahasiaKuat2026 }
       responses:
         '200':
           $ref: '#/components/responses/TokenPair'
@@ -506,6 +513,44 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
 
   # ───────────────────────────── KATALOG ──────────────────────────────
+  /cities:
+    get:
+      tags: [Katalog]
+      operationId: listCities
+      summary: Master kabupaten/kota
+      security: []
+      description: |
+        Pemilih kota (B12). **Publik** — dipakai juga di layar daftar, sebelum
+        pengguna punya token. `q` mencocokkan awalan nama (case-insensitive).
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Awalan nama kota/kabupaten.
+          schema: { type: string, maxLength: 80, examples: [Band] }
+        - name: limit
+          in: query
+          required: false
+          description: Jumlah maksimum baris. Bawaan 50.
+          schema: { type: integer, minimum: 1, maximum: 100 }
+      responses:
+        '200':
+          description: Daftar kota.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/City' }
+              example:
+                data:
+                  - { id: 40, name: Bandung, province: Jawa Barat, type: kota }
+                  - { id: 41, name: Bandung Barat, province: Jawa Barat, type: kabupaten }
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
   /categories:
     get:
       tags: [Katalog]
@@ -522,6 +567,16 @@ paths:
         Harga referensi dihitung dari `agreed_amount` task berstatus `completed`,
         memakai **median** (bukan rata-rata, agar satu task mahal tidak merusak
         angkanya).
+
+        Kirim `city` untuk acuan per kota (U17): bila sampel kota itu cukup,
+        `reference_price.scope` bernilai `city`; kalau tidak, ia jatuh ke angka
+        nasional (`scope: national`).
+      parameters:
+        - name: city
+          in: query
+          required: false
+          description: Nama kabupaten/kota untuk acuan harga lokal.
+          schema: { type: string, maxLength: 80, examples: ['Kota Bandung'] }
       responses:
         '200':
           description: Semua kategori aktif.
@@ -1220,9 +1275,9 @@ paths:
                 type: object
                 properties:
                   data:
-                    allOf:
+                    oneOf:
                       - $ref: '#/components/schemas/UserAddress'
-                    nullable: true
+                      - type: 'null'
               example:
                 data:
                   label: Rumah
@@ -1384,7 +1439,7 @@ paths:
     get:
       tags: [Saldo]
       operationId: showWalletSummary
-      summary: Ringkasan saldo (total masuk/keluar, pendapatan mingguan)
+      summary: Ringkasan saldo (total masuk/keluar, pendapatan, per bulan)
       description: |
         Angka untuk kartu "Total Masuk / Total Keluar" di Riwayat dan
         "Pendapatan minggu ini" di Beranda Mitra — **dijumlahkan server** dari
@@ -1395,14 +1450,16 @@ paths:
         Rentang `from` (inklusif) / `to` (eksklusif) sama persis dengan
         penyaring `me/wallet/entries`, jadi total ini menjumlahkan baris yang
         sama dengan daftar di bawahnya. Keduanya berpasangan; tanpa keduanya,
-        rentangnya **bulan kalender berjalan** di zona `tz` (bawaan: zona
-        aplikasi, UTC). Paling panjang 366 hari.
+        rentangnya **bulan kalender berjalan** di zona aplikasi. Paling panjang
+        366 hari.
 
-        `earnings_this_week` / `earnings_last_week` hanya menjumlahkan jenis
-        `earning`, dengan minggu yang dimulai **Senin 00:00 di zona `tz`**,
-        dihitung dari waktu server saat ini — tidak bergantung pada
-        `from`/`to`. Kirim `tz=Asia/Jakarta` supaya Senin pagi WIB tidak
-        terhitung ke pekan lalu.
+        Penyaring `types[]`/`direction` diterima agar total mengikuti tab yang
+        sedang dibuka. `earning_total` selalu jumlah mutasi `earning` dalam
+        rentang — itulah "pendapatan". Untuk "minggu ini vs pekan lalu",
+        panggil dua kali dengan rentang minggu yang berbeda, atau kirim
+        `compare_previous=1` dan baca `previous` (periode sebelumnya yang
+        panjangnya SAMA, tepat sebelum `from`). `group=month` menambahkan
+        deret `by_month`.
 
         Selalu milik yang sedang login. Tidak ada parameter pemilik; parameter
         lain diabaikan. Membacanya tidak membuat baris dompet.
@@ -1417,11 +1474,28 @@ paths:
           required: false
           description: Batas atas `created_at`, EKSKLUSIF. Wajib bila `from` dikirim; harus sesudah `from`.
           schema: { type: string, format: date-time, example: '2026-10-01T00:00:00+07:00' }
-        - name: tz
+        - name: types
           in: query
           required: false
-          description: Zona waktu IANA untuk rentang bawaan dan batas minggu. Bawaan zona aplikasi.
-          schema: { type: string, example: Asia/Jakarta }
+          description: Pilih beberapa jenis mutasi sekaligus (`types[]=topup&types[]=refund`).
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/WalletEntryType' }
+        - name: direction
+          in: query
+          required: false
+          description: Saring satu arah saja.
+          schema: { $ref: '#/components/schemas/WalletEntryDirection' }
+        - name: compare_previous
+          in: query
+          required: false
+          description: Sertakan `previous` (periode sebelumnya yang panjangnya sama).
+          schema: { type: boolean }
+        - name: group
+          in: query
+          required: false
+          description: '`month` menambahkan deret `by_month`.'
+          schema: { type: string, enum: [month] }
       responses:
         '200':
           description: Ringkasan terhitung.
@@ -1437,6 +1511,45 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '422':
           $ref: '#/components/responses/ValidationFailed'
+
+  /me/wallet/config:
+    get:
+      tags: [Saldo]
+      operationId: showWalletConfig
+      summary: Rekening tujuan isi saldo + batas nominal
+      description: |
+        Sumber rekening tujuan dan limit untuk layar Isi Saldo & Tarik Saldo —
+        **tidak dihitung klien**. Rekening tujuan dibaca dari konfigurasi
+        lingkungan (bukan basis data), jadi nomor rekening tidak ikut ke repo
+        dan bisa diganti tanpa deploy. Kosong = rekening tidak ditampilkan.
+
+        Nilai rekening asli WAJIB dicek manusia sebelum diisi ke produksi.
+      responses:
+        '200':
+          description: Konfigurasi dompet.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WalletConfig'
+              example:
+                data:
+                  topup_accounts:
+                    - bank_code: BCA
+                      bank_name: Bank Central Asia
+                      account_number: '1234567890'
+                      account_holder: PT Sekarya Digital
+                  limits:
+                    min_topup: 10000
+                    max_topup: 10000000
+                    min_withdrawal: 50000
+                    max_withdrawal: 10000000
+                    max_pending_requests: 3
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
 
   /me/wallet/topups:
     get:
@@ -1511,6 +1624,8 @@ paths:
                 data:
                   id: 01M2WALLETTOPUP00000000001
                   amount: 250000
+                  unique_code: 137
+                  transfer_amount: 250137
                   status: awaiting_confirmation
                   awaits_confirmation: true
                   sender_note: BCA 1234 a.n. Budi Prasetyo
@@ -1780,6 +1895,8 @@ paths:
         - $ref: '#/components/parameters/BudgetFrom'
         - $ref: '#/components/parameters/BudgetTo'
         - $ref: '#/components/parameters/PostedWithinHours'
+        - $ref: '#/components/parameters/NeededFrom'
+        - $ref: '#/components/parameters/NeededTo'
         - $ref: '#/components/parameters/Keyword'
         - $ref: '#/components/parameters/Latitude'
         - $ref: '#/components/parameters/Longitude'
@@ -1862,7 +1979,21 @@ paths:
                   publish_now: true
       responses:
         '201':
-          $ref: '#/components/responses/SingleTask'
+          description: |
+            Task dibuat. `meta.notified_workers` = berapa mitra tersedia di
+            sekitar yang dikabari `task_published` (B13); 0 untuk draf.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: '#/components/schemas/Task' }
+                  meta:
+                    type: object
+                    required: [notified_workers]
+                    properties:
+                      notified_workers: { type: integer, minimum: 0, example: 14 }
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '422':
@@ -1899,6 +2030,90 @@ paths:
           $ref: '#/components/responses/TaskPage'
         '401':
           $ref: '#/components/responses/Unauthenticated'
+
+  /tasks/posted/counts:
+    get:
+      tags: [Task]
+      operationId: showPostedTaskCounts
+      summary: Hitungan task saya per status (judul tab)
+      description: |
+        Angka untuk judul tab "Berjalan (2)", "Selesai (5)" (B7) — **dihitung
+        server**. Daftarnya bercursor tanpa `total`, jadi menghitung baris yang
+        kebetulan sudah dimuat di klien berubah setiap kali digulir. Setiap
+        status SELALU ada (nol bila kosong).
+      responses:
+        '200':
+          description: Hitungan per status.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/TaskStatusCounts' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /tasks/worked/counts:
+    get:
+      tags: [Task]
+      operationId: showWorkedTaskCounts
+      summary: Hitungan task yang saya kerjakan per status
+      responses:
+        '200':
+          description: Hitungan per status.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/TaskStatusCounts' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /tasks/bookmarked:
+    get:
+      tags: [Task]
+      operationId: listBookmarkedTasks
+      summary: Tugas yang saya simpan
+      description: Tugas yang disimpan (B11), terbaru dulu. Selalu milik pemanggil.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          $ref: '#/components/responses/TaskPage'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /tasks/{task}/bookmark:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    put:
+      tags: [Task]
+      operationId: storeTaskBookmark
+      summary: Simpan tugas
+      description: Idempoten — menyimpan dua kali tidak menambah baris kedua.
+      responses:
+        '204':
+          description: Tersimpan (atau memang sudah).
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [Task]
+      operationId: destroyTaskBookmark
+      summary: Lepas simpanan tugas
+      description: Idempoten — tidak ada simpanan bukan galat.
+      responses:
+        '204':
+          description: Terlepas.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /tasks/{task}:
     parameters:
@@ -1986,10 +2201,24 @@ paths:
       tags: [Task]
       operationId: publishTask
       summary: Terbitkan task draft
-      description: Hanya pemilik task. `draft` → `open`, mulai menerima penawaran.
+      description: |
+        Hanya pemilik task. `draft` → `open`, mulai menerima penawaran. Mitra
+        tersedia di sekitar dikabari `task_published` (B13).
       responses:
         '200':
-          $ref: '#/components/responses/SingleTask'
+          description: Task tayang. `meta.notified_workers` = jumlah mitra yang dikabari.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: '#/components/schemas/Task' }
+                  meta:
+                    type: object
+                    required: [notified_workers]
+                    properties:
+                      notified_workers: { type: integer, minimum: 0 }
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
@@ -2178,6 +2407,78 @@ paths:
               example:
                 message: Belum ada pelamar yang diterima, jadi pekerjaan belum bisa dimulai.
                 code: no_workers_hired
+
+  /tasks/{task}/approve-all:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    post:
+      tags: [Task]
+      operationId: approveAllActivities
+      summary: Konfirmasi selesai & rilis dana (semua pekerja sekali tekan)
+      description: |
+        Menyetujui **semua** hasil yang sudah diserahkan pada satu task
+        sekaligus (B16). Klien boleh juga mengulang
+        `POST activities/{a}/approve`, tapi tombolnya satu dan tidak boleh
+        meninggalkan persetujuan sebagian — karena itu seluruhnya satu
+        transaksi. Dana tetap dilepas sekali, saat pekerja terakhir disetujui.
+
+        Hanya pemberi kerja. Belum ada hasil yang diserahkan = `422`
+        `no_submitted_activities`.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleTask'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Belum ada hasil yang diserahkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: Belum ada hasil pekerjaan yang diserahkan untuk disetujui.
+                code: no_submitted_activities
+
+  /tasks/{task}/contacts:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    get:
+      tags: [Task]
+      operationId: showTaskContacts
+      summary: Nomor kontak peserta setelah deal
+      description: |
+        Tombol telepon setelah deal (B17). Nomor HP tidak pernah keluar di
+        profil publik; ia hanya terbuka di sini, hanya untuk PESERTA task, dan
+        hanya setelah deal (`dealt`/`active`/`submitted`).
+      responses:
+        '200':
+          description: Daftar kontak (pemberi kerja + pekerja).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/TaskContact' }
+              example:
+                data:
+                  - { id: '01M…', name: Budi, role: poster, phone: '+628111222333' }
+                  - { id: '01M…', name: Andi, role: worker, phone: '+628444555666' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Task belum deal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example: { message: 'Tidak bisa berpindah dari open ke active.', code: invalid_status_transition }
 
   # ────────────────────────────── LELANG ──────────────────────────────
   /tasks/{task}/bids:
@@ -2671,6 +2972,107 @@ paths:
         '422':
           description: Perpindahan status tidak diizinkan.
 
+  /activities/{activity}/location:
+    parameters:
+      - $ref: '#/components/parameters/ActivityUlid'
+    post:
+      tags: [Activity]
+      operationId: updateActivityLocation
+      summary: Bagikan lokasi langsung selama perjalanan
+      description: |
+        Hanya penerima kerja, dan hanya selama `on_the_way` (B8). Balasan
+        membawa `live: {distance_km, eta_minutes, updated_at}` — jarak ke lokasi
+        task dan perkiraan tiba.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateActivityLocationRequest'
+            example: { latitude: -6.21, longitude: 106.81 }
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleActivity'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Bukan `on_the_way`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example: { message: 'Tidak bisa berpindah dari arrived ke on_the_way.', code: invalid_status_transition }
+
+  /activities/{activity}/updates:
+    parameters:
+      - $ref: '#/components/parameters/ActivityUlid'
+    post:
+      tags: [Activity]
+      operationId: createActivityUpdate
+      summary: Tulis catatan kemajuan
+      description: |
+        Hanya penerima kerja, selama pekerjaan berjalan (B8/B9). Baris terakhir
+        tampil sebagai `latest_update` di activity.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateActivityUpdateRequest'
+            example: { note: Tiba di lokasi dan mulai angkut lemari }
+      responses:
+        '201':
+          description: Catatan dibuat.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ActivityUpdate' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Pekerjaan sudah tidak berjalan.
+
+  /activities/{activity}/checklist:
+    parameters:
+      - $ref: '#/components/parameters/ActivityUlid'
+    put:
+      tags: [Activity]
+      operationId: updateActivityChecklist
+      summary: Centang checklist pekerjaan
+      description: |
+        Hanya penerima kerja (B10). `state` harus sepanjang `tasks.checklist`;
+        panjang berbeda dijawab `422 checklist_state_mismatch`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateActivityChecklistRequest'
+            example: { state: [true, true, false] }
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleActivity'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: Panjang `state` tidak cocok.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainError'
+              example:
+                message: 'Checklist punya 3 langkah, tetapi 2 centang dikirim.'
+                code: checklist_state_mismatch
+
   /activities/{activity}/approve:
     parameters:
       - $ref: '#/components/parameters/ActivityUlid'
@@ -2839,6 +3241,11 @@ paths:
             yang sama dengan pencarian nama task (bukan `LIKE`). Masukan yang
             seluruhnya tanda baca menghasilkan daftar kosong.
           schema: { type: string, maxLength: 100 }
+        - name: has_photos
+          in: query
+          required: false
+          description: 'Chip "Dengan Foto" (B15): `1` hanya yang berfoto, `0` hanya yang tanpa foto.'
+          schema: { type: boolean }
       responses:
         '200':
           description: Halaman penilaian.
@@ -2896,7 +3303,6 @@ paths:
                   rating_avg: 4.9
                   rating_count: 41
                   distribution: { '5': 38, '4': 2, '3': 1, '2': 0, '1': 0 }
-                  five_star_percent: 93
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '422':
@@ -4441,6 +4847,22 @@ components:
         dihitung dari jam server — tanggal dari perangkat yang jamnya meleset
         akan menyembunyikan task yang sebenarnya baru.
       schema: { type: integer, minimum: 1, maximum: 720, examples: [24] }
+    NeededFrom:
+      name: needed_from
+      in: query
+      required: false
+      description: |
+        Batas bawah jadwal pelaksanaan (`needed_at`), INKLUSIF — U14. ISO-8601
+        beroffset. Chip "Hari ini / Besok / Minggu ini" mengirim rentang ini.
+      schema: { type: string, format: date-time, examples: ['2026-09-25T00:00:00+07:00'] }
+    NeededTo:
+      name: needed_to
+      in: query
+      required: false
+      description: |
+        Batas atas jadwal pelaksanaan (`needed_at`), EKSKLUSIF. Harus sesudah
+        `needed_from` bila keduanya dikirim.
+      schema: { type: string, format: date-time, examples: ['2026-09-26T00:00:00+07:00'] }
     Keyword:
       name: q
       in: query
@@ -4612,7 +5034,7 @@ components:
                 active_mode: hiring
                 theme: system
                 as_worker: { rating_avg: 0, rating_count: 0, tasks_completed: 0, bids_won: 0 }
-                as_poster: { rating_avg: 0, rating_count: 0, tasks_posted: 0 }
+                as_poster: { rating_avg: 0, rating_count: 0, tasks_posted: 0, tasks_completed: 0 }
     SingleTask:
       description: Satu task.
       content:
@@ -4763,6 +5185,24 @@ components:
         Cabang: `open → expired`, `submitted → disputed → refunded`,
         pembatalan dari `open`/`dealt`/`active` → `cancelled`.
         `completed`, `expired`, `cancelled`, `refunded` bersifat akhir.
+    TaskStatusCounts:
+      type: object
+      title: TaskStatusCounts
+      description: |
+        Hitungan task per status (B7). SELALU memuat setiap status
+        `TaskStatus` — nol bila tidak ada baris.
+      required: [draft, open, dealt, active, submitted, completed, expired, cancelled, disputed, refunded]
+      properties:
+        draft: { type: integer, minimum: 0 }
+        open: { type: integer, minimum: 0 }
+        dealt: { type: integer, minimum: 0 }
+        active: { type: integer, minimum: 0 }
+        submitted: { type: integer, minimum: 0 }
+        completed: { type: integer, minimum: 0 }
+        expired: { type: integer, minimum: 0 }
+        cancelled: { type: integer, minimum: 0 }
+        disputed: { type: integer, minimum: 0 }
+        refunded: { type: integer, minimum: 0 }
     BidStatus:
       type: string
       enum: [pending, accepted, rejected, withdrawn, expired]
@@ -4995,6 +5435,7 @@ components:
         pekerjaannya, dan ia membocorkan volume aktivitas orang itu.
       required: [rating_avg, rating_count, tasks_completed]
       properties:
+        headline: { type: [string, 'null'], description: 'Judul/profesi mitra (U16); null = tidak diisi.' }
         rating_avg: { type: number, examples: [4.9] }
         rating_count: { type: integer }
         tasks_completed: { type: integer, examples: [214] }
@@ -5005,11 +5446,15 @@ components:
         Reputasi sebagai pemberi kerja — dipisah dengan sengaja. Seseorang bisa
         jago mengerjakan tapi buruk sebagai pemberi kerja, dan satu angka
         gabungan menyembunyikan itu dari kedua pihak.
-      required: [rating_avg, rating_count, tasks_posted]
+      required: [rating_avg, rating_count, tasks_posted, tasks_completed]
       properties:
         rating_avg: { type: number }
         rating_count: { type: integer }
         tasks_posted: { type: integer }
+        tasks_completed:
+          type: integer
+          description: 'Task yang benar-benar ditutup — "Layanan Selesai" (U15).'
+
     Verification:
       type: object
       description: |
@@ -5279,6 +5724,13 @@ components:
               type: boolean
               description: '**Wajib dipakai UI.** `false` = angka di atas masih perkiraan, bukan data nyata.'
             computed_at: { type: [string, 'null'], format: date-time }
+            scope:
+              type: string
+              enum: [national, city]
+              description: 'Cakupan acuan (U17): dari kota yang diminta, atau nasional.'
+            city:
+              type: [string, 'null']
+              description: Kota yang dipakai bila `scope=city`.
     Skill:
       type: object
       required: [slug, name]
@@ -5286,6 +5738,16 @@ components:
         slug: { type: string }
         name: { type: string }
         category: { $ref: '#/components/schemas/Category' }
+    City:
+      type: object
+      title: City
+      description: Satu kabupaten/kota pada pemilih kota (B12).
+      required: [id, name, province, type]
+      properties:
+        id: { type: integer }
+        name: { type: string, example: Bandung }
+        province: { type: string, example: Jawa Barat }
+        type: { type: string, enum: [kota, kabupaten] }
 
     # ── task & lelang ──
     Task:
@@ -5305,6 +5767,10 @@ components:
             properties:
               label: { type: string }
               value: {}
+        checklist:
+          type: array
+          description: 'Langkah checklist pekerjaan (B10); larik string.'
+          items: { type: string }
         photos:
           type: array
           items: { type: string }
@@ -5405,6 +5871,9 @@ components:
           oneOf:
             - $ref: '#/components/schemas/Bid'
             - type: 'null'
+        is_bookmarked:
+          type: boolean
+          description: 'Apakah saya menyimpan tugas ini (B11). Selalu ada; `false` bila tidak dimuat.'
         payment:
           description: Satu tagihan untuk seluruh task, sebesar `agreed_amount`.
           $ref: '#/components/schemas/Payment'
@@ -5534,11 +6003,79 @@ components:
           type: array
           description: Bukti pekerjaan. Dasar penyelesaian sengketa.
           items: { type: string }
+        checklist_state:
+          type: array
+          description: 'Centang checklist pekerjaan (B10); larik boolean sejajar `tasks.checklist`.'
+          items: { type: boolean }
+        latest_update:
+          description: 'Catatan kemajuan terakhir (B9), atau null.'
+          oneOf:
+            - $ref: '#/components/schemas/ActivityUpdate'
+            - type: 'null'
+        live:
+          description: |
+            Lokasi langsung + ETA (B8). Hanya ada selama `on_the_way` dan bila
+            lokasi task diketahui.
+          oneOf:
+            - type: object
+              required: [distance_km, eta_minutes, updated_at]
+              properties:
+                distance_km: { type: [number, 'null'] }
+                eta_minutes: { type: [integer, 'null'] }
+                updated_at: { type: [string, 'null'], format: date-time }
+            - type: 'null'
         poster_note: { type: [string, 'null'] }
         task: { $ref: '#/components/schemas/Task' }
         worker: { $ref: '#/components/schemas/PublicUser' }
         payment: { $ref: '#/components/schemas/Payment' }
         created_at: { type: [string, 'null'], format: date-time }
+    TaskContact:
+      type: object
+      title: TaskContact
+      description: 'Satu kontak peserta task setelah deal (B17).'
+      required: [id, role]
+      properties:
+        id: { type: string, description: ULID }
+        name: { type: [string, 'null'] }
+        role: { type: string, enum: [poster, worker] }
+        phone: { type: [string, 'null'] }
+    ActivityUpdate:
+      type: object
+      title: ActivityUpdate
+      description: Satu catatan kemajuan pekerja (B9).
+      required: [id, note, created_at]
+      properties:
+        id: { type: integer }
+        note: { type: string, maxLength: 200 }
+        photo: { type: [string, 'null'], description: 'Path foto (opsional).' }
+        created_at: { type: string, format: date-time }
+    UpdateActivityLocationRequest:
+      type: object
+      title: UpdateActivityLocationRequest
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+      additionalProperties: false
+    CreateActivityUpdateRequest:
+      type: object
+      title: CreateActivityUpdateRequest
+      required: [note]
+      properties:
+        note: { type: string, maxLength: 200 }
+        photo: { type: [string, 'null'], maxLength: 255 }
+      additionalProperties: false
+    UpdateActivityChecklistRequest:
+      type: object
+      title: UpdateActivityChecklistRequest
+      required: [state]
+      properties:
+        state:
+          type: array
+          maxItems: 30
+          description: Larik boolean sepanjang `tasks.checklist`.
+          items: { type: boolean }
+      additionalProperties: false
     TaskCancelRequest:
       type: object
       description: |
@@ -5556,7 +6093,7 @@ components:
         withdrawn_at: { type: [string, 'null'], format: date-time }
     Review:
       type: object
-      required: [id, rating, tags, reviewer_role]
+      required: [id, rating, tags, photos, has_photos, reviewer_role]
       properties:
         id: { type: integer }
         rating: { type: integer, minimum: 1, maximum: 5 }
@@ -5565,6 +6102,11 @@ components:
           type: array
           description: Selalu larik — `[]` untuk ulasan tanpa tag dan ulasan lama.
           items: { $ref: '#/components/schemas/ReviewTag' }
+        photos:
+          type: array
+          description: 'Path foto ulasan (B15). Selalu larik; `[]` bila tidak ada.'
+          items: { type: string }
+        has_photos: { type: boolean, description: 'Jalan pintas `photos.length > 0`.' }
         reviewer_role: { $ref: '#/components/schemas/ReviewerRole' }
         reviewer: { $ref: '#/components/schemas/PublicUser' }
         task:
@@ -5588,7 +6130,7 @@ components:
         created_at: { type: [string, 'null'], format: date-time }
     ReviewSummary:
       type: object
-      required: [role, rating_avg, rating_count, distribution, five_star_percent]
+      required: [role, rating_avg, rating_count, distribution]
       properties:
         role:
           oneOf:
@@ -5598,7 +6140,7 @@ components:
         rating_count: { type: integer }
         distribution:
           type: object
-          description: Selalu objek berkunci "5".."1" — nol bila kosong, tidak pernah larik.
+          description: Selalu objek berkunci "5".."1" — nol bila kosong, tidak pernah larik. Persentase dihitung klien dari sini.
           required: ['5', '4', '3', '2', '1']
           properties:
             '5': { type: integer }
@@ -5606,11 +6148,6 @@ components:
             '3': { type: integer }
             '2': { type: integer }
             '1': { type: integer }
-        five_star_percent:
-          type: integer
-          minimum: 0
-          maximum: 100
-          description: Persen ulasan bintang lima, dibulatkan. 0 bila belum ada ulasan.
     TaskWorker:
       description: |
         `PublicUser` plus `distance_km`: jarak (km, 1 desimal) lokasi kerja pekerja
@@ -5672,10 +6209,15 @@ components:
     LoginRequest:
       type: object
       required: [password]
-      description: Kirim `email` **atau** `username`, tidak boleh dua-duanya kosong.
+      description: Kirim **tepat satu** dari `email`, `username`, atau `phone`.
       properties:
         email: { type: [string, 'null'], format: email }
         username: { type: [string, 'null'], maxLength: 30 }
+        phone:
+          type: [string, 'null']
+          maxLength: 20
+          pattern: '^\+?[0-9]{9,19}$'
+          description: 'Ejaan lokal (`08…`) atau `+62…`; dinormalkan server saat mencari.'
         password: { type: string }
       additionalProperties: false
     UpdateProfileRequest:
@@ -5726,6 +6268,10 @@ components:
         bernilai `null` kembali mewarisi dari akun.
       properties:
         display_name: { type: [string, 'null'], maxLength: 120 }
+        headline:
+          type: [string, 'null']
+          maxLength: 60
+          description: Judul/profesi mitra ("Teknisi AC") — U16. Tidak ada padanannya di akun.
         contact_phone:
           type: [string, 'null']
           maxLength: 20
@@ -5768,6 +6314,7 @@ components:
             Barisnya sudah pernah dibuat. `false` berarti seluruh isinya masih
             diwarisi dari akun — membaca profil tidak membuat baris.
         name: { type: [string, 'null'], description: Nilai terpakai. }
+        headline: { type: [string, 'null'], description: 'Judul/profesi mitra (U16); null = tidak diisi.' }
         contact_phone: { type: [string, 'null'], description: Nilai terpakai. }
         avatar_url: { type: [string, 'null'], format: uri }
         gender:
@@ -5806,6 +6353,7 @@ components:
             begitu formulirnya disimpan.
           properties:
             display_name: { type: [string, 'null'] }
+            headline: { type: [string, 'null'] }
             contact_phone: { type: [string, 'null'] }
             avatar_path: { type: [string, 'null'] }
             address_line: { type: [string, 'null'] }
@@ -6016,6 +6564,12 @@ components:
           uniqueItems: true
           description: Opsional. Hanya tag milik arah penilai (lihat `ReviewTag`).
           items: { $ref: '#/components/schemas/ReviewTag' }
+        photos:
+          type: [array, 'null']
+          maxItems: 5
+          uniqueItems: true
+          description: 'Opsional. Path foto ulasan (B15) dari `POST /uploads`.'
+          items: { type: string, maxLength: 255 }
         worker_id:
           type: [string, 'null']
           minLength: 26
@@ -6161,27 +6715,36 @@ components:
     WalletEntryTask:
       type: object
       title: WalletEntryTask
-      required: [id, task_number, title]
+      required: [id, task_number, title, category]
       properties:
         id: { type: string, description: 'ULID task — untuk membuka `GET /tasks/{task}`.' }
         task_number: { type: string, example: TK-260924-AB12CD }
         title: { type: string, example: Pindahan Lemari Lantai 2 }
+        category:
+          description: Kategori task, cermin `category` di Resource lain.
+          oneOf:
+            - type: object
+              required: [slug, name]
+              properties:
+                slug: { type: string, example: pindahan }
+                name: { type: string, example: Pindahan & Angkut }
+            - type: 'null'
     WalletSummary:
       type: object
       title: WalletSummary
-      required: [from, to, total_in, total_out, count, by_type, week_start, earnings_this_week, earnings_last_week]
+      required: [from, to, credit_total, debit_total, entries_count, by_type, earning_total]
       properties:
         from: { type: string, format: date-time, example: '2026-09-01T00:00:00+07:00' }
         to: { type: string, format: date-time, example: '2026-10-01T00:00:00+07:00' }
-        total_in:
+        credit_total:
           type: integer
-          description: Jumlah seluruh jenis berarah `credit` dalam rentang.
+          description: Jumlah seluruh jenis berarah `credit` dalam rentang (mengikuti filter).
           example: 550000
-        total_out:
+        debit_total:
           type: integer
-          description: Jumlah seluruh jenis berarah `debit` dalam rentang.
+          description: Jumlah seluruh jenis berarah `debit` dalam rentang (mengikuti filter).
           example: 230000
-        count: { type: integer, description: Banyaknya baris dalam rentang., example: 4 }
+        entries_count: { type: integer, description: Banyaknya baris dalam rentang., example: 4 }
         by_type:
           type: object
           description: |
@@ -6189,20 +6752,77 @@ components:
             (nol bila tidak ada baris), dan selalu objek.
           additionalProperties: { type: integer }
           example: { topup: 250000, refund: 300000, earning: 0, task_hold: 230000, task_release: 0, withdrawal: 0, withdrawal_reversal: 0, adjustment_credit: 0, adjustment_debit: 0 }
-        week_start:
-          type: string
-          format: date-time
-          description: Senin 00:00 minggu berjalan di zona `tz`.
-          example: '2026-09-21T00:00:00+07:00'
-        earnings_this_week: { type: integer, description: Jumlah `earning` sejak `week_start`., example: 150000 }
-        earnings_last_week: { type: integer, description: Jumlah `earning` pada tujuh hari sebelum `week_start`., example: 80000 }
+        earning_total:
+          type: integer
+          description: Jumlah mutasi `earning` dalam rentang. Ini angka "pendapatan mingguan" di Beranda Mitra.
+          example: 0
+        previous:
+          description: |
+            Periode sebelumnya yang panjangnya SAMA, tepat sebelum `from`.
+            Hanya ada bila `compare_previous=1` — dasar "+18% dari pekan lalu".
+          oneOf:
+            - type: object
+              required: [credit_total, earning_total]
+              properties:
+                credit_total: { type: integer, example: 480000 }
+                earning_total: { type: integer, example: 120000 }
+            - type: 'null'
+        by_month:
+          type: array
+          description: |
+            Rincian per bulan kalender (offset `from`). Hanya ada bila
+            `group=month`, urut menaik.
+          items:
+            type: object
+            required: [month, credit_total, debit_total, entries_count, earning_total]
+            properties:
+              month: { type: string, example: '2026-09' }
+              credit_total: { type: integer }
+              debit_total: { type: integer }
+              entries_count: { type: integer }
+              earning_total: { type: integer }
+    WalletConfig:
+      type: object
+      title: WalletConfig
+      required: [topup_accounts, limits]
+      properties:
+        topup_accounts:
+          type: array
+          description: Rekening tujuan isi saldo. Kosong = tidak ditampilkan.
+          items:
+            type: object
+            required: [bank_code, bank_name, account_number, account_holder]
+            properties:
+              bank_code: { type: [string, 'null'], example: BCA }
+              bank_name: { type: [string, 'null'], example: Bank Central Asia }
+              account_number: { type: [string, 'null'], example: '1234567890' }
+              account_holder: { type: [string, 'null'], example: PT Sekarya Digital }
+        limits:
+          type: object
+          required: [min_topup, max_topup, min_withdrawal, max_withdrawal, max_pending_requests]
+          properties:
+            min_topup: { type: integer, example: 10000 }
+            max_topup: { type: integer, example: 10000000 }
+            min_withdrawal: { type: integer, example: 50000 }
+            max_withdrawal: { type: integer, example: 10000000 }
+            max_pending_requests: { type: integer, example: 3 }
     WalletTopup:
       type: object
       title: WalletTopup
-      required: [id, amount, status, awaits_confirmation]
+      required: [id, amount, unique_code, transfer_amount, status, awaits_confirmation]
       properties:
         id: { type: string, example: 01M2WALLETTOPUP00000000001 }
         amount: { type: integer, example: 250000 }
+        unique_code:
+          type: integer
+          minimum: 1
+          maximum: 999
+          description: 'Kode 3 digit yang membedakan nominal dari permintaan lain (B14).'
+          example: 137
+        transfer_amount:
+          type: integer
+          description: 'Nominal yang HARUS ditransfer = `amount` + `unique_code`.'
+          example: 250137
         status: { $ref: '#/components/schemas/WalletTopupStatus' }
         awaits_confirmation:
           type: boolean
@@ -6341,15 +6961,15 @@ components:
         max_uses: { type: integer }
         used_count: { type: integer }
         remaining_uses: { type: integer }
-        expires_at: { type: string, format: date-time, nullable: true }
+        expires_at: { type: [string, 'null'], format: date-time }
         is_active: { type: boolean }
         is_usable: { type: boolean }
-        note: { type: string, nullable: true }
-        city: { type: string, nullable: true, description: Null = nasional. }
-        province: { type: string, nullable: true, description: Null = nasional. }
-        area_label: { type: string, example: Bandung, Jawa Barat }
+        note: { type: [string, 'null'] }
+        city: { type: [string, 'null'], description: Null = nasional. }
+        province: { type: [string, 'null'], description: Null = nasional. }
+        area_label: { type: string, example: 'Bandung, Jawa Barat' }
         redemptions_count: { type: integer }
-        created_by: { type: string, nullable: true, description: Email penerbit. }
+        created_by: { type: [string, 'null'], description: Email penerbit. }
         created_at: { type: string, format: date-time }
 
     WorkerInviteRedemption:
@@ -6359,7 +6979,7 @@ components:
         user_id: { type: string }
         name: { type: string }
         email: { type: string }
-        phone: { type: string, nullable: true }
+        phone: { type: [string, 'null'] }
         identity_verified: { type: boolean }
         redeemed_at: { type: string, format: date-time }
 
@@ -6374,13 +6994,15 @@ components:
       required: [id, type, title, body, read_at, created_at]
       properties:
         id: { type: string, description: ULID notifikasi., example: '01M20DM1Q9V6N8P4R2S7T3W5XZ' }
-        type: { type: string, description: Kosakata `PushType`, mis. `bid_placed`, `task_cancelled`. }
+        type:
+          type: string
+          description: 'Kosakata `PushType`, mis. `bid_placed`, `task_cancelled`.'
         title: { type: string }
         body: { type: string }
-        task_id: { type: string, nullable: true }
-        activity_id: { type: string, nullable: true }
+        task_id: { type: [string, 'null'] }
+        activity_id: { type: [string, 'null'] }
         data: { type: object, additionalProperties: true }
-        read_at: { type: string, format: date-time, nullable: true }
+        read_at: { type: [string, 'null'], format: date-time }
         created_at: { type: string, format: date-time }
 
     NotificationCount:
@@ -6401,25 +7023,25 @@ components:
       description: Alamat tersimpan — HANYA di `GET/PUT me/address` milik pemiliknya.
       required: [address_line, city, updated_at]
       properties:
-        label: { type: string, maxLength: 40, nullable: true }
+        label: { type: [string, 'null'], maxLength: 40 }
         address_line: { type: string, maxLength: 250 }
         city: { type: string, maxLength: 80 }
-        province: { type: string, maxLength: 80, nullable: true }
-        latitude: { type: number, format: float, minimum: -90, maximum: 90, nullable: true }
-        longitude: { type: number, format: float, minimum: -180, maximum: 180, nullable: true }
-        updated_at: { type: string, format: date-time, nullable: true, description: 'null bila baru dibuat pada permintaan yang sama dan belum tersentuh sesudahnya.' }
+        province: { type: [string, 'null'], maxLength: 80 }
+        latitude: { type: [number, 'null'], format: float, minimum: -90, maximum: 90 }
+        longitude: { type: [number, 'null'], format: float, minimum: -180, maximum: 180 }
+        updated_at: { type: [string, 'null'], format: date-time }
 
     UpsertAddressRequest:
       type: object
       title: UpsertAddressRequest
       required: [address_line, city]
       properties:
-        label: { type: string, maxLength: 40, nullable: true }
+        label: { type: [string, 'null'], maxLength: 40 }
         address_line: { type: string, maxLength: 250, example: 'Jl. Dipatiukur No. 42, RT 03/RW 07, Coblong' }
         city: { type: string, maxLength: 80, example: Kota Bandung }
-        province: { type: string, maxLength: 80, nullable: true }
-        latitude: { type: number, format: float, minimum: -90, maximum: 90, nullable: true }
-        longitude: { type: number, format: float, minimum: -180, maximum: 180, nullable: true }
+        province: { type: [string, 'null'], maxLength: 80 }
+        latitude: { type: [number, 'null'], format: float, minimum: -90, maximum: 90 }
+        longitude: { type: [number, 'null'], format: float, minimum: -180, maximum: 180 }
 
     DomainError:
       type: object
@@ -6457,6 +7079,8 @@ components:
             - cancel_request_pending
             - no_pending_cancel_request
             - not_cancel_responder
+            - no_submitted_activities
+            - checklist_state_mismatch
             - review_target_required
             - payment_not_held
             - invalid_status_transition

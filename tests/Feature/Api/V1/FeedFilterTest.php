@@ -364,6 +364,31 @@ final class FeedFilterTest extends TestCase
         $this->assertSame(['Murah'], $this->feed(['budget_from' => 10_000, 'budget_to' => 100_000]));
     }
 
+    /** Filter jadwal "Hari ini / Besok / Minggu ini" (U14). */
+    public function test_the_schedule_filter_narrows_by_needed_at(): void
+    {
+        $this->task(['title' => 'Hari ini', 'needed_at' => '2026-09-25T09:00:00+07:00']);
+        $this->task(['title' => 'Minggu depan', 'needed_at' => '2026-10-02T09:00:00+07:00']);
+
+        $judul = $this->feed([
+            'needed_from' => '2026-09-25T00:00:00+07:00',
+            'needed_to' => '2026-09-26T00:00:00+07:00',
+        ]);
+
+        $this->assertSame(['Hari ini'], $judul);
+    }
+
+    public function test_needed_to_before_needed_from_is_rejected(): void
+    {
+        $this->asUser($this->seeker)
+            ->getJson(route('v1.tasks.index', [
+                'needed_from' => '2026-09-26T00:00:00+07:00',
+                'needed_to' => '2026-09-25T00:00:00+07:00',
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['needed_to']);
+    }
+
     public function test_budget_to_below_from_is_rejected(): void
     {
         $this->asUser($this->seeker)

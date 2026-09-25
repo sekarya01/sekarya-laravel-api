@@ -10,7 +10,8 @@ use App\Models\Review;
 use App\Models\User;
 
 /**
- * "★4.9 dari 41", "92% 5 Bintang", dan angka di setiap chip bintang.
+ * "★4.9 dari 41" dan angka di setiap chip bintang. Persentase ("92% 5
+ * Bintang") DIHITUNG KLIEN dari `distribution` — server tidak mengirimnya.
  *
  * Dihitung dari tabel `reviews`, BUKAN dari agregat tersimpan
  * (`user_workers.worker_rating_*`, `users.poster_rating_*`). Alasannya:
@@ -52,7 +53,6 @@ final class SummarizeUserReviewsAction
             average: $count === 0 ? 0.0 : round($weighted / $count, 2),
             count: $count,
             distribution: $distribution,
-            fiveStarPercent: $count === 0 ? 0 : (int) round($distribution[5] * 100 / $count),
         );
     }
 }

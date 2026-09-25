@@ -163,6 +163,16 @@ final class PushMessages
         );
     }
 
+    /** Tugas baru tayang → mitra tersedia di sekitar lokasi (B13). */
+    public static function taskPublished(Task $task): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: 'Tugas baru di sekitar Anda.',
+            data: self::data(PushType::TaskPublished, $task),
+        );
+    }
+
     /**
      * SATU-SATUNYA pembentuk `data` FCM: `type` + `task_id` selalu ada,
      * `activity_id` + `activity_status` hanya ada bila activity diberikan,

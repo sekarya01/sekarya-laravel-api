@@ -38,6 +38,10 @@ final class ListUserReviewsAction
             ->when($query->rating !== null, fn (Builder $q) => $q->where('rating', $query->rating))
             ->when($query->ratingMax !== null, fn (Builder $q) => $q->where('rating', '<=', $query->ratingMax))
             ->when($query->keyword !== null, fn (Builder $q) => $this->applyKeyword($q, (string) $query->keyword))
+            // Chip "Dengan Foto" (B15). JSON_LENGTH(NULL) → NULL, jadi
+            // "tanpa foto" = NULL atau 0.
+            ->when($query->hasPhotos === true, fn (Builder $q) => $q->whereRaw('JSON_LENGTH(reviews.photos) > 0'))
+            ->when($query->hasPhotos === false, fn (Builder $q) => $q->whereRaw('COALESCE(JSON_LENGTH(reviews.photos), 0) = 0'))
             // task.category: judul + kategori pekerjaan di tiap kartu ulasan,
             // dua kueri per halaman berapa pun barisnya — bukan satu per baris.
             ->with([

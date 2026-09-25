@@ -58,6 +58,18 @@ final class TaskPolicy
         return $this->isPoster($user, $task) || $this->isWorker($user, $task);
     }
 
+    /** "Konfirmasi Selesai & Rilis Dana" (B16) = pemberi kerja saja. */
+    public function approveAll(User $user, Task $task): bool
+    {
+        return $this->isPoster($user, $task);
+    }
+
+    /** Kontak setelah deal (B17) = peserta task saja. */
+    public function contacts(User $user, Task $task): bool
+    {
+        return $this->isPoster($user, $task) || $this->isWorker($user, $task);
+    }
+
     private function isPoster(User $user, Task $task): bool
     {
         return $user->getKey() === $task->poster_id;

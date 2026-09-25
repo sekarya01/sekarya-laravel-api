@@ -20,6 +20,8 @@ final readonly class ReviewQueryData
         public ?int $ratingMax = null,
         /** Kata kunci komentar; null = tanpa pencarian. */
         public ?string $keyword = null,
+        /** Hanya yang berfoto (`true`) atau tanpa foto (`false`); null = semua. */
+        public ?bool $hasPhotos = null,
     ) {}
 
     public static function fromRequest(ListUserReviewsRequest $request): self
@@ -34,6 +36,7 @@ final readonly class ReviewQueryData
             rating: $request->filled('rating') ? $request->integer('rating') : null,
             ratingMax: $request->filled('rating_max') ? $request->integer('rating_max') : null,
             keyword: $keyword === '' ? null : $keyword,
+            hasPhotos: $request->filled('has_photos') ? $request->boolean('has_photos') : null,
         );
     }
 }

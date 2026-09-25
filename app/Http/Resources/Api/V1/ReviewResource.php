@@ -21,6 +21,9 @@ final class ReviewResource extends BaseResource
             // (kolomnya NULL). Kunci yang berganti antara null dan larik
             // memecah klien hasil generate.
             'tags' => array_values($this->tags ?? []),
+            // Foto ulasan (B15) — SELALU larik, sama seperti `tags`.
+            'photos' => array_values($this->photos ?? []),
+            'has_photos' => ($this->photos ?? []) !== [],
             'reviewer_role' => $this->reviewer_role->value,
             'reviewer' => PublicUserResource::make($this->whenLoaded('reviewer')),
             // Pekerjaan yang dinilai ("Servis & Cuci AC Daikin 1 PK"). Sebatas

@@ -8,7 +8,12 @@ use App\Data\Wallet\WalletSummary;
 use Illuminate\Http\Request;
 
 /**
- * Ringkasan saldo sendiri. Seluruh angka bilangan bulat rupiah.
+ * Ringkasan saldo sendiri (B2). Seluruh angka bilangan bulat rupiah.
+ *
+ * Nama field mengikuti kontrak dokumen redesign: `credit_total`,
+ * `debit_total`, `entries_count`, `by_type`, `earning_total`. `previous`
+ * hanya muncul bila diminta (`compare_previous=1`); `by_month` hanya bila
+ * `group=month`.
  *
  * `by_type` SELALU memuat setiap jenis mutasi (nol bila tidak ada), supaya
  * klien tidak perlu membedakan "kunci hilang" dari "nol" — dan supaya ia
@@ -23,16 +28,27 @@ final class WalletSummaryResource extends BaseResource
     {
         $summary = $this->resource;
 
-        return [
+        $data = [
             'from' => $this->iso($summary->from),
             'to' => $this->iso($summary->to),
-            'total_in' => $summary->totalIn,
-            'total_out' => $summary->totalOut,
-            'count' => $summary->count,
+            'credit_total' => $summary->creditTotal,
+            'debit_total' => $summary->debitTotal,
+            'entries_count' => $summary->entriesCount,
             'by_type' => (object) $summary->byType,
-            'week_start' => $this->iso($summary->weekStart),
-            'earnings_this_week' => $summary->earningsThisWeek,
-            'earnings_last_week' => $summary->earningsLastWeek,
+            'earning_total' => $summary->earningTotal,
         ];
+
+        if ($summary->previousCreditTotal !== null) {
+            $data['previous'] = [
+                'credit_total' => $summary->previousCreditTotal,
+                'earning_total' => $summary->previousEarningTotal ?? 0,
+            ];
+        }
+
+        if ($summary->byMonth !== []) {
+            $data['by_month'] = $summary->byMonth;
+        }
+
+        return $data;
     }
 }

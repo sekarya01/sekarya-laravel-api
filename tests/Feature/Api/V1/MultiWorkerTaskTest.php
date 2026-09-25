@@ -435,6 +435,11 @@ final class MultiWorkerTaskTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.status', 'completed');
 
+        // U15 naik SEKALI per task, bukan per pekerja yang disetujui.
+        $this->asUser($this->poster)->getJson(route('v1.me.show'))
+            ->assertOk()
+            ->assertJsonPath('data.as_poster.tasks_completed', 1);
+
         // Upah masing-masing — harga penawarannya sendiri — masuk ke saldonya.
         foreach ([0 => 200_000, 1 => 210_000] as $i => $pay) {
             $this->assertSame(

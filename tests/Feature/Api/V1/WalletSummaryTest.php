@@ -18,6 +18,10 @@ use Tests\TestCase;
 
 /**
  * `GET /me/wallet/summary` (B2) — total dijumlahkan server.
+ *
+ * Kontrak dokumen: `credit_total`, `debit_total`, `entries_count`, `by_type`,
+ * `earning_total`; `previous` bila `compare_previous=1`; `by_month` bila
+ * `group=month`.
  */
 final class WalletSummaryTest extends TestCase
 {
@@ -79,9 +83,10 @@ final class WalletSummaryTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.from', '2026-09-01T00:00:00+07:00')
             ->assertJsonPath('data.to', '2026-10-01T00:00:00+07:00')
-            ->assertJsonPath('data.total_in', 550_000)
-            ->assertJsonPath('data.total_out', 230_000)
-            ->assertJsonPath('data.count', 3)
+            ->assertJsonPath('data.credit_total', 550_000)
+            ->assertJsonPath('data.debit_total', 230_000)
+            ->assertJsonPath('data.entries_count', 3)
+            ->assertJsonPath('data.earning_total', 0)
             ->assertJsonPath('data.by_type.topup', 250_000)
             ->assertJsonPath('data.by_type.refund', 300_000)
             ->assertJsonPath('data.by_type.task_hold', 230_000)
@@ -93,6 +98,10 @@ final class WalletSummaryTest extends TestCase
             array_keys($response->json('data.by_type')),
         );
         $this->assertStringContainsString('"by_type":{', (string) $response->getContent());
+
+        // `previous`/`by_month` hanya muncul bila diminta.
+        $response->assertJsonMissingPath('data.previous');
+        $response->assertJsonMissingPath('data.by_month');
     }
 
     /** Total server sama dengan menjumlahkan SELURUH halaman entries untuk rentang yang sama. */
@@ -106,13 +115,28 @@ final class WalletSummaryTest extends TestCase
             ->assertOk()
             ->json('data');
 
-        $in = array_sum(array_map(fn (array $r): int => $r['direction'] === 'credit' ? $r['amount'] : 0, $rows));
-        $out = array_sum(array_map(fn (array $r): int => $r['direction'] === 'debit' ? $r['amount'] : 0, $rows));
+        $credit = array_sum(array_map(fn (array $r): int => $r['direction'] === 'credit' ? $r['amount'] : 0, $rows));
+        $debit = array_sum(array_map(fn (array $r): int => $r['direction'] === 'debit' ? $r['amount'] : 0, $rows));
 
         $this->summary($range)->assertOk()
-            ->assertJsonPath('data.total_in', $in)
-            ->assertJsonPath('data.total_out', $out)
-            ->assertJsonPath('data.count', count($rows));
+            ->assertJsonPath('data.credit_total', $credit)
+            ->assertJsonPath('data.debit_total', $debit)
+            ->assertJsonPath('data.entries_count', count($rows));
+    }
+
+    public function test_filters_make_the_totals_follow_the_active_tab(): void
+    {
+        $this->seedSeptember();
+        $range = ['from' => '2026-09-01T00:00:00+07:00', 'to' => '2026-10-01T00:00:00+07:00'];
+
+        $this->summary($range + ['direction' => 'credit'])->assertOk()
+            ->assertJsonPath('data.credit_total', 550_000)
+            ->assertJsonPath('data.debit_total', 0);
+
+        $this->summary($range + ['types' => ['refund', 'task_hold']])->assertOk()
+            ->assertJsonPath('data.credit_total', 300_000)
+            ->assertJsonPath('data.debit_total', 230_000)
+            ->assertJsonPath('data.by_type.topup', 0);
     }
 
     public function test_it_defaults_to_the_current_calendar_month(): void
@@ -120,80 +144,92 @@ final class WalletSummaryTest extends TestCase
         CarbonImmutable::setTestNow('2026-09-25 10:00:00');
         $this->seedSeptember();
 
-        // Zona aplikasi UTC: September UTC memuat baris 31 Agu 17:00 UTC? Tidak —
-        // itu masih Agustus di UTC. Yang masuk: refund, task_hold, dan earning
-        // 30 Sep 17:00 UTC.
+        // Zona aplikasi UTC: yang masuk refund, task_hold, dan earning
+        // 30 Sep 17:00 UTC. Topup 31 Agu 17:00 UTC masih Agustus di UTC.
         $this->summary()->assertOk()
             ->assertJsonPath('data.from', '2026-09-01T00:00:00+00:00')
             ->assertJsonPath('data.to', '2026-10-01T00:00:00+00:00')
-            ->assertJsonPath('data.total_in', 411_000)
-            ->assertJsonPath('data.total_out', 230_000)
-            ->assertJsonPath('data.count', 3);
-
-        // Dengan tz, bulan bawaannya milik orangnya.
-        $this->summary(['tz' => 'Asia/Jakarta'])->assertOk()
-            ->assertJsonPath('data.from', '2026-09-01T00:00:00+07:00')
-            ->assertJsonPath('data.to', '2026-10-01T00:00:00+07:00')
-            ->assertJsonPath('data.total_in', 550_000)
-            ->assertJsonPath('data.count', 3);
+            ->assertJsonPath('data.credit_total', 411_000)
+            ->assertJsonPath('data.debit_total', 230_000)
+            ->assertJsonPath('data.entries_count', 3);
     }
 
-    public function test_it_reports_this_and_last_weeks_earnings(): void
+    /**
+     * "Pendapatan minggu ini vs pekan lalu" lewat SATU panggilan: periode
+     * sebelumnya = panjang yang sama, tepat sebelum `from`.
+     */
+    public function test_compare_previous_returns_the_prior_equal_period(): void
     {
-        // Kamis 24 Sep 2026, 10:00 WIB. Minggu ini = Senin 21 Sep 00:00 WIB.
-        CarbonImmutable::setTestNow('2026-09-24 03:00:00');
+        $this->entry($this->user, WalletEntryType::Earning, 100_000, '2026-09-22 03:00:00');
+        $this->entry($this->user, WalletEntryType::Earning, 50_000, '2026-09-23 03:00:00');
+        // Sebelum 1 Sep, tapi sesudah 2 Agu (from - 30 hari).
+        $this->entry($this->user, WalletEntryType::Earning, 80_000, '2026-08-14 03:00:00');
+        // Lebih tua dari periode pembanding → tidak dihitung.
+        $this->entry($this->user, WalletEntryType::Earning, 70_000, '2026-08-01 03:00:00');
 
-        // Senin 21 Sep 00:30 WIB (20 Sep 17:30 UTC) → minggu ini, walau di UTC masih Minggu.
-        $this->entry($this->user, WalletEntryType::Earning, 100_000, '2026-09-20 17:30:00');
-        $this->entry($this->user, WalletEntryType::Earning, 50_000, '2026-09-23 05:00:00');
-        // Pekan lalu (Senin 14 Sep WIB).
-        $this->entry($this->user, WalletEntryType::Earning, 80_000, '2026-09-14 02:00:00');
-        // Dua pekan lalu → tidak dihitung di mana pun.
-        $this->entry($this->user, WalletEntryType::Earning, 70_000, '2026-09-06 02:00:00');
-        // Bukan upah → tidak dihitung walau masuk minggu ini.
-        $this->entry($this->user, WalletEntryType::Topup, 500_000, '2026-09-22 02:00:00');
+        $this->summary([
+            'from' => '2026-09-01T00:00:00+00:00',
+            'to' => '2026-10-01T00:00:00+00:00',
+            'compare_previous' => 1,
+        ])->assertOk()
+            ->assertJsonPath('data.credit_total', 150_000)
+            ->assertJsonPath('data.earning_total', 150_000)
+            ->assertJsonPath('data.previous.credit_total', 80_000)
+            ->assertJsonPath('data.previous.earning_total', 80_000);
+    }
 
-        $this->summary(['tz' => 'Asia/Jakarta'])->assertOk()
-            ->assertJsonPath('data.week_start', '2026-09-21T00:00:00+07:00')
-            ->assertJsonPath('data.earnings_this_week', 150_000)
-            ->assertJsonPath('data.earnings_last_week', 80_000);
+    public function test_group_by_month_returns_a_monthly_series(): void
+    {
+        $this->entry($this->user, WalletEntryType::Topup, 10_000, '2026-09-05 03:00:00');
+        $this->entry($this->user, WalletEntryType::TaskHold, 5_000, '2026-09-20 03:00:00');
+        $this->entry($this->user, WalletEntryType::Earning, 3_000, '2026-10-03 03:00:00');
 
-        // Di UTC, 20 Sep 17:30 masih Minggu → pindah ke pekan lalu.
-        $this->summary()->assertOk()
-            ->assertJsonPath('data.week_start', '2026-09-21T00:00:00+00:00')
-            ->assertJsonPath('data.earnings_this_week', 50_000)
-            ->assertJsonPath('data.earnings_last_week', 180_000);
+        $byMonth = $this->summary([
+            'from' => '2026-09-01T00:00:00+00:00',
+            'to' => '2026-11-01T00:00:00+00:00',
+            'group' => 'month',
+        ])->assertOk()->json('data.by_month');
+
+        $this->assertSame([
+            ['month' => '2026-09', 'credit_total' => 10_000, 'debit_total' => 5_000, 'entries_count' => 2, 'earning_total' => 0],
+            ['month' => '2026-10', 'credit_total' => 3_000, 'debit_total' => 0, 'entries_count' => 1, 'earning_total' => 3_000],
+        ], $byMonth);
+    }
+
+    public function test_an_unknown_group_is_refused(): void
+    {
+        $this->summary(['group' => 'week'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('group');
     }
 
     /** Orang lain tidak bisa dibaca — tidak ada parameter pemilik, dan barisnya tidak ikut. */
     public function test_another_users_entries_never_count(): void
     {
-        CarbonImmutable::setTestNow('2026-09-24 03:00:00');
         $other = $this->activeUser();
         $this->entry($other, WalletEntryType::Topup, 700_000, '2026-09-10 03:00:00');
         $this->entry($other, WalletEntryType::Earning, 90_000, '2026-09-22 03:00:00');
         $this->entry($this->user, WalletEntryType::Topup, 10_000, '2026-09-10 03:00:00');
 
         $this->summary(['user_id' => (string) $other->getKey(), 'wallet_id' => '1'])->assertOk()
-            ->assertJsonPath('data.total_in', 10_000)
-            ->assertJsonPath('data.count', 1)
-            ->assertJsonPath('data.earnings_this_week', 0);
+            ->assertJsonPath('data.credit_total', 10_000)
+            ->assertJsonPath('data.entries_count', 1)
+            ->assertJsonPath('data.earning_total', 0);
 
         $this->asUser($other)->getJson(route('v1.me.wallet.summary'))->assertOk()
-            ->assertJsonPath('data.total_in', 790_000)
-            ->assertJsonPath('data.earnings_this_week', 90_000);
+            ->assertJsonPath('data.credit_total', 790_000)
+            ->assertJsonPath('data.earning_total', 90_000);
     }
 
     /** Jalur baca tidak membuat dompet; akun kosong mendapat bentuk yang sama, nol semua. */
     public function test_a_fresh_account_gets_zeros_and_no_wallet_row(): void
     {
         $this->summary()->assertOk()
-            ->assertJsonPath('data.total_in', 0)
-            ->assertJsonPath('data.total_out', 0)
-            ->assertJsonPath('data.count', 0)
-            ->assertJsonPath('data.by_type.topup', 0)
-            ->assertJsonPath('data.earnings_this_week', 0)
-            ->assertJsonPath('data.earnings_last_week', 0);
+            ->assertJsonPath('data.credit_total', 0)
+            ->assertJsonPath('data.debit_total', 0)
+            ->assertJsonPath('data.entries_count', 0)
+            ->assertJsonPath('data.earning_total', 0)
+            ->assertJsonPath('data.by_type.topup', 0);
 
         $this->assertSame(0, Wallet::query()->where('user_id', $this->user->getKey())->count());
     }
@@ -215,7 +251,8 @@ final class WalletSummaryTest extends TestCase
             'to before from' => [['from' => '2026-09-02T00:00:00+07:00', 'to' => '2026-09-01T00:00:00+07:00'], 'to'],
             'longer than 366 days' => [['from' => '2025-01-01T00:00:00+07:00', 'to' => '2026-01-03T00:00:00+07:00'], 'to'],
             'not a date' => [['from' => 'kemarin', 'to' => '2026-09-01T00:00:00+07:00'], 'from'],
-            'unknown timezone' => [['tz' => 'Mars/Olympus'], 'tz'],
+            'unknown type' => [['types' => ['hadiah']], 'types.0'],
+            'unknown direction' => [['direction' => 'masuk'], 'direction'],
         ];
 
         foreach ($cases as $label => [$query, $field]) {

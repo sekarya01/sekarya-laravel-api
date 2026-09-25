@@ -21,6 +21,7 @@ final readonly class UpsertWorkerProfileData
     /** @param list<string> $present Kunci yang benar-benar ada di payload. */
     public function __construct(
         public ?string $displayName = null,
+        public ?string $headline = null,
         public ?string $contactPhone = null,
         public ?string $avatarPath = null,
         public ?string $addressLine = null,
@@ -37,6 +38,7 @@ final readonly class UpsertWorkerProfileData
     /** Nama field di payload -> nama kolom. Satu tempat, dipakai dua arah. */
     private const array COLUMN_MAP = [
         'display_name' => 'display_name',
+        'headline' => 'headline',
         'contact_phone' => 'contact_phone',
         'avatar_path' => 'avatar_path',
         'address_line' => 'address_line',
@@ -57,6 +59,7 @@ final readonly class UpsertWorkerProfileData
 
         return new self(
             displayName: $str('display_name'),
+            headline: $str('headline'),
             contactPhone: $request->filled('contact_phone')
                 // Spasi dibuang seperti pada pendaftaran: "+62 812 ..." dan
                 // "+62812..." adalah nomor yang sama, dan hanya satu bentuk
@@ -89,6 +92,7 @@ final readonly class UpsertWorkerProfileData
     {
         $values = [
             'display_name' => $this->displayName,
+            'headline' => $this->headline,
             'contact_phone' => $this->contactPhone,
             'avatar_path' => $this->avatarPath,
             'address_line' => $this->addressLine,

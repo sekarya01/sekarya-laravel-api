@@ -10,6 +10,7 @@ use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Models\User;
 use App\Support\TaskSearch;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -46,7 +47,10 @@ final class ListTasksAction
                     fn (Builder $b) => $b->where('bidder_id', $actor->getKey()),
                 ),
             )
-            ->with(['myBid' => fn (Relation $q) => $q->where('bidder_id', $actor->getKey())]);
+            ->with(['myBid' => fn (Relation $q) => $q->where('bidder_id', $actor->getKey())])
+            // Apakah tugas ini disimpan orang ini (B11) — satu subquery per
+            // halaman, bukan satu kueri per kartu.
+            ->withExists(['bookmarks as bookmarked' => fn (Builder $q) => $q->where('user_id', $actor->getKey())]);
 
         $this->applySkills($query, $data, $actor);
 
@@ -66,7 +70,7 @@ final class ListTasksAction
             // Pemberi kerja melihat status pekerja tiap tugas yang sedang
             // dikerjakan dari daftar — tanpa ini kartu hanya bisa menulis
             // "Dikerjakan" dan berselisih dengan Detail.
-            ->with('activities.worker')
+            ->with('activities.worker', 'activities.latestUpdate')
             ->cursorPaginate($data->page->perPage);
     }
 
@@ -90,7 +94,7 @@ final class ListTasksAction
             ->when($data->statuses !== [], fn (Builder $q) => $this->applyStatuses($q, $data->statuses))
             // Mitra melihat status pekerjaannya sendiri dari daftar (mis.
             // "Sudah sampai"), bukan hanya "Dikerjakan".
-            ->with('activities.worker')
+            ->with('activities.worker', 'activities.latestUpdate')
             // Penawarannya sendiri — juga yang dibaca Task::revealsLocationTo
             // tanpa satu kueri per baris.
             ->with(['myBid' => fn (Relation $q) => $q->where('bidder_id', $worker->getKey())])
@@ -124,7 +128,11 @@ final class ListTasksAction
                     '>=',
                     now()->subHours($hours),
                 ),
-            );
+            )
+            // Jadwal pelaksanaan (U14) — "Hari ini / Besok / Minggu ini".
+            // `from` inklusif, `to` eksklusif; rentang terbuka diizinkan.
+            ->when($data->neededFrom, fn (Builder $q, CarbonImmutable $at) => $q->where('tasks.needed_at', '>=', $at))
+            ->when($data->neededTo, fn (Builder $q, CarbonImmutable $at) => $q->where('tasks.needed_at', '<', $at));
 
         if ($data->keyword !== null) {
             $this->search->applyKeyword($query, $data->keyword);

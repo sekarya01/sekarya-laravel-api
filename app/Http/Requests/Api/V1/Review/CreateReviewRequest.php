@@ -25,6 +25,10 @@ final class CreateReviewRequest extends FormRequest
             'tags' => ['sometimes', 'nullable', 'array', 'max:'.ReviewTag::MAX_PER_REVIEW],
             'tags.*' => ['string', 'distinct', Rule::in(ReviewTag::valuesForRole($this->reviewerRole()))],
 
+            // Foto ulasan (B15) — path dari `POST uploads`, ditampilkan saja.
+            'photos' => ['sometimes', 'nullable', 'array', 'max:5'],
+            'photos.*' => ['string', 'max:255', 'distinct'],
+
             // Pekerja yang dinilai, saat penilainya adalah pemberi kerja.
             // Boleh dikosongkan HANYA kalau task itu punya tepat satu pekerja;
             // di luar itu Action menolak, karena menebak sasaran berarti

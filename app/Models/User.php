@@ -74,6 +74,7 @@ class User extends Authenticatable
             'active_mode' => UserActiveMode::class,
             'status' => UserStatus::class,
             'poster_rating_avg' => 'decimal:2',
+            'poster_tasks_completed' => 'integer',
         ];
     }
 

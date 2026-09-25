@@ -20,7 +20,7 @@ final class Review extends Model
 
     protected $fillable = [
         'task_id', 'reviewer_id', 'reviewee_id', 'reviewer_role',
-        'rating', 'comment', 'tags', 'is_visible',
+        'rating', 'comment', 'tags', 'photos', 'is_visible',
     ];
 
     protected static function booted(): void
@@ -70,6 +70,7 @@ final class Review extends Model
             // per elemen: tag yang suatu hari dihapus dari enum tidak boleh
             // membuat ulasan lama gagal dibaca.
             'tags' => 'array',
+            'photos' => 'array',
             'is_visible' => 'boolean',
         ];
     }

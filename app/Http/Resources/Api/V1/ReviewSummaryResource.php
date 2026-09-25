@@ -33,7 +33,6 @@ final class ReviewSummaryResource extends BaseResource
                 array_map('strval', array_keys($summary->distribution)),
                 array_values($summary->distribution),
             ),
-            'five_star_percent' => $summary->fiveStarPercent,
         ];
     }
 }

@@ -17,7 +17,5 @@ final readonly class ReviewSummary
         public float $average,
         public int $count,
         public array $distribution,
-        /** Persen ulasan bintang lima, dibulatkan ke bilangan bulat. 0 bila belum ada ulasan. */
-        public int $fiveStarPercent,
     ) {}
 }

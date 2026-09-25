@@ -113,12 +113,15 @@ final class ListWalletEntriesAction
         }
 
         $tasks = $taskIdByReference === []
-            ? collect()
-            : Task::query()
-                ->withTrashed()
-                ->whereIn('id', array_unique(array_values($taskIdByReference)))
-                ->get(['id', 'ulid', 'task_number', 'title'])
-                ->keyBy('id');
+        ? collect()
+        : Task::query()
+            ->withTrashed()
+            // `category` ikut supaya baris riwayat bisa menyebut
+            // "Pindahan & Angkut" tanpa satu kueri per baris (U3).
+            ->with('category')
+            ->whereIn('id', array_unique(array_values($taskIdByReference)))
+            ->get(['id', 'ulid', 'task_number', 'title', 'category_id'])
+            ->keyBy('id');
 
         foreach ($entries as $entry) {
             $taskId = $taskIdByReference[$entry->reference_type.':'.$entry->reference_id] ?? null;

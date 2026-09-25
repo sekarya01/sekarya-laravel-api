@@ -5,12 +5,15 @@ declare(strict_types=1);
 use App\Enums\TokenAbility;
 use App\Http\Controllers\Api\V1\Activity\ApproveActivityController;
 use App\Http\Controllers\Api\V1\Activity\ConfirmArrivalController;
+use App\Http\Controllers\Api\V1\Activity\CreateActivityUpdateController;
 use App\Http\Controllers\Api\V1\Activity\DepartActivityController;
 use App\Http\Controllers\Api\V1\Activity\ListMyActivitiesController;
 use App\Http\Controllers\Api\V1\Activity\RejectActivityController;
 use App\Http\Controllers\Api\V1\Activity\ShowActivityController;
 use App\Http\Controllers\Api\V1\Activity\StartActivityController;
 use App\Http\Controllers\Api\V1\Activity\SubmitActivityController;
+use App\Http\Controllers\Api\V1\Activity\UpdateActivityChecklistController;
+use App\Http\Controllers\Api\V1\Activity\UpdateActivityLocationController;
 use App\Http\Controllers\Api\V1\Admin\Access\CreateAdminController;
 use App\Http\Controllers\Api\V1\Admin\Access\DeleteAdminController;
 use App\Http\Controllers\Api\V1\Admin\Access\ListAdminsController;
@@ -58,6 +61,7 @@ use App\Http\Controllers\Api\V1\Bid\ListTaskBidsController;
 use App\Http\Controllers\Api\V1\Bid\PlaceBidController;
 use App\Http\Controllers\Api\V1\Bid\WithdrawBidController;
 use App\Http\Controllers\Api\V1\Category\ListCategoriesController;
+use App\Http\Controllers\Api\V1\City\ListCitiesController;
 use App\Http\Controllers\Api\V1\Notification\ListNotificationsController;
 use App\Http\Controllers\Api\V1\Notification\MarkAllNotificationsReadController;
 use App\Http\Controllers\Api\V1\Notification\MarkNotificationReadController;
@@ -68,18 +72,25 @@ use App\Http\Controllers\Api\V1\Review\CreateReviewController;
 use App\Http\Controllers\Api\V1\Review\ListUserReviewsController;
 use App\Http\Controllers\Api\V1\Review\ShowUserReviewSummaryController;
 use App\Http\Controllers\Api\V1\Skill\ListSkillsController;
+use App\Http\Controllers\Api\V1\Task\ApproveAllActivitiesController;
 use App\Http\Controllers\Api\V1\Task\ApproveTaskCancelController;
 use App\Http\Controllers\Api\V1\Task\CancelTaskController;
 use App\Http\Controllers\Api\V1\Task\CreateTaskController;
+use App\Http\Controllers\Api\V1\Task\DestroyBookmarkController;
+use App\Http\Controllers\Api\V1\Task\ListBookmarkedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListMyPostedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListMyWorkedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListOpenTasksController;
 use App\Http\Controllers\Api\V1\Task\PublishTaskController;
 use App\Http\Controllers\Api\V1\Task\RejectTaskCancelController;
 use App\Http\Controllers\Api\V1\Task\RequestTaskCancelController;
+use App\Http\Controllers\Api\V1\Task\ShowPostedTaskCountsController;
 use App\Http\Controllers\Api\V1\Task\ShowTaskCancelRequestController;
+use App\Http\Controllers\Api\V1\Task\ShowTaskContactsController;
 use App\Http\Controllers\Api\V1\Task\ShowTaskController;
+use App\Http\Controllers\Api\V1\Task\ShowWorkedTaskCountsController;
 use App\Http\Controllers\Api\V1\Task\StartTaskController;
+use App\Http\Controllers\Api\V1\Task\StoreBookmarkController;
 use App\Http\Controllers\Api\V1\Task\UpdateTaskController;
 use App\Http\Controllers\Api\V1\Task\WithdrawTaskCancelController;
 use App\Http\Controllers\Api\V1\Upload\StoreUploadController;
@@ -105,6 +116,7 @@ use App\Http\Controllers\Api\V1\Wallet\CreateWithdrawalController;
 use App\Http\Controllers\Api\V1\Wallet\ListTopupsController;
 use App\Http\Controllers\Api\V1\Wallet\ListWalletEntriesController;
 use App\Http\Controllers\Api\V1\Wallet\ListWithdrawalsController;
+use App\Http\Controllers\Api\V1\Wallet\ShowWalletConfigController;
 use App\Http\Controllers\Api\V1\Wallet\ShowWalletController;
 use App\Http\Controllers\Api\V1\Wallet\ShowWalletSummaryController;
 use Illuminate\Support\Facades\Route;
@@ -161,6 +173,11 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         Route::post('logout', LogoutController::class)
             ->middleware(['auth:sanctum', 'throttle:api'])->name('logout');
     });
+
+    // Data acuan PUBLIK: pemilih kota dipakai juga di layar daftar, sebelum
+    // pengguna punya token (B12).
+    Route::get('cities', ListCitiesController::class)
+        ->middleware('throttle:api')->name('cities.index');
 
     // ── Seluruh API aplikasi: wajib access token ────────────────────────────
     Route::middleware([
@@ -254,6 +271,11 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // sudah dimuat di klien pasti salah begitu ada halaman kedua.
         Route::get('me/wallet/summary', ShowWalletSummaryController::class)->name('me.wallet.summary');
 
+        // Rekening tujuan isi saldo + batas nominal, dibaca layar Isi Saldo &
+        // Tarik Saldo. Rekeningnya dari env (lihat config/sekarya.php), jadi
+        // bukan data pengguna.
+        Route::get('me/wallet/config', ShowWalletConfigController::class)->name('me.wallet.config');
+
         Route::get('me/wallet/topups', ListTopupsController::class)->name('me.wallet.topups.index');
         Route::post('me/wallet/topups', CreateTopupController::class)
             ->middleware('throttle:write')->name('me.wallet.topups.store');
@@ -280,11 +302,24 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // Task
         Route::get('tasks', ListOpenTasksController::class)->name('tasks.index');
         Route::get('tasks/posted', ListMyPostedTasksController::class)->name('tasks.posted');
+        // Hitungan per status untuk judul tab (B7) — dihitung server.
+        Route::get('tasks/posted/counts', ShowPostedTaskCountsController::class)->name('tasks.posted.counts');
         Route::get('tasks/worked', ListMyWorkedTasksController::class)->name('tasks.worked');
+        Route::get('tasks/worked/counts', ShowWorkedTaskCountsController::class)->name('tasks.worked.counts');
+        // Tugas yang disimpan (B11). Didaftarkan SEBELUM `tasks/{task}`
+        // supaya `tasks/bookmarked` bukan ditangkap sebagai ULID.
+        Route::get('tasks/bookmarked', ListBookmarkedTasksController::class)->name('tasks.bookmarked');
+        Route::put('tasks/{task}/bookmark', StoreBookmarkController::class)
+            ->can('view', 'task')->name('tasks.bookmark.store');
+        Route::delete('tasks/{task}/bookmark', DestroyBookmarkController::class)
+            ->can('view', 'task')->name('tasks.bookmark.destroy');
         Route::post('tasks', CreateTaskController::class)
             ->middleware('throttle:write')->name('tasks.store');
         Route::get('tasks/{task}', ShowTaskController::class)
             ->can('view', 'task')->name('tasks.show');
+        // Nomor kontak peserta setelah deal (B17) — peserta task saja.
+        Route::get('tasks/{task}/contacts', ShowTaskContactsController::class)
+            ->can('contacts', 'task')->name('tasks.contacts');
         // Sunting isi task. Parsial: ruas yang tidak dikirim tidak disentuh.
         // Hanya selama `draft`/`open` — Action yang menjaganya, karena itu
         // aturan bisnis, bukan soal siapa pemiliknya.
@@ -314,6 +349,13 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // diterima, lelang ditutup, task masuk deal.
         Route::post('tasks/{task}/start', StartTaskController::class)
             ->can('update', 'task')->name('tasks.start');
+
+        // "Konfirmasi Selesai & Rilis Dana" (B16) — setujui semua hasil yang
+        // sudah diserahkan sekaligus. Klien boleh juga mengulang
+        // `activities/{a}/approve`, tapi tombolnya satu dan tidak boleh
+        // meninggalkan persetujuan sebagian.
+        Route::post('tasks/{task}/approve-all', ApproveAllActivitiesController::class)
+            ->can('approveAll', 'task')->name('tasks.approve-all');
 
         // Lelang
         Route::post('tasks/{task}/bids', PlaceBidController::class)
@@ -353,6 +395,15 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
             ->can('work', 'activity')->name('activities.start');
         Route::post('activities/{activity}/submit', SubmitActivityController::class)
             ->can('work', 'activity')->name('activities.submit');
+        // Lokasi langsung selama perjalanan (B8).
+        Route::post('activities/{activity}/location', UpdateActivityLocationController::class)
+            ->middleware('throttle:write')->can('work', 'activity')->name('activities.location');
+        // Catatan kemajuan per pekerja (B9).
+        Route::post('activities/{activity}/updates', CreateActivityUpdateController::class)
+            ->middleware('throttle:write')->can('work', 'activity')->name('activities.updates.store');
+        // Centang checklist pekerjaan (B10).
+        Route::put('activities/{activity}/checklist', UpdateActivityChecklistController::class)
+            ->can('work', 'activity')->name('activities.checklist');
         Route::post('activities/{activity}/approve', ApproveActivityController::class)
             ->can('judge', 'activity')->name('activities.approve');
         Route::post('activities/{activity}/reject', RejectActivityController::class)

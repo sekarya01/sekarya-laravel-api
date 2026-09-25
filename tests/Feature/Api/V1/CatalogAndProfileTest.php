@@ -6,6 +6,7 @@ namespace Tests\Feature\Api\V1;
 
 use App\Enums\UserActiveMode;
 use App\Models\Category;
+use App\Models\CategoryCityPrice;
 use App\Models\Skill;
 use App\Models\UserVerification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -56,6 +57,39 @@ final class CatalogAndProfileTest extends TestCase
         $mencuci = collect($response->json('data'))->firstWhere('slug', 'mencuci');
         $this->assertTrue($mencuci['reference_price']['from_real_data']);
         $this->assertSame(240, $mencuci['reference_price']['sample_size']);
+    }
+
+    /** Acuan harga per kota dipakai bila sampel kotanya cukup (U17). */
+    public function test_categories_use_the_city_price_when_available(): void
+    {
+        $category = Category::query()->where('slug', 'mencuci')->sole();
+
+        CategoryCityPrice::query()->create([
+            'category_id' => $category->getKey(),
+            'city' => 'Kota Bandung',
+            'ref_price_min' => 80_000,
+            'ref_price_max' => 250_000,
+            'ref_price_median' => 120_000,
+            'ref_sample_size' => 9,
+            'ref_computed_at' => now(),
+        ]);
+
+        $rows = $this->asUser($this->activeUser())
+            ->getJson(route('v1.categories.index', ['city' => 'Kota Bandung']))
+            ->assertOk()
+            ->json('data');
+
+        $mencuci = collect($rows)->firstWhere('slug', 'mencuci');
+        $this->assertSame('city', $mencuci['reference_price']['scope']);
+        $this->assertSame('Kota Bandung', $mencuci['reference_price']['city']);
+        $this->assertSame(120_000, $mencuci['reference_price']['median']);
+
+        // Kota lain tidak punya barisnya → jatuh ke nasional.
+        $lain = $this->asUser($this->activeUser())
+            ->getJson(route('v1.categories.index', ['city' => 'Kota Surabaya']))
+            ->assertOk()
+            ->json('data');
+        $this->assertSame('national', collect($lain)->firstWhere('slug', 'mencuci')['reference_price']['scope']);
     }
 
     public function test_skills_are_listed(): void

@@ -23,6 +23,9 @@ final class CreateTaskRequest extends FormRequest
             'options' => ['sometimes', 'array', 'max:20'],
             'options.*.label' => ['required_with:options', 'string', 'max:80'],
             'options.*.value' => ['present'],
+            // Checklist pekerjaan (B10) — langkah yang dicentang pekerja.
+            'checklist' => ['sometimes', 'array', 'max:30'],
+            'checklist.*' => ['string', 'max:120'],
             'photos' => ['sometimes', 'array', 'max:10'],
             'photos.*' => ['string', 'max:255'],
 

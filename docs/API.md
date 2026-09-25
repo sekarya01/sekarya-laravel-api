@@ -5,7 +5,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 | | |
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
-| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 104 operation cocok dengan 104 rute nyata |
+| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 116 operation cocok dengan 116 rute nyata |
 | **Uji otomatis** | `bash docs/smoke.sh` — 194 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
@@ -772,12 +772,13 @@ curl -s "$BASE/users/<ulid>/reviews/summary?role=worker" -H "Authorization: Bear
 
 ```json
 {"data": {"role": "worker", "rating_avg": 4.9, "rating_count": 41,
-          "distribution": {"5": 38, "4": 2, "3": 1, "2": 0, "1": 0}, "five_star_percent": 93}}
+          "distribution": {"5": 38, "4": 2, "3": 1, "2": 0, "1": 0}}}
 ```
 
 `distribution` **selalu objek berkunci "5".."1"** (nol bila kosong). Dihitung dari tabel
 `reviews` dengan penyaring yang sama dengan daftarnya, jadi angka di atas layar cocok dengan
-baris yang bisa digulir. Tanpa `role` = gabungan dua arah.
+baris yang bisa digulir. Tanpa `role` = gabungan dua arah. Persentase ("92% 5 Bintang")
+**dihitung klien** dari `distribution`.
 
 **Profil publik satu orang** — dari notifikasi atau tautan:
 
@@ -1692,7 +1693,8 @@ ditahan" dan dibuka:
 
 ```json
 { "type": "task_hold", "reference_type": "task_fund_movements",
-  "task": { "id": "01M20DM1…", "task_number": "TK-260924-AB12CD", "title": "Pindahan Lemari Lantai 2" } }
+  "task": { "id": "01M20DM1…", "task_number": "TK-260924-AB12CD", "title": "Pindahan Lemari Lantai 2",
+            "category": { "slug": "pindahan", "name": "Pindahan & Angkut" } } }
 ```
 
 `task` terisi untuk `task_hold`/`task_release`, `refund`, dan `earning`; `null` untuk
@@ -1707,29 +1709,36 @@ bukan per baris.
 `total`, jadi angkanya berubah setiap kali pengguna menggulir.
 
 ```bash
-curl -s "$BASE/me/wallet/summary?from=2026-09-01T00:00:00%2B07:00&to=2026-10-01T00:00:00%2B07:00&tz=Asia/Jakarta" \
+curl -s "$BASE/me/wallet/summary?from=2026-09-01T00:00:00%2B07:00&to=2026-10-01T00:00:00%2B07:00&compare_previous=1&group=month" \
   -H "Authorization: Bearer $AT" -H 'Accept: application/json' | jq .data
 ```
 
 ```json
 {
   "from": "2026-09-01T00:00:00+07:00", "to": "2026-10-01T00:00:00+07:00",
-  "total_in": 550000, "total_out": 230000, "count": 4,
+  "credit_total": 550000, "debit_total": 230000, "entries_count": 4,
   "by_type": { "topup": 250000, "refund": 300000, "earning": 0, "task_hold": 230000,
                "task_release": 0, "withdrawal": 0, "withdrawal_reversal": 0,
                "adjustment_credit": 0, "adjustment_debit": 0 },
-  "week_start": "2026-09-21T00:00:00+07:00",
-  "earnings_this_week": 150000, "earnings_last_week": 80000
+  "earning_total": 0,
+  "previous": { "credit_total": 480000, "earning_total": 120000 },
+  "by_month": [
+    { "month": "2026-09", "credit_total": 550000, "debit_total": 230000,
+      "entries_count": 4, "earning_total": 0 }
+  ]
 }
 ```
 
 - `from` inklusif, `to` eksklusif — persis penyaring `entries`, jadi totalnya
   menjumlahkan baris yang sama. Keduanya **berpasangan**; tanpa keduanya rentangnya bulan
-  kalender berjalan di zona `tz`. Paling panjang 366 hari.
+  kalender berjalan (zona aplikasi). Paling panjang 366 hari.
 - `by_type` selalu memuat setiap jenis (nol bila kosong), selalu objek.
-- `earnings_*` hanya jenis `earning`, minggu dimulai **Senin 00:00 di zona `tz`**
-  (bawaan zona aplikasi = UTC). Kirim `tz=Asia/Jakarta`; tanpanya upah Senin pagi WIB
-  terhitung ke pekan lalu. "+18% dari pekan lalu" dihitung klien dari dua angka ini.
+- `earning_total` = jumlah mutasi `earning` dalam rentang — angka "pendapatan".
+  "Pendapatan minggu ini vs pekan lalu": dua panggilan dengan rentang minggu berbeda,
+  atau `compare_previous=1` → `previous` (periode sepanjang sama, tepat sebelum `from`).
+  "+18% dari pekan lalu" dihitung klien dari dua angka ini.
+- `types[]`/`direction` menyaring agar total mengikuti tab yang dibuka. `group=month`
+  menambahkan deret `by_month` (bucket memakai offset `from`).
 - Selalu milik yang login — tidak ada parameter pemilik. Tidak membuat dompet.
 - `SUM … GROUP BY type` pada indeks `(wallet_id, created_at, id)`; `EXPLAIN` diperiksa
   di test pada 3.000 baris.
@@ -1842,7 +1851,7 @@ Keempat tindakan itu tercatat di `admin_audit_logs` sebagai `wallet_topup.confir
 
 ## Ringkasan endpoint
 
-**104 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**116 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1860,7 +1869,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
-| `POST` | `/auth/login` | — | `login` | Masuk via email atau username. Balasan sama untuk kata sandi salah maupun identitas tak dikenal. |
+| `POST` | `/auth/login` | — | `login` | Masuk via **tepat satu** dari email, username, atau nomor HP (`08…`/`+62…`). Balasan sama untuk kata sandi salah maupun identitas tak dikenal. |
 | `POST` | `/auth/logout` | kedua token | `api` | Keluar. Mencabut **kedua** token, termasuk yang berumur panjang. |
 | `POST` | `/auth/refresh` | long_lived | `refresh` | Tukar `long_lived` jadi `access` baru. Access token lama langsung mati. |
 | `POST` | `/auth/register` | — | `register` | Daftar akun. `202`, **tanpa token** — akun belum aktif. |
@@ -1873,11 +1882,12 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
-| `GET` | `/categories` | access | `api` | Katalog kategori + harga referensi. |
+| `GET` | `/cities` | — | `api` | Master kabupaten/kota (B12). **Publik**; `q` awalan nama, `limit` ≤100. |
+| `GET` | `/categories` | access | `api` | Katalog kategori + harga referensi. `?city=` memakai acuan per kota bila sampel cukup (`scope: city`), kalau tidak nasional. |
 | `GET` | `/me` | access | `api` | Profil sendiri, lengkap dengan data kontak. |
 | `PATCH` | `/me` | access | `api` | Ubah profil. `extras` divalidasi per peran. `phone`: aturan sama dengan pendaftaran, unik kecuali milik sendiri; nomor yang berubah membuat `phone_verified` kembali `false`. |
 | `GET` | `/me/worker` | access | `api` | Profil pekerja sendiri. Membacanya tidak membuat baris. |
-| `PUT` | `/me/worker` | access | `api` | Isi/ubah profil pekerja. `null` = kembali ikut akun. `is_available` (ketersediaan mitra) ikut di sini. |
+| `PUT` | `/me/worker` | access | `api` | Isi/ubah profil pekerja. `null` = kembali ikut akun. `is_available` (ketersediaan) dan `headline` (profesi mitra) ikut di sini. |
 | `POST` | `/me/worker/redeem` | access | `write` | Tukar kode undangan mitra menjadi baris `user_workers` + `active_mode = working`. |
 | `GET` | `/me/worker/invite-availability` | access | `api` | Sinyal ketersediaan kode undangan di kota/provinsi (boolean saja). |
 | `GET` | `/me/verifications` | access | `api` | Status verifikasi identitas. Hanya status, bukan artefaknya. Rekening: `account_number_masked` ("•••• 4910"), tidak pernah nomor utuh. |
@@ -1899,8 +1909,8 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
-| `GET` | `/tasks` | access | `api` | Feed siap dilamar. Filter: `q`, `lat`/`lng`/`radius_km`, `posted_within_hours`, `category_id`, `city`, `budget_from`/`budget_to`, `skills`, `match_my_skills`, `exclude_my_bids`. |
-| `POST` | `/tasks` | access | `write` | Buat task. `workers_needed` menentukan berapa orang direkrut. |
+| `GET` | `/tasks` | access | `api` | Feed siap dilamar. Filter: `q`, `lat`/`lng`/`radius_km`, `posted_within_hours`, `needed_from`/`needed_to` (jadwal, `from` inklusif `to` eksklusif), `category_id`/`category_ids[]`, `city`, `budget_from`/`budget_to`, `skills`, `match_my_skills`, `exclude_my_bids`. |
+| `POST` | `/tasks` | access | `write` | Buat task. `workers_needed` menentukan berapa orang direkrut. `publish_now` mengabari mitra sekitar → `meta.notified_workers` (B13). |
 | `GET` | `/tasks/posted` | access | `api` | Task yang saya posting. |
 | `GET` | `/tasks/worked` | access | `api` | Task yang saya kerjakan. |
 | `GET` | `/tasks/{task}` | access | `api` | Detail satu task, termasuk `hiring`, `workers`, `payment`, `activities`, `cancel_request`. Alamat & koordinat penuh hanya untuk pemberi kerja dan pekerja yang sudah deal (`location.is_precise`). |
@@ -1913,6 +1923,13 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/tasks/{task}/cancel-requests/{cancelRequest}/withdraw` | access | `api` | Pemberi kerja menarik permintaannya yang masih menunggu. |
 | `POST` | `/tasks/{task}/publish` | access | `api` | `draft` -> `open`. Lelang dibuka. |
 | `POST` | `/tasks/{task}/start` | access | `api` | Berhenti merekrut lebih awal: target turun ke jumlah yang sudah diterima. |
+| `POST` | `/tasks/{task}/approve-all` | access | `api` | Konfirmasi selesai & rilis dana untuk semua pekerja sekali tekan. Belum ada hasil diserahkan → `422 no_submitted_activities`. |
+| `GET` | `/tasks/posted/counts` | access | `api` | Hitungan task saya per status (judul tab). Setiap status selalu ada. |
+| `GET` | `/tasks/worked/counts` | access | `api` | Hitungan task yang saya kerjakan per status. |
+| `GET` | `/tasks/bookmarked` | access | `api` | Tugas yang saya simpan. Cursor. Tiap baris membawa `is_bookmarked`. |
+| `GET` | `/tasks/{task}/contacts` | access | `api` | Nomor kontak peserta setelah deal (B17). Peserta task saja; belum deal → `422`. |
+| `PUT` | `/tasks/{task}/bookmark` | access | `api` | Simpan tugas. Idempoten (204). |
+| `DELETE` | `/tasks/{task}/bookmark` | access | `api` | Lepas simpanan. Idempoten (204). |
 
 **Lelang**
 
@@ -1936,10 +1953,11 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
 | `GET` | `/me/wallet` | access | `api` | Saldo sendiri. Membacanya tidak membuat baris dompet. |
-| `GET` | `/me/wallet/entries` | access | `api` | Riwayat mutasi. Filter: `type`, `types[]` (beberapa jenis), `direction`, `q` (kata di `description`), `from`/`to` (ISO-8601 beroffset; `from` inklusif, `to` eksklusif), `min_amount`/`max_amount`. Tiap baris membawa `task: {id, task_number, title}` atau `null`. Cursor. |
-| `GET` | `/me/wallet/summary` | access | `api` | Ringkasan dijumlahkan server: `total_in`, `total_out`, `count`, `by_type`, plus `earnings_this_week`/`earnings_last_week`. `from`/`to` berpasangan (bawaan: bulan berjalan di zona `tz`), maks 366 hari. |
+| `GET` | `/me/wallet/entries` | access | `api` | Riwayat mutasi. Filter: `type`, `types[]` (beberapa jenis), `direction`, `q` (kata di `description`), `from`/`to` (ISO-8601 beroffset; `from` inklusif, `to` eksklusif), `min_amount`/`max_amount`. Tiap baris membawa `task: {id, task_number, title, category}` atau `null`. Cursor. |
+| `GET` | `/me/wallet/summary` | access | `api` | Ringkasan dijumlahkan server: `credit_total`, `debit_total`, `entries_count`, `by_type`, `earning_total`. `types[]`/`direction` menyaring; `compare_previous=1` menambah `previous`; `group=month` menambah `by_month`. `from`/`to` berpasangan (bawaan: bulan berjalan), maks 366 hari. |
+| `GET` | `/me/wallet/config` | access | `api` | Rekening tujuan isi saldo (dari env; kosong = tak ditampilkan) + `limits` (`min_topup`, `max_topup`, `min_withdrawal`, `max_withdrawal`, `max_pending_requests`). |
 | `GET` | `/me/wallet/topups` | access | `api` | Permintaan isi saldo saya. Filter: `status`. |
-| `POST` | `/me/wallet/topups` | access | `write` | **Lapor** sudah transfer untuk isi saldo. **Tidak** menambah saldo. |
+| `POST` | `/me/wallet/topups` | access | `write` | **Lapor** sudah transfer untuk isi saldo. **Tidak** menambah saldo. Balasan membawa `unique_code` (3 digit) + `transfer_amount` (= jumlah + kode) untuk pencocokan mutasi. |
 | `POST` | `/me/wallet/topups/{topup}/cancel` | access | `api` | Batalkan permintaan yang belum diputuskan. Saldo tidak tersentuh. |
 | `GET` | `/me/wallet/withdrawals` | access | `api` | Permintaan penarikan saya. Filter: `status`. |
 | `POST` | `/me/wallet/withdrawals` | access | `write` | Tarik saldo ke rekening terverifikasi. **Saldo langsung berkurang.** |
@@ -1957,14 +1975,17 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/activities/{activity}/reject` | access | `api` | Tolak hasil. Task jadi `disputed`, dana tetap ditahan. |
 | `POST` | `/activities/{activity}/start` | access | `api` | Pekerja mulai bekerja. Hanya dari `arrived`. |
 | `POST` | `/activities/{activity}/submit` | access | `api` | Serahkan hasil + bukti foto. Foto **wajib** (jumlah minimum dari `config/sekarya.php`), dan path harus diunggah sendiri lewat `POST /uploads` (`purpose=proof`). |
+| `POST` | `/activities/{activity}/location` | access | `write` | Bagikan lokasi langsung selama `on_the_way` (B8). Balasan + `live: {distance_km, eta_minutes, updated_at}`. |
+| `POST` | `/activities/{activity}/updates` | access | `write` | Tulis catatan kemajuan pekerja (B9). Tampil sebagai `latest_update`. |
+| `PUT` | `/activities/{activity}/checklist` | access | `api` | Centang checklist pekerjaan (B10). `state` harus sepanjang `tasks.checklist`; beda → `422 checklist_state_mismatch`. |
 
 **Penilaian**
 
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
 | `POST` | `/tasks/{task}/reviews` | access | `api` | Beri penilaian (+ `tags` opsional, per arah). Pemberi kerja menyebut `worker_id` bila pekerjanya banyak. |
-| `GET` | `/users/{user}/reviews` | access | `api` | Penilaian yang diterima seseorang. `role`, `rating`/`rating_max`, `q` (komentar). Tiap baris membawa `tags` + `task`. |
-| `GET` | `/users/{user}/reviews/summary` | access | `api` | Rata-rata, jumlah, sebaran bintang "5".."1", `five_star_percent`. `role` opsional. |
+| `GET` | `/users/{user}/reviews` | access | `api` | Penilaian yang diterima seseorang. `role`, `rating`/`rating_max`, `q` (komentar), `has_photos` (chip "Dengan Foto"). Tiap baris membawa `tags` + `photos[]`/`has_photos` + `task`. |
+| `GET` | `/users/{user}/reviews/summary` | access | `api` | Rata-rata, jumlah, sebaran bintang "5".."1". Persentase dihitung klien. `role` opsional. |
 | `GET` | `/users/{user}` | access | `api` | Profil publik satu orang (+`skills`). Akun tidak aktif → 404. |
 
 **Pengelola — token `admin`, populasi terpisah**

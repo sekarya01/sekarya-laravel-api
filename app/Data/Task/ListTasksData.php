@@ -7,6 +7,7 @@ namespace App\Data\Task;
 use App\Data\CursorPageData;
 use App\Enums\TaskStatus;
 use App\Http\Requests\Api\V1\Task\ListTasksRequest;
+use Carbon\CarbonImmutable;
 
 final readonly class ListTasksData
 {
@@ -33,6 +34,9 @@ final readonly class ListTasksData
         public bool $excludeMyBids = false,
         // Waktu — hanya task yang diposting dalam sekian jam terakhir.
         public ?int $postedWithinHours = null,
+        // Jadwal pelaksanaan (U14) — `from` inklusif, `to` eksklusif.
+        public ?CarbonImmutable $neededFrom = null,
+        public ?CarbonImmutable $neededTo = null,
         // Kata kunci — lewat indeks terbalik FULLTEXT, bukan LIKE.
         public ?string $keyword = null,
         // Jarak — filter radius; urutan default tetap tanggal pembuatan.
@@ -69,6 +73,12 @@ final readonly class ListTasksData
             excludeMyBids: $request->boolean('exclude_my_bids'),
             postedWithinHours: $request->filled('posted_within_hours')
                 ? max(1, $request->integer('posted_within_hours'))
+                : null,
+            neededFrom: $request->filled('needed_from')
+                ? CarbonImmutable::parse($request->string('needed_from')->value())
+                : null,
+            neededTo: $request->filled('needed_to')
+                ? CarbonImmutable::parse($request->string('needed_to')->value())
                 : null,
             keyword: $request->filled('q') ? trim($request->string('q')->value()) : null,
             latitude: $request->filled('lat') ? $request->float('lat') : null,

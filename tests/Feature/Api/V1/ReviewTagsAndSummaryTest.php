@@ -269,7 +269,6 @@ final class ReviewTagsAndSummaryTest extends TestCase
                 'rating_avg' => 4.2,
                 'rating_count' => 5,
                 'distribution' => ['5' => 3, '4' => 1, '3' => 0, '2' => 1, '1' => 0],
-                'five_star_percent' => 60,
             ]]);
     }
 
@@ -283,8 +282,7 @@ final class ReviewTagsAndSummaryTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.role', null)
             ->assertJsonPath('data.rating_count', 2)
-            ->assertJsonPath('data.rating_avg', 4)
-            ->assertJsonPath('data.five_star_percent', 50);
+            ->assertJsonPath('data.rating_avg', 4);
     }
 
     public function test_summary_for_someone_without_reviews_is_all_zero_and_distribution_is_an_object(): void
@@ -293,8 +291,7 @@ final class ReviewTagsAndSummaryTest extends TestCase
             ->getJson(route('v1.users.reviews.summary', $this->activeUser()).'?role=worker')
             ->assertOk()
             ->assertJsonPath('data.rating_avg', 0)
-            ->assertJsonPath('data.rating_count', 0)
-            ->assertJsonPath('data.five_star_percent', 0);
+            ->assertJsonPath('data.rating_count', 0);
 
         // Objek dengan lima kunci, bukan larik.
         $this->assertStringContainsString(

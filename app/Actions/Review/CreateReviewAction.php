@@ -68,6 +68,9 @@ final class CreateReviewAction
                 'tags' => $data->tags === []
                     ? null
                     : array_map(static fn (ReviewTag $t): string => $t->value, $data->tags),
+                // `null`, bukan `[]`, untuk ulasan tanpa foto. Resource
+                // mengeluarkan keduanya sebagai `[]`.
+                'photos' => $data->photos === [] ? null : $data->photos,
             ]);
 
             $this->recalculateAggregate($revieweeId, $role);

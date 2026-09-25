@@ -42,6 +42,8 @@ final class SecurityTest extends TestCase
             'api/v1/auth/forgot-password',
             'api/v1/auth/login',
             'api/v1/admin/auth/login',
+            // Data acuan publik: pemilih kota dipakai juga di layar daftar (B12).
+            'api/v1/cities',
         ];
 
         $withoutAuth = [];

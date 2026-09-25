@@ -52,6 +52,25 @@ final class GeoDistance
         ), 1);
     }
 
+    /**
+     * Jarak dua titik apa adanya (tanpa pembulatan privasi) — untuk lokasi
+     * LANGSUNG pekerja yang memang sedang ia bagikan (B8), bukan lokasi
+     * kerjanya yang disimpan. 1 desimal.
+     */
+    public static function betweenKm(mixed $lat1, mixed $lng1, mixed $lat2, mixed $lng2): ?float
+    {
+        if ($lat1 === null || $lng1 === null || $lat2 === null || $lng2 === null) {
+            return null;
+        }
+
+        return round(self::haversineKm(
+            (float) $lat1,
+            (float) $lng1,
+            (float) $lat2,
+            (float) $lng2,
+        ), 1);
+    }
+
     private static function haversineKm(float $lat1, float $lng1, float $lat2, float $lng2): float
     {
         $dLat = deg2rad($lat2 - $lat1);

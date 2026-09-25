@@ -105,13 +105,21 @@ final class WalletEntryTaskReferenceTest extends TestCase
 
         $this->assertNull($tasks['topup']);
         $this->assertSame(
-            ['id' => $held->ulid, 'task_number' => $held->task_number, 'title' => 'Pindahan Lemari Lantai 2'],
+            [
+                'id' => $held->ulid,
+                'task_number' => $held->task_number,
+                'title' => 'Pindahan Lemari Lantai 2',
+                'category' => [
+                    'slug' => $held->category->slug,
+                    'name' => $held->category->name,
+                ],
+            ],
             $tasks['task_hold'],
         );
         $this->assertSame('Cuci AC', $tasks['refund']['title']);
         $this->assertSame($worked->ulid, $tasks['earning']['id']);
-        // Hanya tiga kunci — id internal task tidak keluar.
-        $this->assertSame(['id', 'task_number', 'title'], array_keys($tasks['earning']));
+        // Hanya empat kunci — id internal task tidak keluar.
+        $this->assertSame(['id', 'task_number', 'title', 'category'], array_keys($tasks['earning']));
     }
 
     /** Task yang dihapus lunak tetap disebut: riwayat uang tidak kehilangan keterangannya. */

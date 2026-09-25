@@ -27,6 +27,9 @@ final class ListUserReviewsRequest extends FormRequest
             'rating_max' => ['sometimes', 'integer', 'between:1,5'],
             // Cari di komentar (FULLTEXT lewat `review_search`, bukan LIKE).
             'q' => ['sometimes', 'nullable', 'string', 'max:100'],
+            // Chip "Dengan Foto" (B15). `1` = hanya yang berfoto,
+            // `0` = hanya yang tanpa foto.
+            'has_photos' => ['sometimes', 'boolean'],
         ];
     }
 }

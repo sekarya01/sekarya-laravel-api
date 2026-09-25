@@ -147,6 +147,11 @@ final class ApproveActivityAction
                     : 'seluruh hasil disetujui; tugas tanpa dana ditahan, tidak ada yang dilepas',
             );
 
+            // "Layanan Selesai" pemberi kerja (U15): naik SEKALI per task yang
+            // benar-benar selesai — bukan per pekerja yang disetujui, karena
+            // angka ini menjawab "berapa pekerjaan yang sudah saya tutup".
+            $poster->increment('poster_tasks_completed');
+
             return $activity;
         });
 

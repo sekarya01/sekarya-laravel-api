@@ -35,6 +35,7 @@ final class CreateTaskAction
                 'title' => $data->title,
                 'description' => $data->description,
                 'options' => $data->options === [] ? null : $data->options,
+                'checklist' => $data->checklist === [] ? null : $data->checklist,
                 'photos' => $data->photos === [] ? null : $data->photos,
                 'budget_min' => $data->budgetMin,
                 'budget_max' => $data->budgetMax,

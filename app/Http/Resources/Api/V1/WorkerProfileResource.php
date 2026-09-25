@@ -43,6 +43,8 @@ final class WorkerProfileResource extends BaseResource
 
             // ── Nilai terpakai ──────────────────────────────────────────────
             'name' => $this->resource->resolvedName(),
+            // Judul/profesi mitra (U16); null = tidak diisi.
+            'headline' => $this->resource->resolvedHeadline(),
             'contact_phone' => $this->resource->resolvedPhone(),
             'avatar_url' => $this->publicUrl($this->resource->resolvedAvatarPath()),
             // Identitas: selalu dari akun, tidak bisa berbeda di sini.
@@ -62,6 +64,7 @@ final class WorkerProfileResource extends BaseResource
             // ── Nilai yang diisi sendiri; null = warisan dari akun ──────────
             'own' => [
                 'display_name' => $this->display_name,
+                'headline' => $this->headline,
                 'contact_phone' => $this->contact_phone,
                 'avatar_path' => $this->avatar_path,
                 'address_line' => $this->address_line,

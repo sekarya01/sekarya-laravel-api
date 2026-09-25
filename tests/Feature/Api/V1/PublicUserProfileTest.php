@@ -33,6 +33,7 @@ final class PublicUserProfileTest extends TestCase
         ]);
         UserWorker::factory()->create([
             'user_id' => $user->getKey(),
+            'headline' => 'Teknisi AC',
             'address_line' => 'Jl. Melati No. 3',
             'city' => 'Kota Bandung',
             'latitude' => -6.9123456,
@@ -56,6 +57,7 @@ final class PublicUserProfileTest extends TestCase
             ->assertJsonPath('data.bio', 'Teknisi AC 5 tahun')
             ->assertJsonPath('data.identity_verified', true)
             ->assertJsonPath('data.ready_to_work', true)
+            ->assertJsonPath('data.as_worker.headline', 'Teknisi AC')
             ->assertJsonPath('data.as_worker.work_area.city', 'Kota Bandung')
             ->assertJsonPath('data.as_worker.work_area.radius_km', 10)
             ->assertJsonPath('data.skills.0.slug', 'cuci-ac');

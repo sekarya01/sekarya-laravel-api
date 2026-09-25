@@ -291,6 +291,32 @@ final class WalletApiTest extends TestCase
         $this->assertSame(0, $this->user->fresh()->walletBalance());
     }
 
+    /** Kode unik 3 digit: nominal transfer = jumlah + kode (B14). */
+    public function test_a_topup_gets_a_unique_code_and_the_exact_transfer_amount(): void
+    {
+        $data = $this->asUser($this->user)
+            ->postJson(route('v1.me.wallet.topups.store'), ['amount' => 250_000])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertGreaterThanOrEqual(1, $data['unique_code']);
+        $this->assertLessThanOrEqual(999, $data['unique_code']);
+        $this->assertSame(250_000 + $data['unique_code'], $data['transfer_amount']);
+    }
+
+    public function test_pending_topups_get_distinct_codes(): void
+    {
+        $codes = [];
+        foreach ([100_000, 200_000] as $amount) {
+            $codes[] = $this->asUser($this->user)
+                ->postJson(route('v1.me.wallet.topups.store'), ['amount' => $amount])
+                ->assertCreated()
+                ->json('data.unique_code');
+        }
+
+        $this->assertSame(2, count(array_unique($codes)), 'kode dua permintaan yang menunggu harus berbeda');
+    }
+
     public function test_a_topup_below_the_minimum_is_a_validation_error(): void
     {
         $this->asUser($this->user)

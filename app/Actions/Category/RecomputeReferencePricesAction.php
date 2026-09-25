@@ -8,8 +8,10 @@ use App\Enums\BidStatus;
 use App\Enums\TaskStatus;
 use App\Models\Bid;
 use App\Models\Category;
+use App\Models\CategoryCityPrice;
 use App\Models\Task;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Collection;
 
 /**
  * Menghitung ulang harga referensi per kategori.
@@ -29,7 +31,12 @@ final class RecomputeReferencePricesAction
     {
         $updated = 0;
 
+        $minSample = (int) config('sekarya.category_prices.city_min_sample', 5);
+
         foreach (Category::query()->cursor() as $category) {
+            // Acuan per kota (U17) dihitung dari sumber yang sama.
+            $this->recomputeCityPrices($category, $minSample);
+
             // Harga PER ORANG, dari penawaran yang diterima — bukan
             // `tasks.agreed_amount`, yang sejak task bisa merekrut banyak orang
             // berarti TOTAL seluruh pekerja. Memakai total akan memasukkan satu
@@ -63,6 +70,58 @@ final class RecomputeReferencePricesAction
         }
 
         return $updated;
+    }
+
+    /**
+     * Hitung harga per kota (U17) untuk satu kategori.
+     *
+     * Hanya kota dengan sampel >= ambang yang disimpan; kota yang turun di
+     * bawah ambang dihapus, supaya `GET categories?city=` tidak memakai angka
+     * yang sudah tidak layak.
+     */
+    private function recomputeCityPrices(Category $category, int $minSample): void
+    {
+        $base = fn () => Bid::query()
+            ->join('tasks', 'tasks.id', '=', 'bids.task_id')
+            ->where('tasks.category_id', $category->getKey())
+            ->where('tasks.status', TaskStatus::Completed)
+            ->where('bids.status', BidStatus::Accepted);
+
+        /** @var Collection<int, string> $cities */
+        $cities = $base()
+            ->whereNotNull('tasks.city')
+            ->where('tasks.city', '!=', '')
+            ->groupBy('tasks.city')
+            ->havingRaw('COUNT(*) >= ?', [$minSample])
+            ->pluck('tasks.city')
+            ->values();
+
+        foreach ($cities as $city) {
+            $amounts = $base()
+                ->where('tasks.city', $city)
+                ->orderBy('bids.amount')
+                ->pluck('bids.amount')
+                ->all();
+
+            CategoryCityPrice::query()->updateOrCreate(
+                ['category_id' => $category->getKey(), 'city' => $city],
+                [
+                    'ref_price_min' => $amounts[0],
+                    'ref_price_max' => $amounts[count($amounts) - 1],
+                    'ref_price_median' => $this->median($amounts),
+                    'ref_sample_size' => count($amounts),
+                    'ref_computed_at' => now(),
+                ],
+            );
+        }
+
+        $stale = CategoryCityPrice::query()->where('category_id', $category->getKey());
+
+        if ($cities->isNotEmpty()) {
+            $stale->whereNotIn('city', $cities->all());
+        }
+
+        $stale->delete();
     }
 
     /** @param list<int> $sorted */

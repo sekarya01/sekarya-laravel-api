@@ -16,6 +16,10 @@ final class WalletTopupResource extends BaseResource
         return [
             'id' => $this->ulid,
             'amount' => (int) $this->amount,
+            // B14: nominal yang HARUS ditransfer = jumlah + kode unik 3 digit,
+            // supaya pengelola mencocokkan mutasinya persis.
+            'unique_code' => (int) $this->unique_code,
+            'transfer_amount' => (int) $this->transfer_amount,
             'status' => $this->status->value,
             // Kunci yang menggerakkan UI: bolanya masih di tangan pengguna
             // atau sudah di tangan pengelola.

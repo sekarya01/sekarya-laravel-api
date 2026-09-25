@@ -28,6 +28,9 @@ final class LoginAction
             $user = User::query()
                 ->when($data->email !== null, fn ($q) => $q->where('email', $data->email))
                 ->when($data->username !== null, fn ($q) => $q->where('username', $data->username))
+                // Nomor HP dicocokkan ke SEMUA ejaan yang mungkin tersimpan
+                // (`+62…` dan `0…`); lihat PhoneNumber::candidates().
+                ->when($data->phoneCandidates !== [], fn ($q) => $q->whereIn('phone', $data->phoneCandidates))
                 ->first();
 
             // Hash dummy tetap diperiksa saat user tidak ada, supaya waktu

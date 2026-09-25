@@ -27,4 +27,51 @@ final class PhoneNumber
 
         return $phone !== '' ? $phone : null;
     }
+
+    /**
+     * Bentuk kanonik Indonesia `+62…` untuk DICARI, bukan untuk disimpan.
+     *
+     * `0812…`, `62812…`, `+62 812…`, dan `812…` semuanya menunjuk nomor yang
+     * sama; yang disimpan di `users.phone` boleh salah satu ejaan (lihat
+     * `PATCH /me`), jadi lookup login memakai kandidat — bukan mengubah
+     * kolomnya.
+     */
+    public static function canonical(?string $raw): ?string
+    {
+        $digits = (string) preg_replace('/\D+/', '', (string) $raw);
+
+        if ($digits === '') {
+            return null;
+        }
+
+        if (str_starts_with($digits, '62')) {
+            return '+'.$digits;
+        }
+
+        if (str_starts_with($digits, '0')) {
+            return '+62'.substr($digits, 1);
+        }
+
+        return '+62'.$digits;
+    }
+
+    /**
+     * Ejaan-ejaan yang mungkin tersimpan untuk satu nomor: bentuk kanonik dan
+     * bentuk lokal `0…`. Dipakai `WHERE phone IN (…)` agar pengguna menemukan
+     * akunnya apa pun ejaan yang tersimpan saat mendaftar.
+     *
+     * @return list<string>
+     */
+    public static function candidates(?string $raw): array
+    {
+        $canonical = self::canonical($raw);
+
+        if ($canonical === null) {
+            return [];
+        }
+
+        $local = '0'.substr($canonical, 3);
+
+        return array_values(array_unique([$canonical, $local]));
+    }
 }
