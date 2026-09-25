@@ -77,6 +77,11 @@ final class WorkerProfileResource extends BaseResource
             // apa.
             'ready_to_work' => $this->resource->user?->readyToWork() ?? false,
 
+            // Sakelar "Siap menerima kerja" (U13), diubah lewat PUT me/worker.
+            // Berbeda dari `ready_to_work`: itu soal BOLEH bekerja (verifikasi),
+            // ini soal MAU menerima kerja sekarang.
+            'is_available' => (bool) $this->is_available,
+
             // ── Reputasi. Hanya Action yang menulisnya. ─────────────────────
             'as_worker' => [
                 'rating_avg' => (float) $this->worker_rating_avg,

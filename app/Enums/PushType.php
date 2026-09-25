@@ -25,4 +25,8 @@ enum PushType: string
     case ActivitySubmitted = 'activity_submitted';
     case ActivityApproved = 'activity_approved';
     case ActivityRejected = 'activity_rejected';
+    // Pembatalan ber-persetujuan (U12).
+    case CancelRequested = 'cancel_requested';
+    case CancelRequestResolved = 'cancel_request_resolved';
+    case TaskCancelled = 'task_cancelled';
 }

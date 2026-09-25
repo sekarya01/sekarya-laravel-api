@@ -8,6 +8,7 @@ use App\Actions\Review\CreateReviewAction;
 use App\Actions\Review\ListUserReviewsAction;
 use App\Data\CursorPageData;
 use App\Data\Review\CreateReviewData;
+use App\Data\Review\ReviewQueryData;
 use App\Enums\ReviewerRole;
 use App\Enums\TaskStatus;
 use App\Exceptions\Domain\NotTaskParticipantException;
@@ -165,7 +166,7 @@ final class ReviewActionsTest extends TestCase
     {
         app(CreateReviewAction::class)->handle(new CreateReviewData(5), $this->task, $this->poster);
 
-        $page = app(ListUserReviewsAction::class)->forUser($this->worker, new CursorPageData(20));
+        $page = app(ListUserReviewsAction::class)->forUser($this->worker, new ReviewQueryData(new CursorPageData(20)));
 
         $this->assertCount(1, $page->items());
         $this->assertNotNull($page->first()->reviewer);
@@ -177,9 +178,9 @@ final class ReviewActionsTest extends TestCase
         app(CreateReviewAction::class)->handle(new CreateReviewData(4), $this->task, $this->worker);
 
         $asWorker = app(ListUserReviewsAction::class)
-            ->forUser($this->worker, new CursorPageData(20), ReviewerRole::Poster);
+            ->forUser($this->worker, new ReviewQueryData(new CursorPageData(20), ReviewerRole::Poster));
         $asPoster = app(ListUserReviewsAction::class)
-            ->forUser($this->poster, new CursorPageData(20), ReviewerRole::Worker);
+            ->forUser($this->poster, new ReviewQueryData(new CursorPageData(20), ReviewerRole::Worker));
 
         $this->assertCount(1, $asWorker->items());
         $this->assertCount(1, $asPoster->items());
@@ -191,7 +192,7 @@ final class ReviewActionsTest extends TestCase
             ->handle(new CreateReviewData(5), $this->task, $this->poster);
         $review->forceFill(['is_visible' => false])->save();
 
-        $page = app(ListUserReviewsAction::class)->forUser($this->worker, new CursorPageData(20));
+        $page = app(ListUserReviewsAction::class)->forUser($this->worker, new ReviewQueryData(new CursorPageData(20)));
 
         $this->assertCount(0, $page->items());
     }

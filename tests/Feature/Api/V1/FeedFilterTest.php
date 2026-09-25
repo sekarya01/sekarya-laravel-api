@@ -322,6 +322,40 @@ final class FeedFilterTest extends TestCase
         $this->assertSame(['Jakarta mencuci'], $this->feed(['category_id' => $mencuci->getKey()]));
     }
 
+    /**
+     * Chip kategori di bottom sheet boleh dipilih lebih dari satu. Menyaring
+     * satu kategori per permintaan memaksa klien menggabungkan beberapa
+     * halaman cursor — dan setiap halaman bisa terpotong.
+     */
+    public function test_multiple_categories_in_one_request(): void
+    {
+        $mencuci = Category::query()->where('slug', 'mencuci')->firstOrFail();
+        $jagaHewan = Category::query()->where('slug', 'jaga-hewan')->firstOrFail();
+        $lain = Category::query()
+            ->whereNotIn('slug', ['mencuci', 'jaga-hewan'])
+            ->firstOrFail();
+
+        $this->task(['title' => 'Jakarta mencuci', 'category_id' => $mencuci->getKey()]);
+        $this->task(['title' => 'Bandung jaga', 'category_id' => $jagaHewan->getKey()]);
+        $this->task(['title' => 'Lain', 'category_id' => $lain->getKey()]);
+
+        $judul = $this->feed(['category_ids' => [$mencuci->getKey(), $jagaHewan->getKey()]]);
+        sort($judul);
+
+        $this->assertSame(['Bandung jaga', 'Jakarta mencuci'], $judul);
+    }
+
+    public function test_category_id_and_category_ids_are_mutually_exclusive(): void
+    {
+        $this->asUser($this->seeker)
+            ->getJson(route('v1.tasks.index', [
+                'category_id' => $this->anyCategory()->getKey(),
+                'category_ids' => [$this->anyCategory()->getKey()],
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['category_ids']);
+    }
+
     public function test_budget_range_filter(): void
     {
         $this->task(['title' => 'Murah', 'budget_min' => 50_000]);

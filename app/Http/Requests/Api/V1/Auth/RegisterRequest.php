@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1\Auth;
 
 use App\Enums\Gender;
+use App\Support\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -32,7 +33,7 @@ final class RegisterRequest extends FormRequest
                 'max:180',
                 'unique:users,email',
             ],
-            'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9]{9,19}$/', 'unique:users,phone'],
+            'phone' => ['nullable', 'string', 'max:20', 'regex:'.PhoneNumber::PATTERN, 'unique:users,phone'],
             'password' => [
                 'required',
                 'confirmed',

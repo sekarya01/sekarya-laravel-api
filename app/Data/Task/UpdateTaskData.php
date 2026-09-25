@@ -32,6 +32,7 @@ final readonly class UpdateTaskData
         public array $options = [],
         public array $photos = [],
         public ?string $locationText = null,
+        public ?string $area = null,
         public ?string $city = null,
         public ?float $latitude = null,
         public ?float $longitude = null,
@@ -60,7 +61,7 @@ final readonly class UpdateTaskData
         /** @var list<string> $fields */
         $fields = [
             'category_id', 'title', 'description', 'budget_min', 'budget_max',
-            'options', 'photos', 'location_text', 'city', 'latitude', 'longitude',
+            'options', 'photos', 'location_text', 'area', 'city', 'latitude', 'longitude',
             'is_remote', 'workers_needed', 'needed_at', 'end_at', 'bidding_closes_at',
             'skills',
         ];
@@ -84,6 +85,7 @@ final readonly class UpdateTaskData
             locationText: $request->filled('location_text')
                 ? trim($request->string('location_text')->value())
                 : null,
+            area: $request->filled('area') ? trim($request->string('area')->value()) : null,
             city: $request->has('city') ? trim($request->string('city')->value()) : null,
             latitude: $request->filled('latitude') ? $request->float('latitude') : null,
             longitude: $request->filled('longitude') ? $request->float('longitude') : null,

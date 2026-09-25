@@ -73,8 +73,8 @@ final class ListTasksActionTest extends TestCase
     {
         return new ListTasksData(
             page: new CursorPageData($override['perPage'] ?? 20),
-            status: $override['status'] ?? null,
-            categoryId: $override['categoryId'] ?? null,
+            statuses: isset($override['status']) ? [$override['status']] : ($override['statuses'] ?? []),
+            categoryIds: isset($override['categoryId']) ? [$override['categoryId']] : ($override['categoryIds'] ?? []),
             city: $override['city'] ?? null,
             budgetFrom: $override['budgetFrom'] ?? null,
             budgetTo: $override['budgetTo'] ?? null,

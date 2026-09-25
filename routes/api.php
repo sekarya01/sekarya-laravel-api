@@ -58,10 +58,15 @@ use App\Http\Controllers\Api\V1\Bid\ListTaskBidsController;
 use App\Http\Controllers\Api\V1\Bid\PlaceBidController;
 use App\Http\Controllers\Api\V1\Bid\WithdrawBidController;
 use App\Http\Controllers\Api\V1\Category\ListCategoriesController;
+use App\Http\Controllers\Api\V1\Notification\ListNotificationsController;
+use App\Http\Controllers\Api\V1\Notification\MarkAllNotificationsReadController;
+use App\Http\Controllers\Api\V1\Notification\MarkNotificationReadController;
+use App\Http\Controllers\Api\V1\Notification\ShowUnreadNotificationCountController;
 use App\Http\Controllers\Api\V1\Payment\HoldPaymentController;
 use App\Http\Controllers\Api\V1\Payment\ShowTaskPaymentController;
 use App\Http\Controllers\Api\V1\Review\CreateReviewController;
 use App\Http\Controllers\Api\V1\Review\ListUserReviewsController;
+use App\Http\Controllers\Api\V1\Review\ShowUserReviewSummaryController;
 use App\Http\Controllers\Api\V1\Skill\ListSkillsController;
 use App\Http\Controllers\Api\V1\Task\ApproveTaskCancelController;
 use App\Http\Controllers\Api\V1\Task\CancelTaskController;
@@ -79,15 +84,19 @@ use App\Http\Controllers\Api\V1\Task\UpdateTaskController;
 use App\Http\Controllers\Api\V1\Task\WithdrawTaskCancelController;
 use App\Http\Controllers\Api\V1\Upload\StoreUploadController;
 use App\Http\Controllers\Api\V1\User\CheckWorkerInviteAvailabilityController;
+use App\Http\Controllers\Api\V1\User\DeleteAddressController;
 use App\Http\Controllers\Api\V1\User\ForgetDeviceController;
 use App\Http\Controllers\Api\V1\User\ListVerificationsController;
 use App\Http\Controllers\Api\V1\User\ListWorkersController;
 use App\Http\Controllers\Api\V1\User\RedeemWorkerInviteCodeController;
 use App\Http\Controllers\Api\V1\User\RegisterDeviceController;
+use App\Http\Controllers\Api\V1\User\ShowAddressController;
 use App\Http\Controllers\Api\V1\User\ShowMeController;
+use App\Http\Controllers\Api\V1\User\ShowPublicUserController;
 use App\Http\Controllers\Api\V1\User\ShowWorkerProfileController;
 use App\Http\Controllers\Api\V1\User\SubmitVerificationController;
 use App\Http\Controllers\Api\V1\User\UpdateProfileController;
+use App\Http\Controllers\Api\V1\User\UpsertAddressController;
 use App\Http\Controllers\Api\V1\User\UpsertWorkerProfileController;
 use App\Http\Controllers\Api\V1\Wallet\CancelTopupController;
 use App\Http\Controllers\Api\V1\Wallet\CancelWithdrawalController;
@@ -97,6 +106,7 @@ use App\Http\Controllers\Api\V1\Wallet\ListTopupsController;
 use App\Http\Controllers\Api\V1\Wallet\ListWalletEntriesController;
 use App\Http\Controllers\Api\V1\Wallet\ListWithdrawalsController;
 use App\Http\Controllers\Api\V1\Wallet\ShowWalletController;
+use App\Http\Controllers\Api\V1\Wallet\ShowWalletSummaryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -198,6 +208,31 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         Route::delete('me/devices/{token}', ForgetDeviceController::class)
             ->name('me.devices.destroy');
 
+        // ── Kotak masuk notifikasi ─────────────────────────────────────────
+        //
+        // Riwayat yang SAMA dengan push FCM: `PushDispatcher` menulis barisnya
+        // lebih dulu, lalu mengantrekan job — jadi lonceng tetap terisi
+        // walaupun FCM mati. Membaca hanya kotak masuk sendiri; notifikasi
+        // orang lain dijawab 404 yang sama dengan id yang tidak ada.
+        Route::get('me/notifications', ListNotificationsController::class)
+            ->name('me.notifications.index');
+        Route::get('me/notifications/unread-count', ShowUnreadNotificationCountController::class)
+            ->name('me.notifications.unread-count');
+        Route::post('me/notifications/read-all', MarkAllNotificationsReadController::class)
+            ->name('me.notifications.read-all');
+        Route::post('me/notifications/{notification}/read', MarkNotificationReadController::class)
+            ->name('me.notifications.read');
+
+        // ── Alamat tersimpan ───────────────────────────────────────────────
+        //
+        // Satu alamat per orang (dasar jarak feed & "Pakai alamat tersimpan").
+        // HANYA milik pemiliknya; tidak pernah disematkan di Resource lain.
+        // Belum pernah diisi = `{"data": null}` 200, bukan 404 — "belum ada
+        // alamat" adalah keadaan sah yang ditanyakan tiap layar pengisian.
+        Route::get('me/address', ShowAddressController::class)->name('me.address.show');
+        Route::put('me/address', UpsertAddressController::class)->name('me.address.update');
+        Route::delete('me/address', DeleteAddressController::class)->name('me.address.destroy');
+
         // ── Saldo ──────────────────────────────────────────────────────────
         //
         // Uangnya masuk dari tiga arah — isi ulang, pengembalian dana task
@@ -214,6 +249,10 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         //     berkali-kali selama antrean pengelola belum tersentuh.
         Route::get('me/wallet', ShowWalletController::class)->name('me.wallet.show');
         Route::get('me/wallet/entries', ListWalletEntriesController::class)->name('me.wallet.entries.index');
+        // Total masuk/keluar + pendapatan minggu ini/lalu, DIJUMLAHKAN SERVER.
+        // Daftar entries bercursor tanpa `total`; menjumlahkan halaman yang
+        // sudah dimuat di klien pasti salah begitu ada halaman kedua.
+        Route::get('me/wallet/summary', ShowWalletSummaryController::class)->name('me.wallet.summary');
 
         Route::get('me/wallet/topups', ListTopupsController::class)->name('me.wallet.topups.index');
         Route::post('me/wallet/topups', CreateTopupController::class)
@@ -323,6 +362,14 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         Route::post('tasks/{task}/reviews', CreateReviewController::class)
             ->can('review', 'task')->name('tasks.reviews.store');
         Route::get('users/{user}/reviews', ListUserReviewsController::class)->name('users.reviews.index');
+        // Rata-rata + sebaran bintang untuk layar "Semua Ulasan". Penyaring
+        // `role` sama dengan daftar di atas, jadi angkanya cocok dengan barisnya.
+        Route::get('users/{user}/reviews/summary', ShowUserReviewSummaryController::class)
+            ->name('users.reviews.summary');
+
+        // Profil publik satu orang (dari notifikasi / tautan). Akun yang tidak
+        // `active` dijawab 404 yang sama dengan ULID yang tidak ada.
+        Route::get('users/{user}', ShowPublicUserController::class)->name('users.show');
     });
     /*
     |--------------------------------------------------------------------------

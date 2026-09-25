@@ -47,6 +47,11 @@ final class UpsertWorkerProfileRequest extends FormRequest
             // yang secara efektif berarti "seluruh Indonesia" — itu bukan
             // penyaring, dan feed jadi tidak berarti untuk yang memakainya.
             'radius_km' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:500'],
+
+            // "Siap menerima kerja" (U13). Bukan nullable: tidak ada arti
+            // "kembali ikut akun" untuk ketersediaan. Hanya untuk yang SUDAH
+            // punya profil pekerja — dijaga Action (`not_a_worker`).
+            'is_available' => ['sometimes', 'boolean'],
         ];
     }
 

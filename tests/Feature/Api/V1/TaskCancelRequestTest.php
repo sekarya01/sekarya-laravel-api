@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Tests\Feature\Api\V1;
 
 use App\Models\User;
+use App\Models\UserNotification;
+use App\Support\Push\PushNotifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\FakePushNotifier;
 use Tests\TestCase;
 
 /**
@@ -214,5 +217,96 @@ final class TaskCancelRequestTest extends TestCase
             ->postJson(route('v1.tasks.cancel-requests.reject', [$task, $requestId]))
             ->assertUnprocessable()
             ->assertJsonPath('code', 'no_pending_cancel_request');
+    }
+
+    // ── notifikasi pembatalan (U12) ─────────────────────────────────────────
+
+    private function fakeNotifier(): FakePushNotifier
+    {
+        $fake = new FakePushNotifier;
+        $this->app->instance(PushNotifier::class, $fake);
+
+        return $fake;
+    }
+
+    /** Permintaan pembatalan harus MENCARI pekerja, bukan menunggu ia membuka aplikasi. */
+    public function test_requesting_cancel_reaches_the_worker_in_app_and_push(): void
+    {
+        $task = $this->dealtTask();
+
+        $fake = $this->fakeNotifier();
+
+        $requestId = $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.cancel-requests.store', $task), ['reason' => 'jadwal berubah'])
+            ->assertCreated()
+            ->json('data.id');
+
+        $message = $fake->firstTo($this->worker);
+        $this->assertNotNull($message);
+        $this->assertSame('cancel_requested', $message->data['type']);
+        $this->assertSame($requestId, $message->data['cancel_request_id']);
+
+        $row = UserNotification::query()
+            ->where('user_id', $this->worker->getKey())
+            ->where('type', 'cancel_requested')
+            ->sole();
+
+        $this->assertSame($requestId, $row->data['cancel_request_id']);
+        $this->assertNull($row->read_at);
+    }
+
+    /** Penolakan SATU pekerja sudah cukup menggugurkan permintaan — ia harus segera tahu. */
+    public function test_a_rejection_reaches_the_poster_in_app_and_push(): void
+    {
+        $task = $this->dealtTask();
+
+        $requestId = $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.cancel-requests.store', $task))
+            ->assertCreated()
+            ->json('data.id');
+
+        $fake = $this->fakeNotifier();
+
+        $this->asUser($this->worker)
+            ->postJson(route('v1.tasks.cancel-requests.reject', [$task, $requestId]))
+            ->assertOk();
+
+        $message = $fake->firstTo($this->poster);
+        $this->assertNotNull($message);
+        $this->assertSame('cancel_request_resolved', $message->data['type']);
+        $this->assertSame('rejected', $message->data['result']);
+
+        $row = UserNotification::query()
+            ->where('user_id', $this->poster->getKey())
+            ->where('type', 'cancel_request_resolved')
+            ->sole();
+
+        $this->assertSame('rejected', $row->data['result']);
+    }
+
+    /** Saat suara terakhir setuju, task batal — pekerja kehilangan pekerjaannya. */
+    public function test_the_approval_that_cancels_the_task_tells_the_worker(): void
+    {
+        $task = $this->dealtTask();
+
+        $requestId = $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.cancel-requests.store', $task))
+            ->assertCreated()
+            ->json('data.id');
+
+        $fake = $this->fakeNotifier();
+
+        $this->asUser($this->worker)
+            ->postJson(route('v1.tasks.cancel-requests.approve', [$task, $requestId]))
+            ->assertOk();
+
+        $message = $fake->firstTo($this->worker);
+        $this->assertNotNull($message);
+        $this->assertSame('task_cancelled', $message->data['type']);
+
+        $this->assertTrue(UserNotification::query()
+            ->where('user_id', $this->worker->getKey())
+            ->where('type', 'task_cancelled')
+            ->exists());
     }
 }

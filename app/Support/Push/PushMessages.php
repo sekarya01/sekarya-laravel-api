@@ -8,6 +8,7 @@ use App\Enums\PushType;
 use App\Models\Activity;
 use App\Models\Bid;
 use App\Models\Task;
+use App\Models\TaskCancelRequest;
 use App\Models\User;
 
 /**
@@ -116,6 +117,53 @@ final class PushMessages
     }
 
     /**
+     * Pemberi kerja meminta pembatalan → setiap pekerja yang harus menjawab.
+     *
+     * `cancel_request_id` ikut supaya popup di Detail Kerjaan bisa langsung
+     * memanggil approve/reject tanpa membaca `GET tasks/{task}` lebih dulu.
+     */
+    public static function cancelRequested(Task $task, TaskCancelRequest $request): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: 'Pemberi kerja meminta pembatalan. Setujui atau tolak.',
+            data: self::data(PushType::CancelRequested, $task, extra: [
+                'cancel_request_id' => (string) $request->ulid,
+            ]),
+        );
+    }
+
+    /**
+     * Permintaan pembatalan selesai dijawab → pemberi kerja.
+     *
+     * `result` = `approved` (semua pekerja setuju, task dibatalkan) atau
+     * `rejected` (satu pekerja menolak, task berjalan terus).
+     */
+    public static function cancelRequestResolved(Task $task, TaskCancelRequest $request, bool $approved): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: $approved
+                ? 'Permintaan pembatalan disetujui. Tugas dibatalkan.'
+                : 'Permintaan pembatalan ditolak. Tugas tetap berjalan.',
+            data: self::data(PushType::CancelRequestResolved, $task, extra: [
+                'cancel_request_id' => (string) $request->ulid,
+                'result' => $approved ? 'approved' : 'rejected',
+            ]),
+        );
+    }
+
+    /** Task dibatalkan → pekerja yang sudah diterima. */
+    public static function taskCancelled(Task $task): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: 'Tugas ini dibatalkan.',
+            data: self::data(PushType::TaskCancelled, $task),
+        );
+    }
+
+    /**
      * SATU-SATUNYA pembentuk `data` FCM: `type` + `task_id` selalu ada,
      * `activity_id` + `activity_status` hanya ada bila activity diberikan,
      * `bids_count` hanya ada bila jumlah penawar diberikan (event lelang ke
@@ -127,10 +175,19 @@ final class PushMessages
      * (Detail Tugas untuk pemberi kerja, Detail Kerjaan untuk mitra), jadi
      * tidak perlu rute berbeda per peran di sisi notifikasi.
      *
+     * `extra` untuk kunci khas satu jenis peristiwa (mis. `cancel_request_id`,
+     * `result`); nilainya wajib string, sama seperti kunci lain.
+     *
+     * @param  array<string, string>  $extra
      * @return array<string, string>
      */
-    private static function data(PushType $type, Task $task, ?Activity $activity = null, ?int $bidsCount = null): array
-    {
+    private static function data(
+        PushType $type,
+        Task $task,
+        ?Activity $activity = null,
+        ?int $bidsCount = null,
+        array $extra = [],
+    ): array {
         $data = [
             'type' => $type->value,
             'task_id' => (string) $task->ulid,
@@ -145,7 +202,7 @@ final class PushMessages
             $data['bids_count'] = (string) $bidsCount;
         }
 
-        return $data;
+        return [...$data, ...$extra];
     }
 
     /** Rupiah tanpa desimal, titik sebagai pemisah ribuan — gaya aplikasi. */

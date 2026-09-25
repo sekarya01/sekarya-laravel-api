@@ -57,6 +57,7 @@ final class UserResource extends BaseResource
                 'rating_count' => $worker->worker_rating_count,
                 'tasks_completed' => $worker->tasks_completed,
                 'bids_won' => $worker->bids_won,
+                'is_available' => (bool) $worker->is_available,
             ],
             'as_poster' => [
                 'rating_avg' => (float) $this->poster_rating_avg,

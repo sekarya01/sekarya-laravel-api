@@ -24,8 +24,12 @@ final class ListBidsAction
      *
      * @return CursorPaginator<int, Bid>
      */
-    public function forTask(Task $task, CursorPageData $page, string $sort = 'amount'): CursorPaginator
-    {
+    public function forTask(
+        Task $task,
+        CursorPageData $page,
+        string $sort = 'amount',
+        ?User $viewer = null,
+    ): CursorPaginator {
         $query = Bid::query()
             ->where('task_id', $task->getKey())
             // Callback eager-load pada relasi menerima Relation, bukan Builder.
@@ -63,7 +67,24 @@ final class ListBidsAction
         // Tiebreaker wajib: tanpa kolom unik, cursor bisa skip atau mengulang baris.
         $query->orderByDesc('bids.id');
 
-        return $query->cursorPaginate($page->perPage);
+        $bids = $query->cursorPaginate($page->perPage);
+
+        // Jarak tiap pelamar ke lokasi task (U8) — hanya untuk pemberi kerja
+        // (Task::showsWorkerDistanceTo). Dihitung di PHP dari profil pekerja
+        // yang sudah termuat (User::$with), jadi nol kueri tambahan.
+        // Nilainya atribut sementara yang tidak pernah disimpan; di jalur lain
+        // (bids/mine, my_bid, respons tawar) ia tidak pernah diisi, sehingga
+        // BidResource mengeluarkan `null` di sana.
+        if ($task->showsWorkerDistanceTo($viewer)) {
+            foreach ($bids->items() as $bid) {
+                $bid->setAttribute(
+                    'distance_km',
+                    $bid->bidder === null ? null : $task->distanceToWorkerKm($bid->bidder),
+                );
+            }
+        }
+
+        return $bids;
     }
 
     /**
@@ -75,7 +96,12 @@ final class ListBidsAction
     {
         return Bid::query()
             ->where('bidder_id', $bidder->getKey())
-            ->with(['task.category'])
+            ->with([
+                'task.category',
+                // Penentu lokasi presisi (Task::revealsLocationTo) dibaca dari
+                // sini — tanpa ini setiap baris memicu satu kueri `exists`.
+                'task.myBid' => fn (Relation $q) => $q->where('bidder_id', $bidder->getKey()),
+            ])
             ->latestFirst()
             ->cursorPaginate($page->perPage);
     }

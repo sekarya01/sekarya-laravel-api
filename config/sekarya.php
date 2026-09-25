@@ -179,6 +179,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Penyerahan hasil kerja
+    |--------------------------------------------------------------------------
+    |
+    | Bukti berfoto adalah dasar penyelesaian sengketa: tanpa foto, "sudah
+    | selesai" hanya kata pekerja melawan kata pemberi kerja.
+    |
+    */
+
+    'activities' => [
+        // Jumlah minimum `proof_photos` pada `POST activities/{a}/submit`.
+        // 0 = foto bukti opsional (perilaku sebelum U11). Batas atasnya tetap
+        // 10, di SubmitActivityRequest.
+        'min_proof_photos' => (int) env('SEKARYA_MIN_PROOF_PHOTOS', 1),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Rate limit
     |--------------------------------------------------------------------------
     |

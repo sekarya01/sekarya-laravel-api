@@ -19,7 +19,21 @@ final class ListTasksRequest extends FormRequest
     {
         return [
             'status' => ['sometimes', Rule::enum(TaskStatus::class)],
+            // Beberapa status sekaligus (U10) — satu tab Tugas = satu grup
+            // status, dan grupnya harus disaring SERVER supaya halaman
+            // cursor tidak pernah kosong. Hanya berlaku di `tasks/posted` dan
+            // `tasks/worked`; feed selalu `open`. Tidak boleh bersama `status`:
+            // dua penyaring yang bisa saling bertentangan hanya menghasilkan
+            // halaman kosong tanpa keterangan.
+            'statuses' => ['sometimes', 'array', 'min:1', 'max:'.count(TaskStatus::cases()), 'prohibits:status'],
+            'statuses.*' => ['distinct', Rule::enum(TaskStatus::class)],
             'category_id' => ['sometimes', 'integer', 'exists:categories,id'],
+            // Beberapa kategori sekaligus (U9). Batas 20 menjaga daftar IN
+            // tetap berupa beberapa rentang pada indeks
+            // (category_id, status, created_at), bukan pemindaian terselubung.
+            // `category_id` lama tetap diterima, tapi tidak bersamaan.
+            'category_ids' => ['sometimes', 'array', 'min:1', 'max:'.ListTasksData::MAX_CATEGORY_IDS, 'prohibits:category_id'],
+            'category_ids.*' => ['integer', 'distinct', 'exists:categories,id'],
             'city' => ['sometimes', 'string', 'max:80'],
             'budget_from' => ['sometimes', 'integer', 'min:0'],
             'budget_to' => ['sometimes', 'integer', 'gte:budget_from'],

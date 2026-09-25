@@ -12,6 +12,8 @@ use App\Models\Task;
 use App\Models\TaskCancelApproval;
 use App\Models\TaskCancelRequest;
 use App\Models\User;
+use App\Support\Push\PushDispatcher;
+use App\Support\Push\PushMessages;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -36,6 +38,7 @@ final class RespondTaskCancelAction
     public function __construct(
         private readonly ConnectionInterface $db,
         private readonly CancelTaskAction $cancel,
+        private readonly PushDispatcher $push,
     ) {}
 
     public function approve(Task $task, TaskCancelRequest $request, User $worker): Task
@@ -64,12 +67,22 @@ final class RespondTaskCancelAction
             ])->save();
 
             // Penyetuju BUKAN pembatal: aktor pembatalan tetap peminta
-            // (pemberi kerja).
-            return $this->cancel->handle(
+            // (pemberi kerja). CancelTaskAction sendiri yang mengabari para
+            // pekerja (`task_cancelled`).
+            $cancelled = $this->cancel->handle(
                 $task,
                 $fresh->requester()->firstOrFail(),
                 $fresh->reason,
             );
+
+            // Peminta diberi tahu hasilnya — hanya pada suara TERAKHIR;
+            // persetujuan antara tidak memutuskan apa pun.
+            $this->push->send(
+                (int) $fresh->requested_by,
+                PushMessages::cancelRequestResolved($cancelled, $fresh, approved: true),
+            );
+
+            return $cancelled;
         });
     }
 
@@ -84,6 +97,17 @@ final class RespondTaskCancelAction
                 'decided_by' => $worker->getKey(),
                 'decided_at' => now(),
             ])->save();
+
+            // Satu penolakan sudah menggugurkan permintaan: peminta diberi
+            // tahu sekarang juga, bukan saat ia kebetulan membuka tugasnya.
+            $this->push->send(
+                (int) $fresh->requested_by,
+                PushMessages::cancelRequestResolved(
+                    $fresh->task()->firstOrFail(),
+                    $fresh,
+                    approved: false,
+                ),
+            );
 
             return $fresh->refresh();
         });

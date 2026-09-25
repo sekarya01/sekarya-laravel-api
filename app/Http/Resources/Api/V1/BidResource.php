@@ -25,6 +25,11 @@ final class BidResource extends BaseResource
             'status' => $this->status->value,
             'responded_at' => $this->iso($this->responded_at),
             // Bahan pertimbangan pemberi kerja: rating, jumlah kerja, verifikasi.
+            // Jarak pelamar ke lokasi task, km 1 desimal (U8). Terisi HANYA di
+            // daftar penawaran milik pemberi kerja (ListBidsAction::forTask);
+            // `null` di tempat lain, dan `null` bila salah satu koordinat
+            // kosong. Koordinat pekerjanya sendiri tidak pernah keluar.
+            'distance_km' => $this->resource->getAttributes()['distance_km'] ?? null,
             'bidder' => PublicUserResource::make($this->whenLoaded('bidder')),
             'task' => TaskResource::make($this->whenLoaded('task')),
             'created_at' => $this->iso($this->created_at),

@@ -8,10 +8,10 @@ use App\Enums\BidStatus;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
 use App\Exceptions\Domain\TaskAlreadyDealtException;
 use App\Exceptions\Domain\TaskNotBiddableException;
-use App\Jobs\SendPushNotification;
 use App\Models\Bid;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
 use App\Support\TaskHiring;
 use Illuminate\Database\ConnectionInterface;
@@ -36,6 +36,7 @@ final class AcceptBidAction
     public function __construct(
         private readonly ConnectionInterface $db,
         private readonly TaskHiring $hiring,
+        private readonly PushDispatcher $push,
     ) {}
 
     public function handle(Bid $bid, User $poster): Task
@@ -98,7 +99,7 @@ final class AcceptBidAction
         // Di LUAR transaksi: pekerja baru diberi tahu setelah penerimaannya
         // benar-benar tersimpan. Kalau transaksi gagal, tidak ada notifikasi
         // "diterima" untuk penawaran yang sebenarnya tidak diterima.
-        SendPushNotification::dispatch(
+        $this->push->send(
             $bid->bidder_id,
             PushMessages::bidAccepted($task, $bid),
         );

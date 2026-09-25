@@ -9,10 +9,10 @@ use App\Enums\BidStatus;
 use App\Exceptions\Domain\BidBelowMinimumException;
 use App\Exceptions\Domain\CannotBidOwnTaskException;
 use App\Exceptions\Domain\TaskNotBiddableException;
-use App\Jobs\SendPushNotification;
 use App\Models\Bid;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
 use Illuminate\Database\ConnectionInterface;
 
@@ -26,7 +26,10 @@ use Illuminate\Database\ConnectionInterface;
  */
 final class PlaceBidAction
 {
-    public function __construct(private readonly ConnectionInterface $db) {}
+    public function __construct(
+        private readonly ConnectionInterface $db,
+        private readonly PushDispatcher $push,
+    ) {}
 
     public function handle(PlaceBidData $data, Task $task, User $bidder): Bid
     {
@@ -68,7 +71,7 @@ final class PlaceBidAction
         // Di LUAR transaksi: notifikasi hanya lahir kalau penawarannya benar-
         // benar tersimpan (transaksi gagal = tidak ada notifikasi palsu), dan
         // pemberi kerja tidak menunggu antrean/jaringan.
-        SendPushNotification::dispatch(
+        $this->push->send(
             $task->poster_id,
             PushMessages::bidPlaced($task, $bid, $bidder),
         );

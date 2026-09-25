@@ -15,11 +15,18 @@ final readonly class ListTasksData
 
     public const float MAX_RADIUS_KM = 100.0;
 
-    /** @param list<string> $skillSlugs */
+    /** Batas `category_ids[]` — lihat ListTasksRequest. */
+    public const int MAX_CATEGORY_IDS = 20;
+
+    /**
+     * @param  list<string>  $skillSlugs
+     * @param  list<int>  $categoryIds  gabungan `category_id` dan `category_ids[]`
+     * @param  list<TaskStatus>  $statuses  gabungan `status` dan `statuses[]`
+     */
     public function __construct(
         public CursorPageData $page,
-        public ?TaskStatus $status = null,
-        public ?int $categoryId = null,
+        public array $statuses = [],
+        public array $categoryIds = [],
         public ?string $city = null,
         public ?int $budgetFrom = null,
         public ?int $budgetTo = null,
@@ -41,10 +48,21 @@ final readonly class ListTasksData
     {
         return new self(
             page: $request->page(),
-            status: $request->filled('status')
-                ? TaskStatus::from($request->string('status')->value())
-                : null,
-            categoryId: $request->filled('category_id') ? $request->integer('category_id') : null,
+            // Bentuk tunggal lama dan bentuk daftar baru bermuara di SATU
+            // field: Action tidak perlu tahu mana yang dikirim klien, dan
+            // tidak ada dua cabang penyaring yang bisa berselisih.
+            statuses: $request->filled('status')
+                ? [TaskStatus::from($request->string('status')->value())]
+                : array_values(array_map(
+                    static fn (mixed $v): TaskStatus => TaskStatus::from((string) $v),
+                    array_unique((array) $request->input('statuses', [])),
+                )),
+            categoryIds: $request->filled('category_id')
+                ? [$request->integer('category_id')]
+                : array_slice(array_values(array_unique(array_map(
+                    'intval',
+                    (array) $request->input('category_ids', []),
+                ))), 0, self::MAX_CATEGORY_IDS),
             city: $request->filled('city') ? trim($request->string('city')->value()) : null,
             budgetFrom: $request->filled('budget_from') ? $request->integer('budget_from') : null,
             budgetTo: $request->filled('budget_to') ? $request->integer('budget_to') : null,

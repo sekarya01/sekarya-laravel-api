@@ -31,6 +31,7 @@ final class WalletWithdrawalResource extends BaseResource
             'destination' => $this->whenLoaded('verification', fn (): array => [
                 'bank_code' => $this->verification->bank_code,
                 'account_holder_name' => $this->verification->account_holder_name,
+                'account_number_masked' => $this->verification->accountNumberMasked(),
             ]),
             'rejection_reason' => $this->rejection_reason,
             'transfer_reference' => $this->transfer_reference,

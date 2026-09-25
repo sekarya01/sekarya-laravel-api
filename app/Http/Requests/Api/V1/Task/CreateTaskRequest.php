@@ -27,6 +27,10 @@ final class CreateTaskRequest extends FormRequest
             'photos.*' => ['string', 'max:255'],
 
             'location_text' => ['nullable', 'string', 'max:255'],
+            // Wilayah kasar (kecamatan/kelurahan) untuk kartu feed — SELALU
+            // tampil, beda dengan `location_text` yang ditahan sampai deal.
+            // Jangan isi alamat lengkap di sini.
+            'area' => ['nullable', 'string', 'max:80'],
             'city' => ['required', 'string', 'max:80'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],

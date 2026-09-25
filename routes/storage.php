@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Route;
  *
  * Constraint parameter adalah pagar keamanannya, jadi dibuat sesempit mungkin:
  *
- *   - hanya dua folder yang memang dipublikasikan StoreUploadController;
+ *   - hanya folder yang memang dipublikasikan StoreUploadController (foto
+ *     task, avatar, foto bukti kerja);
  *     disk `public` tidak boleh terbuka seluruhnya lewat URL ini
  *   - nama berkas hanya huruf dan angka — tanpa titik, garis miring, atau
  *     `%` — sehingga `..` dan varian ter-encode-nya tidak bisa terbentuk
@@ -30,6 +31,6 @@ use Illuminate\Support\Facades\Route;
  * dicocokkan lebih dulu karena didaftarkan lebih awal.
  */
 Route::get('storage/uploads/{folder}/{file}', ShowPublicUploadController::class)
-    ->where('folder', 'tasks|avatars')
+    ->where('folder', 'tasks|avatars|proofs')
     ->where('file', '[A-Za-z0-9]{1,100}\.(jpe?g|png|webp)')
     ->name('storage.public-upload');

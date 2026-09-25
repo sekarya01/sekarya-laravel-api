@@ -413,4 +413,34 @@ final class WorkerListApiTest extends TestCase
         $this->assertSame('Budi Santoso', $profil->user->name);
         $this->assertSame('Budi Santoso', $profil->resolvedName());
     }
+
+    // ── ketersediaan (U13) ──────────────────────────────────────────────────
+
+    /**
+     * Badge "Tersedia" dibaca dari baris profil sendiri, dan penyaringnya
+     * opsional: tanpa parameter ini daftar memuat semua orang.
+     */
+    public function test_availability_is_filterable_and_reported(): void
+    {
+        $tersedia = $this->workerAt('2026-09-01 10:00:00');
+        $libur = $this->workerAt('2026-09-02 10:00:00', [], ['is_available' => false]);
+
+        $baris = collect($this->asUser($tersedia)
+            ->getJson(route('v1.workers.index'))->assertOk()->json('data'))
+            ->keyBy('id');
+
+        $this->assertTrue($baris[$tersedia->ulid]['as_worker']['is_available']);
+        $this->assertFalse($baris[$libur->ulid]['as_worker']['is_available']);
+
+        $hanyaSiap = $this->ids($this->asUser($tersedia)
+            ->getJson(route('v1.workers.index', ['available' => 1]))->assertOk()->json());
+        $this->assertContains($tersedia->ulid, $hanyaSiap);
+        $this->assertNotContains($libur->ulid, $hanyaSiap);
+
+        // Arah sebaliknya juga sah: yang sedang libur.
+        $hanyaLibur = $this->ids($this->asUser($tersedia)
+            ->getJson(route('v1.workers.index', ['available' => 0]))->assertOk()->json());
+        $this->assertContains($libur->ulid, $hanyaLibur);
+        $this->assertNotContains($tersedia->ulid, $hanyaLibur);
+    }
 }

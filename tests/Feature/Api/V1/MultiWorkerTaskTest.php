@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api\V1;
 
+use App\Enums\UserStatus;
 use App\Models\Admin;
+use App\Models\Task;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -333,7 +335,7 @@ final class MultiWorkerTaskTest extends TestCase
     public function test_posting_without_enough_balance_is_refused(): void
     {
         $broke = User::factory()->create();
-        $broke->status = \App\Enums\UserStatus::Active;
+        $broke->status = UserStatus::Active;
         $broke->email_verified_at = now();
         $broke->save();
 
@@ -342,7 +344,7 @@ final class MultiWorkerTaskTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('code', 'insufficient_balance');
 
-        $this->assertSame(0, \App\Models\Task::query()->where('poster_id', $broke->getKey())->count());
+        $this->assertSame(0, Task::query()->where('poster_id', $broke->getKey())->count());
     }
 
     public function test_one_transfer_opens_an_activity_for_every_worker(): void
@@ -412,7 +414,10 @@ final class MultiWorkerTaskTest extends TestCase
             $this->bringToSiteViaApi($ids[$i], $this->workers[$i]);
             $this->asUser($this->workers[$i])->postJson(route('v1.activities.start', $ids[$i]))->assertOk();
             $this->asUser($this->workers[$i])
-                ->postJson(route('v1.activities.submit', $ids[$i]), ['worker_note' => 'beres'])
+                ->postJson(route('v1.activities.submit', $ids[$i]), [
+                    'worker_note' => 'beres',
+                    'proof_photos' => $this->proofPhotosFor($this->workers[$i]),
+                ])
                 ->assertOk();
         }
 
@@ -450,7 +455,10 @@ final class MultiWorkerTaskTest extends TestCase
             $this->bringToSiteViaApi($ids[$i], $this->workers[$i]);
             $this->asUser($this->workers[$i])->postJson(route('v1.activities.start', $ids[$i]))->assertOk();
             $this->asUser($this->workers[$i])
-                ->postJson(route('v1.activities.submit', $ids[$i]), ['worker_note' => 'beres'])->assertOk();
+                ->postJson(route('v1.activities.submit', $ids[$i]), [
+                    'worker_note' => 'beres',
+                    'proof_photos' => $this->proofPhotosFor($this->workers[$i]),
+                ])->assertOk();
         }
         foreach ($ids as $id) {
             $this->asUser($this->poster)->postJson(route('v1.activities.approve', $id))->assertOk();

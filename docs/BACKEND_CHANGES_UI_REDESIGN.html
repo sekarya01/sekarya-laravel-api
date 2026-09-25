@@ -1,0 +1,891 @@
+<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Perubahan Backend Sekarya</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f8f9ff;--card:#fff;--line:#e2e8f0;--text:#0b1c30;--muted:#5b6778;--accent:#163c68;--soft:#eff4ff;--code:#eff4ff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f141c;--card:#171e28;--line:#263345;--text:#edf2f7;--muted:#a0aec0;--accent:#a7c8fc;--soft:#1f2836;--code:#1f2836}}
+:root[data-theme="dark"]{--bg:#0f141c;--card:#171e28;--line:#263345;--text:#edf2f7;--muted:#a0aec0;--accent:#a7c8fc;--soft:#1f2836;--code:#1f2836}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 "Plus Jakarta Sans",system-ui,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:30px;letter-spacing:-.02em;margin:0 0 12px} h2{font-size:22px;margin:44px 0 10px;color:var(--accent)} h3{font-size:17px;margin:28px 0 8px}
+blockquote{margin:0;padding:12px 16px;background:var(--soft);border-radius:12px;color:var(--muted);font-size:13.5px}
+.tw{overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%;font-size:13.5px} th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{background:var(--soft);font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)} tr:last-child td{border-bottom:0}
+code{background:var(--code);padding:1px 6px;border-radius:6px;font-size:12.5px} pre{background:var(--code);padding:14px;border-radius:12px;overflow-x:auto} pre code{padding:0;background:none}
+hr{border:0;border-top:1px solid var(--line);margin:32px 0}
+</style></head><body><main><h1>Perubahan Backend untuk UI Redesign Sekarya</h1>
+<blockquote>
+<p>Audit 2026-09-25. Sumber UI: <code>sekarya design layout/sekarya-ui/screens/*.html</code> (42 layar) + <code>sekarya_design_layout.md</code> (App Flow, UX Enhancements).
+Sumber API: <code>routes/api.php</code>, <code>app/Http/Resources/Api/V1/*</code>, <code>app/Http/Requests/Api/V1/*</code>, <code>app/Actions/*</code>, <code>database/migrations/*</code>, <code>docs/API.md</code>.
+Referensi baris (<code>file:line</code>) merujuk ke HEAD <code>35e9351</code> + perubahan working tree yang belum di-commit (filter <code>me/wallet/entries</code>: <code>ListWalletEntriesRequest</code>, <code>ListWalletEntriesAction</code>). <strong>Filter riwayat saldo baru jalan di produksi setelah perubahan itu di-commit dan di-deploy.</strong>
+Dokumen ini hanya analisis, tidak ada kode yang diubah.</p>
+</blockquote>
+<hr />
+<h2>1. Ringkasan</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Status</th>
+<th style="text-align: right;">Jumlah</th>
+<th>Keterangan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sudah ada</td>
+<td style="text-align: right;"><strong>24</strong></td>
+<td>Bisa dipakai langsung, paling banyak hanya perlu pemetaan di mobile</td>
+</tr>
+<tr>
+<td>Perlu ubah</td>
+<td style="text-align: right;"><strong>17</strong></td>
+<td>Endpoint sudah ada, perlu field/parameter/aturan tambahan</td>
+</tr>
+<tr>
+<td>Perlu baru</td>
+<td style="text-align: right;"><strong>17</strong></td>
+<td>Endpoint/tabel baru</td>
+</tr>
+<tr>
+<td>UI-only / keputusan produk</td>
+<td style="text-align: right;"><strong>20</strong></td>
+<td>Konten demo/klaim marketing: tidak perlu BE, atau perlu diputuskan dulu</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>P0 (wajib supaya UI inti tidak berbohong atau buntu): 4 item</strong></p>
+<ol>
+<li><strong>U2</strong>: alamat detail dan koordinat presisi tugas ikut terkirim ke semua orang sebelum deal, padahal UI menjanjikan "hanya dibagikan setelah Mitra disetujui".</li>
+<li><strong>U1</strong>: layar Masuk meminta "Email atau Nomor HP", tapi <code>auth/login</code> hanya menerima email/username.</li>
+<li><strong>B1</strong>: layar Isi Saldo menampilkan rekening tujuan (bank, nomor, nama penerima), tapi API tidak punya sumbernya.</li>
+<li><strong>B2</strong>: "Total Masuk/Keluar" (Riwayat) dan "Pendapatan minggu ini" (Beranda Mitra) butuh agregat dari server. Menjumlah halaman cursor di klien pasti salah, dan angka pendapatan di mobile sekarang memang sudah salah (lihat <code>api-wallet-reviews.md</code>).</li>
+</ol>
+<hr />
+<h2>2. Tabel kebutuhan</h2>
+<p>Legenda prioritas: <strong>P0</strong> wajib untuk UI inti · <strong>P1</strong> penting, UI bisa tayang dengan degradasi · <strong>P2</strong> opsional/lanjutan.</p>
+<h3>2a. Sudah ada (24)</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Fitur</th>
+<th>Screen</th>
+<th>Endpoint / field saat ini</th>
+<th>Catatan mobile</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S1</td>
+<td>Daftar 2 langkah (nama depan/belakang, email, HP opsional, kota domisili, sandi)</td>
+<td>daftar-langkah-1/2</td>
+<td><code>POST auth/register</code> (<code>routes/api.php:123</code>), <code>RegisterRequest.php:28-35</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>S2</td>
+<td>Verifikasi email &amp; lupa kata sandi (tautan email)</td>
+<td>lupa-kata-sandi-*</td>
+<td><code>POST auth/verify-email</code> <code>:129</code>, <code>POST auth/forgot-password</code> <code>:135</code></td>
+<td>Catatan "Belum ada reset kata sandi" di <code>docs/API.md:1941</code> sudah basi</td>
+</tr>
+<tr>
+<td>S3</td>
+<td>Kategori + "Acuan harga" / "Rekomendasi Sekarya Rp120–180rb"</td>
+<td>pasang-tugas-3, ubah-tugas, info-tugas</td>
+<td><code>GET categories</code> <code>:163</code>, <code>CategoryResource.php:22-31</code> (<code>reference_price.min/max/median/from_real_data</code>), snapshot <code>TaskResource.php:28</code> <code>budget.reference_median</code></td>
+<td>Wajib bedakan <code>from_real_data=false</code> ("perkiraan")</td>
+</tr>
+<tr>
+<td>S4</td>
+<td>Pasang tugas: judul, deskripsi, foto ≤5, kategori, lokasi+kota, patokan, chip kondisi (parkir/gang/tingkat), jadwal mulai/selesai, jumlah pekerja, budget</td>
+<td>pasang-tugas-1..4</td>
+<td><code>POST tasks</code> <code>:245</code>, <code>CreateTaskRequest.php:15-51</code> (<code>options[]{label,value}</code>, <code>photos[]</code>, <code>needed_at</code>, <code>end_at</code>, <code>workers_needed</code> 1–500); <code>POST uploads</code> <code>:238</code></td>
+<td>Chip kondisi dan "Alat: Tangga tersedia" dikirim sebagai <code>options</code></td>
+</tr>
+<tr>
+<td>S5</td>
+<td>Dana ditahan dari saldo saat pasang, "Saldo mencukupi/kurang"</td>
+<td>pasang-tugas-4, dialog-sukses-tugas-sudah-tayang</td>
+<td><code>TaskEscrow.php:107-121</code> (debit <code>task_hold</code>), <code>422 insufficient_balance</code> + <code>context.shortfall</code>; saldo di <code>UserResource.php:73-75</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>S6</td>
+<td>Ubah tugas (parsial, hanya <code>draft/open</code>)</td>
+<td>ubah-tugas</td>
+<td><code>PUT tasks/{task}</code> <code>:252</code>, <code>UpdateTaskRequest.php:33-63</code>, <code>task_not_editable</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>S7</td>
+<td>Feed kerja: cari, rentang budget, radius + jarak, jumlah penawar, pemberi kerja terverifikasi + rating, "sudah dilamar", "10 mnt lalu"</td>
+<td>beranda-cari-kerja, filter-tugas-bottom-sheet</td>
+<td><code>GET tasks</code> <code>:242</code>, <code>ListTasksRequest.php:22-54</code> (<code>q</code>, <code>budget_from/to</code>, <code>lat/lng/radius_km</code>, <code>posted_within_hours</code>), <code>TaskResource.php:37,60-67</code> (<code>bids_count</code>, <code>distance_km</code>, <code>poster</code>, <code>my_bid</code>)</td>
+<td>Multi-kategori dan jadwal: lihat U9/U14</td>
+</tr>
+<tr>
+<td>S8</td>
+<td>Ajukan penawaran (tarif tetap = budget), kuota penuh</td>
+<td>detail-peluang, dialog-sukses-penawaran-terkirim</td>
+<td><code>POST tasks/{task}/bids</code> <code>:280</code> (<code>amount</code> = <code>budget_min</code>), <code>hiring.slots_remaining</code> <code>TaskResource.php:41-45</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>S9</td>
+<td>Daftar penawar: rating, jumlah ulasan, kerja selesai, verifikasi, keahlian</td>
+<td>detail-tugas, profil-publik-mitra</td>
+<td><code>GET tasks/{task}/bids?sort=rating</code> <code>:282</code>, <code>ListBidsAction.php:27-66</code>, <code>PublicUserResource.php:51-66</code></td>
+<td>Jarak penawar: U8</td>
+</tr>
+<tr>
+<td>S10</td>
+<td>Terima penawar (satu per satu), "Mulai dengan mitra terpilih/yang ada"</td>
+<td>detail-tugas, dialog-konfirmasi-terima-penawaran</td>
+<td><code>POST bids/{bid}/accept</code> <code>:288</code>, <code>POST tasks/{task}/start</code> <code>:276</code></td>
+<td>Multi-pilih = accept berurutan lalu <code>start</code></td>
+</tr>
+<tr>
+<td>S11</td>
+<td>Alur kerja per pekerja: Menuju lokasi → konfirmasi tiba (pemberi kerja) → Mulai → Tandai selesai (+foto bukti, catatan) → Konfirmasi selesai; jam tiap langkah ("09.52 WIB")</td>
+<td>detail-kerjaan-*, detail-tugas-sedang-dikerjakan</td>
+<td><code>activities/{a}/depart·arrived·start·submit·approve</code> <code>:309-318</code>; <code>ActivityResource.php:24-32</code> (<code>departed_at</code>, <code>arrived_at</code>, <code>started_at</code>, <code>submitted_at</code>, <code>proof_photos</code>, <code>worker_note</code>)</td>
+<td>Teks bebas per langkah: B9. Wajib foto: U11</td>
+</tr>
+<tr>
+<td>S12</td>
+<td>Info tugas: nomor tugas, batas penawaran + sisa waktu, kuota, target selesai, alur perjalanan (diterbitkan, deal, berangkat)</td>
+<td>info-tugas</td>
+<td><code>TaskResource.php:18,41-56</code> (<code>task_number</code>, <code>bidding_closes_at</code>, <code>hiring</code>, <code>end_at</code>, <code>created_at</code>, <code>dealt_at</code>), <code>activities[].departed_at</code></td>
+<td>"Diterbitkan" = <code>created_at</code> (tidak ada <code>published_at</code>)</td>
+</tr>
+<tr>
+<td>S13</td>
+<td>Batalkan langsung + dana kembali ke saldo</td>
+<td>dialog-batalkan-tugas-ini</td>
+<td><code>POST tasks/{task}/cancel</code> <code>:257</code>, nominal dari <code>payment.amount</code> (<code>PaymentResource.php:23</code>)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>S14</td>
+<td>Minta batal (semua pekerja harus setuju), setuju/tolak, tarik</td>
+<td>dialog-minta-batalkan-tugas, dialog-pemberi-kerja-minta-batal-mitra</td>
+<td><code>tasks/{task}/cancel-requests[/…/approve·reject·withdraw]</code> <code>:263-273</code>; <code>TaskCancelRequestResource.php:27,42</code> (<code>approvals_required</code>, <code>my_response</code>)</td>
+<td>Push belum ada: U12</td>
+</tr>
+<tr>
+<td>S15</td>
+<td>Beri rating (bintang + komentar)</td>
+<td>dialog-beri-rating</td>
+<td><code>POST tasks/{task}/reviews</code> <code>:323</code>, <code>CreateReviewRequest.php:15-24</code></td>
+<td>Tag: U6</td>
+</tr>
+<tr>
+<td>S16</td>
+<td>Ulasan per peran</td>
+<td>profil-publik-mitra, semua-ulasan</td>
+<td><code>GET users/{user}/reviews?role=</code> <code>:325</code>, <code>ListUserReviewsRequest.php:21</code></td>
+<td>Filter bintang/cari: U7</td>
+</tr>
+<tr>
+<td>S17</td>
+<td>Profil publik: rating, ulasan, kerja selesai, kota, area kerja + radius, bergabung, tentang, keahlian, verifikasi KTP</td>
+<td>profil-publik-mitra</td>
+<td><code>PublicUserResource.php:38-72</code>, ditempel di <code>poster</code>/<code>workers</code>/<code>bid.bidder</code></td>
+<td>Endpoint baca tunggal: B4</td>
+</tr>
+<tr>
+<td>S18</td>
+<td>Saldo: kartu saldo, permintaan menggantung, seksi Pengeluaran/Isi saldo, riwayat dengan filter tanggal/nominal/jenis/cari</td>
+<td>saldo, riwayat-saldo, filter-riwayat-saldo</td>
+<td><code>me/wallet*</code> <code>:215-228</code>; <code>ListWalletEntriesRequest.php:21-41</code> (<code>types[]</code>, <code>direction</code>, <code>q</code>, <code>from/to</code>, <code>min_amount/max_amount</code>); topups/withdrawals <code>?status=</code></td>
+<td>Filter masih di working tree, belum deploy</td>
+</tr>
+<tr>
+<td>S19</td>
+<td>Batalkan isi saldo yang menggantung</td>
+<td>saldo</td>
+<td><code>POST me/wallet/topups/{topup}/cancel</code> <code>:221</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>S20</td>
+<td>Tarik saldo ke rekening terverifikasi (otomatis), "Tarik Semua"</td>
+<td>tarik-saldo</td>
+<td><code>POST me/wallet/withdrawals</code> <code>:225</code> (tujuan diambil dari verifikasi); bank + nama pemilik di <code>GET me/verifications</code> (<code>VerificationResource.php:39-46</code>); "Tarik Semua" = <code>wallet.balance</code></td>
+<td>Nomor tersamar: U4</td>
+</tr>
+<tr>
+<td>S21</td>
+<td>Daftar jadi mitra pakai kode + tampil hanya bila ada kode aktif</td>
+<td>dialog-daftar-jadi-mitra, akun</td>
+<td><code>POST me/worker/redeem</code> <code>:181</code>, <code>GET me/worker/invite-availability</code> <code>:187</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>S22</td>
+<td>Edit profil: nama, username, kota, bio, foto</td>
+<td>edit-profil</td>
+<td><code>PATCH me</code> <code>:168</code>, <code>UpdateProfileRequest.php:18-49</code>, <code>POST uploads purpose=avatar</code></td>
+<td>Nomor HP: U5</td>
+</tr>
+<tr>
+<td>S23</td>
+<td>Mode gelap</td>
+<td>akun</td>
+<td><code>PATCH me {theme: light\|dark\|system}</code> <code>UpdateProfileRequest.php:51</code>, <code>UserResource.php:48</code></td>
+<td>Boleh tetap lokal; kalau ingin ikut akun, pakai field ini</td>
+</tr>
+<tr>
+<td>S24</td>
+<td>Beranda: "Sedang berjalan" (pekerja, rating, tahap, estimasi selesai), stat mitra (kerja selesai, reputasi)</td>
+<td>beranda-cari-bantuan, beranda-cari-kerja, tugas</td>
+<td><code>GET tasks/posted</code> / <code>tasks/worked</code> (<code>ListTasksAction.php:61-95</code>, memuat <code>activities.worker</code>), <code>end_at</code>; <code>UserResource.php:55-60</code> <code>as_worker</code></td>
+<td>ETA "Tiba 15 mnt lagi": B8</td>
+</tr>
+</tbody>
+</table></div>
+<h3>2b. Perlu ubah (17)</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Fitur</th>
+<th>Screen</th>
+<th>Status</th>
+<th>Endpoint/field saat ini</th>
+<th>Perubahan BE</th>
+<th>Prio</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>U1</td>
+<td>Masuk dengan nomor HP</td>
+<td>masuk, lupa-kata-sandi-dialog</td>
+<td>Perlu ubah</td>
+<td><code>POST auth/login</code>, <code>LoginRequest.php:16-17</code> hanya <code>email</code>/<code>username</code></td>
+<td>Terima <code>phone</code> (normalisasi <code>08…</code>→<code>+628…</code>), <code>required_without_all</code>. <em>Alternatif tanpa BE: ubah copy jadi "Email atau username".</em></td>
+<td><strong>P0</strong></td>
+</tr>
+<tr>
+<td>U2</td>
+<td>Privasi lokasi sebelum deal ("Detail alamat hanya dibagikan setelah Mitra disetujui", "Mitra hanya menerima nomor unit &amp; rute setelah penawaran disepakati")</td>
+<td>ubah-tugas, pilih-lokasi, detail-peluang</td>
+<td>Perlu ubah</td>
+<td><code>TaskResource.php:30-36</code> mengirim <code>location.text</code> + lat/lng presisi ke siapa pun yang boleh <code>view</code> (<code>TaskPolicy.php:20</code>: semua orang selama task menerima penawaran)</td>
+<td>Untuk viewer yang bukan poster atau pekerja yang sudah deal: <code>location.text=null</code>, koordinat dibulatkan (3 desimal ≈110 m), tambah <code>location.is_precise</code>, dan opsional <code>location.area</code> (kecamatan/kelurahan untuk kartu "Dago, Bandung"; kolom baru <code>tasks.area</code> varchar(80)). <code>distance_km</code> tetap dihitung dari koordinat asli.</td>
+<td><strong>P0</strong></td>
+</tr>
+<tr>
+<td>U3</td>
+<td>Baris saldo menampilkan judul tugas ("Pindahan Lemari Lantai 2 · Escrow Ditahan", "Bayar Tugas #SKR-8812 · Cuci AC") dan bisa dibuka</td>
+<td>saldo, riwayat-saldo</td>
+<td>Perlu ubah</td>
+<td><code>WalletEntryResource.php:26-37</code>: hanya <code>reference_type</code> + <code>description</code> teks bebas (<code>'Dana tugas #TK-… ditahan'</code>, <code>TaskEscrow.php:112</code>)</td>
+<td>Tambah <code>task: {id, task_number, title, category:{slug,name}}\|null</code> (resolve lewat <code>task_fund_movements</code>/<code>payments</code>/<code>activities</code>), eager-load di <code>ListWalletEntriesAction</code></td>
+<td>P1</td>
+</tr>
+<tr>
+<td>U4</td>
+<td>Rekening tujuan "BCA · Ratna Dewi · **** 4910 · Terverifikasi"</td>
+<td>tarik-saldo</td>
+<td>Perlu ubah</td>
+<td><code>VerificationResource.php:39-46</code> (<code>bank_code</code>, <code>account_holder_name</code>), <code>WalletWithdrawalResource.php:31-34</code></td>
+<td>Tambah <code>account_number_masked</code> ("•••• 4910", 4 digit terakhir) di kedua resource. Nomor utuh tetap tidak keluar.</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>U5</td>
+<td>Ubah nomor HP di Edit profil</td>
+<td>edit-profil</td>
+<td>Perlu ubah</td>
+<td><code>UpdateProfileRequest.php:18-51</code> tidak punya <code>phone</code></td>
+<td>Tambah <code>phone</code> (regex sama dengan <code>RegisterRequest.php:35</code>, unique kecuali diri sendiri), reset <code>phone_verified_at</code>. Email: jadikan read-only di UI (ganti email butuh alur verifikasi baru, keputusan produk).</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>U6</td>
+<td>Tag rating ("Tepat Waktu", "Kerja Rapi", "Sangat Ramah")</td>
+<td>dialog-beri-rating</td>
+<td>Perlu ubah</td>
+<td><code>CreateReviewRequest.php:15-24</code> (rating, comment, worker_id); tabel <code>reviews</code> tanpa kolom tag</td>
+<td>Migrasi <code>reviews.tags</code> JSON; enum <code>ReviewTag</code>; request <code>tags[]</code> (maks 5); <code>ReviewResource</code> + <code>tags</code></td>
+<td>P1</td>
+</tr>
+<tr>
+<td>U7</td>
+<td>Semua ulasan: chip bintang, cari ulasan, nama tugas per ulasan ("Cuci AC Daikin 1 PK")</td>
+<td>semua-ulasan, profil-publik-mitra</td>
+<td>Perlu ubah</td>
+<td><code>ListUserReviewsAction.php:22-28</code> hanya filter <code>role</code>; <code>ReviewResource.php:16-23</code> tanpa task</td>
+<td>Param <code>rating</code> (1–5) atau <code>rating_max</code> untuk "1-2★", <code>q</code> (CLAUDE.md melarang <code>LIKE</code> di <code>app/</code>: pakai FULLTEXT di <code>reviews.comment</code> + <code>SearchTerms</code>, atau minta pengecualian eksplisit seperti wallet entries); resource + <code>task:{id,title,category}</code></td>
+<td>P1</td>
+</tr>
+<tr>
+<td>U8</td>
+<td>Jarak penawar/pekerja ("★4,9 (41) · 1,1 km")</td>
+<td>detail-tugas, detail-tugas-sedang-dikerjakan</td>
+<td>Perlu ubah</td>
+<td><code>BidResource.php:16-31</code> tanpa jarak; koordinat pekerja (<code>user_workers.latitude/longitude</code>) sengaja tidak dibuka</td>
+<td>Tambah <code>distance_km</code> terhitung di server (haversine koordinat task ↔ lokasi kerja pekerja, 1 desimal, <code>null</code> bila salah satu kosong) di <code>BidResource</code>, dan sama untuk <code>TaskResource.workers[]</code>. Koordinat tetap tidak keluar.</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>U9</td>
+<td>Filter kategori pilih &gt;1</td>
+<td>filter-tugas-bottom-sheet</td>
+<td>Perlu ubah</td>
+<td><code>ListTasksRequest.php:22</code> <code>category_id</code> tunggal</td>
+<td>Tambah <code>category_ids[]</code> (maks 20), <code>whereIn</code> pada indeks <code>(category_id,status,created_at)</code></td>
+<td>P1</td>
+</tr>
+<tr>
+<td>U10</td>
+<td>Tab Tugas: Berjalan / Dikerjakan / Selesai / Dibatalkan</td>
+<td>tugas</td>
+<td>Perlu ubah</td>
+<td><code>ListTasksAction.php:65,90</code> hanya <code>status</code> tunggal</td>
+<td>Tambah <code>statuses[]</code> di <code>tasks/posted</code> &amp; <code>tasks/worked</code> supaya tiap tab bisa dipaginasi dengan cursor tanpa halaman kosong</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>U11</td>
+<td>"Foto Bukti Hasil Pengerjaan · Wajib 1 foto"</td>
+<td>detail-kerjaan-tandai-selesai</td>
+<td>Perlu ubah</td>
+<td><code>SubmitActivityRequest.php:17-18</code> <code>proof_photos</code> opsional; <code>StoreUploadController.php:17</code> hanya folder <code>tasks</code>/<code>avatars</code></td>
+<td><code>proof_photos</code> <code>required\|min:1</code> (angka di <code>config/sekarya.php</code>); <code>purpose=proof</code> → <code>uploads/proofs</code>, validasi path milik folder itu</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>U12</td>
+<td>Pekerja langsung ditanya saat pemberi kerja minta batal; pemberi kerja tahu hasilnya</td>
+<td>dialog-pemberi-kerja-minta-batal-mitra, dialog-minta-batalkan-tugas</td>
+<td>Perlu ubah</td>
+<td><code>PushType.php</code> hanya bid &amp; activity; tidak ada event pembatalan</td>
+<td>Tambah <code>cancel_requested</code> (ke pekerja responden), <code>cancel_request_resolved</code> (<code>approved</code>/<code>rejected</code>, ke poster), <code>task_cancelled</code> (ke pekerja) di <code>PushMessages</code></td>
+<td>P1</td>
+</tr>
+<tr>
+<td>U13</td>
+<td>Ketersediaan mitra "Siap menerima kerja · Kamu tampil di pencarian mitra &amp; dapat notifikasi tugas terdekat"</td>
+<td>beranda-cari-kerja</td>
+<td>Perlu ubah</td>
+<td>Hanya lokal (<code>SettingsDataStore.kt:28</code> <code>AVAILABLE</code>), tidak ada di <code>user_workers</code></td>
+<td>Kolom <code>user_workers.is_available</code> (default true); <code>PUT me/worker {is_available}</code>; <code>GET workers?available=1</code>; <code>as_worker.is_available</code> di <code>PublicUserResource</code> (badge "Tersedia" di daftar penawar)</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>U14</td>
+<td>Filter jadwal "Hari ini / Besok / Minggu ini"</td>
+<td>filter-tugas-bottom-sheet</td>
+<td>Perlu ubah</td>
+<td>Tidak ada filter <code>needed_at</code>; App Flow menyaring di klien, tapi itu merusak halaman cursor</td>
+<td><code>needed_from</code>/<code>needed_to</code> (ISO-8601 beroffset) + indeks <code>(status, needed_at)</code></td>
+<td>P2</td>
+</tr>
+<tr>
+<td>U15</td>
+<td>"Layanan Selesai 14" untuk pemberi kerja</td>
+<td>akun</td>
+<td>Perlu ubah</td>
+<td><code>as_poster</code> hanya <code>tasks_posted</code> (<code>UserResource.php:61-65</code>)</td>
+<td><code>as_poster.tasks_completed</code> (counter, dinaikkan saat task <code>completed</code>)</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>U16</td>
+<td>Profesi/judul mitra ("Teknisi AC", "Mitra Teknisi · Bandung")</td>
+<td>profil-publik-mitra, dialog-konfirmasi-terima, dialog-terima-kasih-rating</td>
+<td>Perlu ubah</td>
+<td>Tidak ada; hanya <code>skills[]</code></td>
+<td><code>user_workers.headline</code> varchar(60) via <code>PUT me/worker</code>, keluar di <code>as_worker.headline</code>. <em>Atau derivasi di klien dari skill pertama (tanpa BE).</em></td>
+<td>P2</td>
+</tr>
+<tr>
+<td>U17</td>
+<td>Rekomendasi harga "berdasarkan tugas serupa <strong>di sekitarmu</strong>"</td>
+<td>pasang-tugas-3</td>
+<td>Perlu ubah</td>
+<td>Acuan harga per kategori nasional (<code>RecomputeReferencePricesAction</code>)</td>
+<td>Acuan per (kategori, kota) bila sampel cukup, fallback nasional; <code>GET categories?city=</code></td>
+<td>P2</td>
+</tr>
+</tbody>
+</table></div>
+<h3>2c. Perlu baru (17)</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Fitur</th>
+<th>Screen</th>
+<th>Status</th>
+<th>Endpoint/field saat ini</th>
+<th>Perubahan BE</th>
+<th>Prio</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B1</td>
+<td>Rekening tujuan isi saldo (bank, nomor, nama penerima, salin) + batas nominal ("Min. Rp10.000", "minimal penarikan Rp50.000")</td>
+<td>isi-saldo, tarik-saldo</td>
+<td>Perlu baru</td>
+<td>Tidak ada; batas hanya di <code>config/sekarya.php</code> <code>wallet.*</code> dan dicerminkan manual di mobile (<code>WalletLimits</code>)</td>
+<td><code>GET me/wallet/config</code>: rekening tujuan (dari env/config), <code>min/max_topup</code>, <code>min/max_withdrawal</code>, <code>max_pending_requests</code></td>
+<td><strong>P0</strong></td>
+</tr>
+<tr>
+<td>B2</td>
+<td>Total Masuk / Total Keluar, pendapatan minggu ini (+% vs pekan lalu), jumlah transaksi per bulan</td>
+<td>riwayat-saldo, beranda-cari-kerja</td>
+<td>Perlu baru</td>
+<td>Hanya daftar <code>me/wallet/entries</code> bercursor</td>
+<td><code>GET me/wallet/summary?from&amp;to[&amp;group=month]</code>: <code>SUM</code> per <code>direction</code>/<code>type</code> pada indeks <code>(wallet_id, created_at, id)</code></td>
+<td><strong>P0</strong></td>
+</tr>
+<tr>
+<td>B3</td>
+<td>Notifikasi in-app (lonceng + badge)</td>
+<td>header beranda-*, tugas, akun</td>
+<td>Perlu baru</td>
+<td>Push FCM saja (<code>PushMessages.php</code>, <code>me/devices</code>); tidak ada riwayat</td>
+<td>Tabel <code>user_notifications</code>; ditulis di jalur yang sama dengan push; <code>GET me/notifications</code>, <code>GET me/notifications/unread-count</code>, <code>POST me/notifications/{id}/read</code>, <code>POST me/notifications/read-all</code></td>
+<td>P1</td>
+</tr>
+<tr>
+<td>B4</td>
+<td>Buka profil publik satu orang (dari notifikasi/deep link, bukan hanya titipan layar asal)</td>
+<td>profil-publik-mitra</td>
+<td>Perlu baru</td>
+<td>Tidak ada (<code>users/{user}</code> hanya admin, <code>routes/api.php:456</code>); mobile memakai <code>ProfileStore</code></td>
+<td><code>GET users/{user}</code> → <code>PublicUserResource</code> (+skills); 404 untuk akun non-aktif</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>B5</td>
+<td>Ringkasan ulasan: "★4.9 dari 41", "92% 5 Bintang", jumlah per chip ("5★ (30)", "4★ (8)")</td>
+<td>semua-ulasan</td>
+<td>Perlu baru</td>
+<td>Tidak ada agregat distribusi</td>
+<td><code>GET users/{user}/reviews/summary?role=</code></td>
+<td>P1</td>
+</tr>
+<tr>
+<td>B6</td>
+<td>Alamat tersimpan di server (nama, titik peta, kota, detail ≤250, "Terverifikasi"); dasar jarak feed &amp; "Pakai alamat tersimpan"</td>
+<td>alamat-tersimpan, pasang-tugas-2, filter-tugas</td>
+<td>Perlu baru</td>
+<td>Tidak ada; lokal DataStore (<code>api-core.md</code>: "Belum ada endpoint alamat")</td>
+<td>Tabel <code>user_addresses</code> (1:1, <code>user_id</code> unique); <code>GET/PUT/DELETE me/address</code>. Tidak pernah keluar di <code>PublicUserResource</code>.</td>
+<td>P1</td>
+</tr>
+<tr>
+<td>B7</td>
+<td>Hitungan per tab ("Berjalan (2)", "Dikerjakan (1)") dan per kategori feed ("Pindahan (3)")</td>
+<td>tugas, beranda-cari-kerja</td>
+<td>Perlu baru</td>
+<td>Cursor tanpa total (disengaja)</td>
+<td><code>GET tasks/posted/counts</code>, <code>GET tasks/worked/counts</code> (COUNT per grup status); counts per kategori feed opsional</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>B8</td>
+<td>ETA "Tiba 15 mnt lagi", "Sedang dalam perjalanan (2.4 km)", live location</td>
+<td>beranda-cari-bantuan, dialog-minta-batalkan-tugas</td>
+<td>Perlu baru</td>
+<td>Hanya <code>departed_at</code></td>
+<td><code>POST activities/{a}/location {lat,lng}</code> (throttle, hanya <code>on_the_way</code>), <code>activity.live: {distance_km, eta_minutes, updated_at}</code>; retensi pendek. <em>Alternatif murah: tampilkan "Berangkat 09.40" dari <code>departed_at</code>.</em></td>
+<td>P2</td>
+</tr>
+<tr>
+<td>B9</td>
+<td>Catatan update per pekerja ("09.52 WIB · Tiba di lokasi dan mulai angkut lemari")</td>
+<td>detail-tugas-sedang-dikerjakan</td>
+<td>Perlu baru</td>
+<td>Jam per langkah sudah ada (S11), teks bebas tidak ada</td>
+<td><code>activity_updates</code> (activity_id, note ≤200, photo?, created_at); <code>POST activities/{a}/updates</code>; <code>latest_update</code> di <code>ActivityResource</code>. <em>Tanpa BE: tulis kalimat tetap per status + jam.</em></td>
+<td>P2</td>
+</tr>
+<tr>
+<td>B10</td>
+<td>Checklist "Persiapan Mitra 3/3" &amp; checklist sebelum "Tandai selesai"</td>
+<td>detail-kerjaan-menuju-lokasi, -tandai-selesai</td>
+<td>Perlu baru</td>
+<td>Tidak ada di model</td>
+<td><code>tasks.checklist</code> JSON (dibuat poster/template kategori) + <code>activities.checklist_state</code>; atau jadikan UI lokal saja</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>B11</td>
+<td>Bookmark/simpan tugas</td>
+<td>beranda-cari-kerja (UX Enh. #10)</td>
+<td>Perlu baru</td>
+<td>Tidak ada</td>
+<td><code>task_bookmarks</code>; <code>PUT/DELETE tasks/{task}/bookmark</code>, <code>GET tasks/bookmarked</code>, <code>is_bookmarked</code> di feed</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>B12</td>
+<td>Pemilih kota (header Beranda, register, edit profil)</td>
+<td>beranda-*, daftar-1, edit-profil, alamat-tersimpan</td>
+<td>Perlu baru</td>
+<td>Kota = teks bebas (<code>city</code> max 80)</td>
+<td><code>GET cities?q=</code> (master kab/kota + provinsi). <em>Atau daftar statis di app.</em></td>
+<td>P2</td>
+</tr>
+<tr>
+<td>B13</td>
+<td>Push tugas baru ke mitra terdekat + "Notifikasi telah dikirim ke ~14 mitra terdekat di area Coblong"</td>
+<td>dialog-sukses-tugas-sudah-tayang, dialog-daftar-jadi-mitra ("Radius 5 km")</td>
+<td>Perlu baru</td>
+<td>Tidak ada <code>PushType</code> tugas baru</td>
+<td>Job saat publish: cari <code>user_workers</code> <code>is_available</code> dalam radius; push <code>task_published</code>; respons <code>POST tasks</code> + <code>meta.notified_workers</code></td>
+<td>P2</td>
+</tr>
+<tr>
+<td>B14</td>
+<td>Kode unik 3 digit transfer manual</td>
+<td>isi-saldo</td>
+<td>Perlu baru</td>
+<td>Tidak ada</td>
+<td><code>wallet_topups.unique_code</code> + <code>transfer_amount</code> (keputusan produk: mempermudah pencocokan mutasi)</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>B15</td>
+<td>Ulasan dengan foto ("Dengan Foto (12)")</td>
+<td>semua-ulasan</td>
+<td>Perlu baru</td>
+<td>Tidak ada</td>
+<td><code>reviews.photos</code> JSON, <code>has_photos</code> filter</td>
+<td>P2</td>
+</tr>
+<tr>
+<td>B16</td>
+<td>Konfirmasi selesai semua pekerja sekali tekan ("Konfirmasi Selesai &amp; Rilis Dana")</td>
+<td>detail-tugas-sedang-dikerjakan</td>
+<td>Perlu baru</td>
+<td>Per activity (<code>approve</code> <code>:317</code>)</td>
+<td><code>POST tasks/{task}/approve-all</code>. <em>Klien bisa loop per activity.</em></td>
+<td>P2</td>
+</tr>
+<tr>
+<td>B17</td>
+<td>Tombol telepon ke pemberi kerja/pekerja setelah deal</td>
+<td>detail-kerjaan-*</td>
+<td>Perlu baru</td>
+<td>Nomor tidak pernah keluar di <code>PublicUserResource</code> (disengaja)</td>
+<td>Keputusan produk. Bila ya: <code>contact_phone</code> hanya untuk pasangan yang sudah deal dan task aktif (<code>GET tasks/{task}/contacts</code>)</td>
+<td>P2</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2>3. Usulan kontrak (P0/P1)</h2>
+<p>Konvensi yang diikuti (dari <code>docs/API.md</code> &amp; <code>CLAUDE.md</code>): prefix <code>/api/v1</code>, satu invokable controller per rute, amplop sukses <code>{data}</code>, galat bisnis <code>{message, code, context?}</code>, galat validasi <code>{message, errors}</code>, id publik ULID, uang integer rupiah, waktu ISO-8601 beroffset, daftar <strong>cursor only</strong> (<code>meta.next_cursor</code>, tanpa <code>total</code>), urut <code>created_at</code>+<code>id</code>. Setiap rute baru wajib masuk <code>docs/openapi.yaml</code> dan tabel ringkasan <code>docs/API.md</code> (<code>ApiDocumentationTest</code>).</p>
+<h3>U1 · Login dengan nomor HP (P0)</h3>
+<pre><code class="language-http">POST /api/v1/auth/login
+{ &quot;phone&quot;: &quot;081234567890&quot;, &quot;password&quot;: &quot;••••••••&quot; }
+</code></pre>
+<p>Aturan: tepat satu dari <code>email | username | phone</code>. Normalisasi ke <code>+62…</code> sebelum lookup (kolom <code>users.phone</code> sudah unique). Respons tetap <code>TokenPairResource</code>. Galat tetap <code>401 invalid_credentials</code> (jangan bedakan "nomor tidak terdaftar").</p>
+<h3>U2 · Lokasi tersamar sebelum deal (P0)</h3>
+<p><code>GET /tasks</code>, <code>GET /tasks/{task}</code> untuk viewer yang bukan poster dan bukan pekerja ber-bid <code>accepted</code>:</p>
+<pre><code class="language-json">&quot;location&quot;: {
+  &quot;text&quot;: null,
+  &quot;area&quot;: &quot;Coblong&quot;,
+  &quot;city&quot;: &quot;Kota Bandung&quot;,
+  &quot;latitude&quot;: -6.892,
+  &quot;longitude&quot;: 107.617,
+  &quot;is_precise&quot;: false,
+  &quot;is_remote&quot;: false
+}
+</code></pre>
+<p>Poster/pekerja yang sudah deal: <code>text</code> utuh, koordinat penuh, <code>is_precise: true</code>. Logikanya di resource (batas pengungkapan), dengan penentu akses di satu helper (<code>Task::revealsLocationTo(User)</code>). Tambah test disclosure.</p>
+<h3>U3 · Referensi tugas di riwayat saldo (P1)</h3>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;01M…&quot;, &quot;type&quot;: &quot;task_hold&quot;, &quot;direction&quot;: &quot;debit&quot;, &quot;amount&quot;: 240000,
+  &quot;balance_after&quot;: 610000, &quot;reference_type&quot;: &quot;task_fund_movements&quot;,
+  &quot;description&quot;: &quot;Dana tugas #TK-260924-AB12CD ditahan&quot;,
+  &quot;task&quot;: { &quot;id&quot;: &quot;01M20DM1…&quot;, &quot;task_number&quot;: &quot;TK-260924-AB12CD&quot;, &quot;title&quot;: &quot;Pindahan Lemari Lantai 2&quot;,
+            &quot;category&quot;: { &quot;slug&quot;: &quot;pindahan&quot;, &quot;name&quot;: &quot;Pindahan &amp; Angkut&quot; } },
+  &quot;created_at&quot;: &quot;2026-09-24T10:15:00+07:00&quot;
+}
+</code></pre>
+<p><code>task</code> = <code>null</code> untuk <code>topup</code>, <code>withdrawal</code>, <code>withdrawal_reversal</code>, <code>adjustment_*</code>.</p>
+<h3>U4 · Rekening tersamar (P1)</h3>
+<p><code>GET /me/verifications</code> (tipe <code>bank_account</code>) dan <code>WalletWithdrawalResource.destination</code>:</p>
+<pre><code class="language-json">{ &quot;bank_code&quot;: &quot;BCA&quot;, &quot;account_holder_name&quot;: &quot;Ratna Dewi&quot;, &quot;account_number_masked&quot;: &quot;•••• 4910&quot; }
+</code></pre>
+<h3>U5 · PATCH me nomor HP (P1)</h3>
+<pre><code class="language-http">PATCH /api/v1/me
+{ &quot;phone&quot;: &quot;+6281234567890&quot; }
+</code></pre>
+<p><code>422 errors.phone</code> bila dipakai orang lain. <code>phone_verified</code> → <code>false</code> setelah berubah.</p>
+<h3>U6 · Tag rating (P1)</h3>
+<pre><code class="language-http">POST /api/v1/tasks/{task}/reviews
+{ &quot;rating&quot;: 5, &quot;tags&quot;: [&quot;on_time&quot;, &quot;tidy&quot;, &quot;friendly&quot;], &quot;comment&quot;: &quot;Rapi dan tepat waktu&quot;, &quot;worker_id&quot;: &quot;01M…&quot; }
+</code></pre>
+<p>Enum <code>ReviewTag</code>, dibedakan per <code>reviewer_role</code> (untuk poster→pekerja: <code>on_time</code>, <code>tidy</code>, <code>friendly</code>, <code>skilled</code>; untuk pekerja→poster: <code>clear_brief</code>, <code>friendly</code>, <code>on_time_payment</code>). Tag di luar peran → <code>422 errors.tags.*</code>. <code>ReviewResource</code> + <code>"tags": [...]</code> (selalu array).</p>
+<h3>U7 · Filter ulasan + nama tugas (P1)</h3>
+<pre><code class="language-http">GET /api/v1/users/{user}/reviews?role=poster&amp;rating=5&amp;q=rapi&amp;per_page=20
+GET /api/v1/users/{user}/reviews?role=poster&amp;rating_max=2
+</code></pre>
+<p>Item + <code>"task": { "id": "01M…", "title": "Servis &amp; Cuci AC Daikin 1 PK", "category": { "slug": "ac", "name": "AC &amp; Elektronik" } }</code>.</p>
+<h3>U8 · Jarak penawar/pekerja (P1)</h3>
+<p><code>BidResource</code> dan <code>TaskResource.workers[]</code> (hanya untuk poster task itu):</p>
+<pre><code class="language-json">{ &quot;id&quot;: &quot;01M…&quot;, &quot;amount&quot;: 120000, &quot;status&quot;: &quot;pending&quot;, &quot;distance_km&quot;: 1.1, &quot;bidder&quot;: { … } }
+</code></pre>
+<h3>U9 / U10 · Filter daftar tugas (P1)</h3>
+<pre><code class="language-http">GET /api/v1/tasks?category_ids[]=3&amp;category_ids[]=7&amp;budget_from=50000&amp;budget_to=500000&amp;lat=-6.89&amp;lng=107.61&amp;radius_km=10
+GET /api/v1/tasks/posted?statuses[]=submitted&amp;statuses[]=disputed
+</code></pre>
+<p><code>category_id</code> lama tetap diterima; bila keduanya dikirim, <code>422</code>.</p>
+<h3>U11 · Bukti kerja wajib (P1)</h3>
+<pre><code class="language-http">POST /api/v1/uploads            (multipart: file, purpose=proof)   → 201 {data:{path:&quot;uploads/proofs/…jpg&quot;, url}}
+POST /api/v1/activities/{a}/submit
+{ &quot;proof_photos&quot;: [&quot;uploads/proofs/…jpg&quot;], &quot;worker_note&quot;: &quot;Talang sudah lancar&quot; }
+</code></pre>
+<p>Tanpa foto → <code>422 errors.proof_photos</code>. Path di luar <code>uploads/proofs/</code> → <code>422</code>.</p>
+<h3>U12 · Push pembatalan (P1)</h3>
+<p>Payload <code>data</code> FCM mengikuti bentuk yang ada (<code>PushMessages::data</code>):</p>
+<pre><code class="language-json">{ &quot;type&quot;: &quot;cancel_requested&quot;, &quot;task_id&quot;: &quot;01M…&quot;, &quot;cancel_request_id&quot;: &quot;01M…&quot; }
+{ &quot;type&quot;: &quot;cancel_request_resolved&quot;, &quot;task_id&quot;: &quot;01M…&quot;, &quot;result&quot;: &quot;rejected&quot; }
+{ &quot;type&quot;: &quot;task_cancelled&quot;, &quot;task_id&quot;: &quot;01M…&quot; }
+</code></pre>
+<h3>U13 · Ketersediaan mitra (P1)</h3>
+<pre><code class="language-http">PUT /api/v1/me/worker
+{ &quot;is_available&quot;: false }
+</code></pre>
+<p>→ <code>WorkerProfileResource.is_available</code>; <code>PublicUserResource.as_worker.is_available</code>; <code>GET /workers?available=1</code>. Migrasi: <code>user_workers.is_available boolean default true</code> + indeks bila dipakai filter.</p>
+<h3>B1 · Konfigurasi dompet (P0)</h3>
+<pre><code class="language-http">GET /api/v1/me/wallet/config
+</code></pre>
+<pre><code class="language-json">{
+  &quot;data&quot;: {
+    &quot;topup_accounts&quot;: [
+      { &quot;bank_code&quot;: &quot;BCA&quot;, &quot;bank_name&quot;: &quot;Bank Central Asia&quot;, &quot;account_number&quot;: &quot;&lt;dari env&gt;&quot;, &quot;account_holder&quot;: &quot;&lt;nama badan usaha&gt;&quot; }
+    ],
+    &quot;limits&quot;: {
+      &quot;min_topup&quot;: 10000, &quot;max_topup&quot;: 10000000,
+      &quot;min_withdrawal&quot;: 50000, &quot;max_withdrawal&quot;: 10000000,
+      &quot;max_pending_requests&quot;: 3
+    }
+  }
+}
+</code></pre>
+<p>Sumber: <code>config/sekarya.php</code> → <code>wallet.topup_accounts</code> (diisi dari env, bukan hard-code di repo). Nilai rekening asli wajib dicek manusia sebelum diisi.</p>
+<h3>B2 · Ringkasan saldo (P0)</h3>
+<pre><code class="language-http">GET /api/v1/me/wallet/summary?from=2026-09-01T00:00:00+07:00&amp;to=2026-10-01T00:00:00+07:00
+</code></pre>
+<pre><code class="language-json">{
+  &quot;data&quot;: {
+    &quot;from&quot;: &quot;2026-09-01T00:00:00+07:00&quot;, &quot;to&quot;: &quot;2026-10-01T00:00:00+07:00&quot;,
+    &quot;credit_total&quot;: 550000, &quot;debit_total&quot;: 230000, &quot;entries_count&quot;: 4,
+    &quot;by_type&quot;: { &quot;topup&quot;: 250000, &quot;refund&quot;: 300000, &quot;task_hold&quot;: 230000, &quot;earning&quot;: 0 },
+    &quot;earning_total&quot;: 0
+  }
+}
+</code></pre>
+<p><code>from</code> inklusif, <code>to</code> eksklusif (sama dengan filter entries), rentang maks 366 hari. Filter <code>types[]</code>/<code>direction</code> boleh diterima agar total mengikuti tab. "Pendapatan minggu ini" + "vs pekan lalu" = dua panggilan (minggu ini dan minggu lalu), atau <code>compare_previous=1</code> → <code>previous: {credit_total, earning_total}</code>.</p>
+<h3>B3 · Notifikasi in-app (P1)</h3>
+<pre><code class="language-http">GET  /api/v1/me/notifications?unread=1&amp;per_page=20
+GET  /api/v1/me/notifications/unread-count          → {&quot;data&quot;:{&quot;count&quot;:3}}
+POST /api/v1/me/notifications/{notification}/read
+POST /api/v1/me/notifications/read-all
+</code></pre>
+<pre><code class="language-json">{
+  &quot;data&quot;: [
+    { &quot;id&quot;: &quot;01M…&quot;, &quot;type&quot;: &quot;bid_placed&quot;, &quot;title&quot;: &quot;Servis AC Daikin&quot;, &quot;body&quot;: &quot;Budi mengajukan penawaran · 3 penawar&quot;,
+      &quot;task_id&quot;: &quot;01M…&quot;, &quot;activity_id&quot;: null, &quot;read_at&quot;: null, &quot;created_at&quot;: &quot;2026-09-25T09:12:44+07:00&quot; }
+  ],
+  &quot;links&quot;: { … }, &quot;meta&quot;: { &quot;next_cursor&quot;: &quot;…&quot;, &quot;prev_cursor&quot;: null, &quot;per_page&quot;: 20 }
+}
+</code></pre>
+<p>Migrasi <code>user_notifications</code> (ulid, user_id, type, title, body, data JSON, read_at, created_at; indeks <code>(user_id, created_at, id)</code>, <code>(user_id, read_at)</code>). Ditulis oleh jalur yang sama dengan <code>SendPushNotification</code>, supaya push dan daftar tidak berbeda isi.</p>
+<h3>B4 · Profil publik (P1)</h3>
+<pre><code class="language-http">GET /api/v1/users/{user}      → {&quot;data&quot;: PublicUserResource (+skills)}
+</code></pre>
+<p>Akun <code>suspended/banned/pending</code> → <code>404</code> (jangan konfirmasi keberadaan).</p>
+<h3>B5 · Ringkasan ulasan (P1)</h3>
+<pre><code class="language-http">GET /api/v1/users/{user}/reviews/summary?role=poster
+</code></pre>
+<pre><code class="language-json">{ &quot;data&quot;: { &quot;rating_avg&quot;: 4.9, &quot;rating_count&quot;: 41,
+            &quot;distribution&quot;: { &quot;5&quot;: 30, &quot;4&quot;: 8, &quot;3&quot;: 2, &quot;2&quot;: 1, &quot;1&quot;: 0 } } }
+</code></pre>
+<p>Distribusi selalu 5 kunci (objek, bukan array). Persentase dihitung klien.</p>
+<h3>B6 · Alamat tersimpan (P1)</h3>
+<pre><code class="language-http">GET    /api/v1/me/address      → {&quot;data&quot;: null} bila belum ada
+PUT    /api/v1/me/address
+DELETE /api/v1/me/address      → 204
+</code></pre>
+<pre><code class="language-json">{ &quot;label&quot;: &quot;Rumah&quot;, &quot;address_line&quot;: &quot;Jl. … No. 42, RT 03/RW 07, Coblong (patokan …)&quot;,
+  &quot;city&quot;: &quot;Kota Bandung&quot;, &quot;province&quot;: &quot;Jawa Barat&quot;,
+  &quot;latitude&quot;: -6.8915, &quot;longitude&quot;: 107.6167 }
+</code></pre>
+<p>Validasi: <code>label</code> ≤40, <code>address_line</code> ≤250, koordinat wajib berpasangan (aturan yang sama dengan <code>me/worker</code>). Respons + <code>updated_at</code>. Mobile memindahkan <code>SettingsRepository.savedAddress</code> ke repo jaringan.</p>
+<hr />
+<h2>4. UI-only / keputusan produk</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Elemen di UI</th>
+<th>Screen</th>
+<th>Status BE</th>
+<th>Keputusan yang dibutuhkan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>X1</td>
+<td>Tier member "Silver"</td>
+<td>akun</td>
+<td>Tidak ada</td>
+<td>Program loyalti ada atau tidak? Kalau tidak, hapus dari UI</td>
+</tr>
+<tr>
+<td>X2</td>
+<td>"Poin Sekarya 450"</td>
+<td>akun</td>
+<td>Tidak ada</td>
+<td>Sama dengan X1</td>
+</tr>
+<tr>
+<td>X3</td>
+<td>"Metode Pembayaran · QRIS &amp; Virtual Account"</td>
+<td>akun</td>
+<td>Tidak ada (isi saldo = transfer manual, <code>docs/API.md</code> "Belum ada")</td>
+<td>Hapus atau ganti "Transfer bank (manual)" sampai gateway ada</td>
+</tr>
+<tr>
+<td>X4</td>
+<td>"Top-up Instant via QRIS", "via Mandiri Livin", "BCA Virtual Account"</td>
+<td>saldo, isi-saldo</td>
+<td>Channel tidak dicatat</td>
+<td>Demo. Kalau channel perlu tampil, tambah <code>sender_bank</code> di topup</td>
+</tr>
+<tr>
+<td>X5</td>
+<td>"Pusat Bantuan &amp; CS 24 Jam", "Ajukan Kendala"</td>
+<td>akun</td>
+<td>Tidak ada</td>
+<td>Link statis (WA/web) atau alur tiket/sengketa (belum ada jalan keluar dari <code>disputed</code>)</td>
+</tr>
+<tr>
+<td>X6</td>
+<td>Garansi 14 hari / "Garansi Pengerjaan Ulang 7 Hari" / "Sekarya Amanah"</td>
+<td>akun, profil, info-tugas</td>
+<td>Tidak ada kebijakan di sistem</td>
+<td>Klaim hukum. Putuskan kebijakannya dulu, baru copy</td>
+</tr>
+<tr>
+<td>X7</td>
+<td>"Identitas terverifikasi (KTP &amp; SKCK)"</td>
+<td>profil-publik-mitra</td>
+<td>Hanya <code>identity</code> &amp; <code>bank_account</code> (<code>VerificationType</code>)</td>
+<td>Hapus "SKCK", atau tambah tipe verifikasi baru</td>
+</tr>
+<tr>
+<td>X8</td>
+<td>"Kata sandi ini juga untuk otorisasi transaksi saldo"</td>
+<td>daftar-langkah-2</td>
+<td>Penarikan tidak meminta sandi</td>
+<td>Klaim salah. Hapus copy, atau tambah konfirmasi sandi pada <code>POST me/wallet/withdrawals</code></td>
+</tr>
+<tr>
+<td>X9</td>
+<td>"Enkripsi standar perbankan", "Sekarya SafePay", "Rekber"</td>
+<td>daftar-1, masuk, riwayat</td>
+<td>—</td>
+<td>Klaim marketing; pastikan akurat</td>
+</tr>
+<tr>
+<td>X10</td>
+<td>"+18% dari pekan lalu"</td>
+<td>beranda-cari-kerja</td>
+<td>Bisa dari B2 (dua periode)</td>
+<td>Tampilkan hanya bila B2 ada</td>
+</tr>
+<tr>
+<td>X11</td>
+<td>"Tips Mitra: balas &lt;15 menit = 2.5x peluang"</td>
+<td>beranda-cari-kerja</td>
+<td>Statistik fiktif</td>
+<td>Konten editorial; jangan tampilkan angka tanpa data</td>
+</tr>
+<tr>
+<td>X12</td>
+<td>"Paling diminati" (jam mulai populer)</td>
+<td>pasang-tugas-3/4, detail-peluang, ubah-tugas</td>
+<td>Tidak ada</td>
+<td>Heuristik statis di app, atau endpoint statistik (P2)</td>
+</tr>
+<tr>
+<td>X13</td>
+<td>"Rekomendasi 2 orang" (jumlah pekerja)</td>
+<td>pasang-tugas-3</td>
+<td>Tidak ada</td>
+<td>Aturan statis per kategori di app</td>
+</tr>
+<tr>
+<td>X14</td>
+<td>Chip nominal cepat (75rb…300rb, +10rb, Rp50rb/100rb)</td>
+<td>pasang-tugas-3, ubah-tugas, isi-saldo, tarik-saldo</td>
+<td>Tidak perlu</td>
+<td>UI-only (boleh diturunkan dari acuan harga kategori)</td>
+</tr>
+<tr>
+<td>X15</td>
+<td>"Estimasi tiba: Hari ini maks. 23:59", "±5-15 menit", "Biaya admin Rp0"</td>
+<td>tarik-saldo, isi-saldo</td>
+<td>SLA manual</td>
+<td>Janji SLA; sepakati dengan tim pengelola</td>
+</tr>
+<tr>
+<td>X16</td>
+<td>"Berjalan tepat waktu"</td>
+<td>detail-tugas-sedang-dikerjakan</td>
+<td>Bisa diturunkan dari <code>needed_at</code> vs <code>arrived_at</code></td>
+<td>UI-only</td>
+</tr>
+<tr>
+<td>X17</td>
+<td>"Bonus Pengguna Baru Rp25.000"</td>
+<td>saldo</td>
+<td>Bisa lewat <code>adjustment_credit</code>, tapi tidak ada program</td>
+<td>Promo ada atau tidak?</td>
+</tr>
+<tr>
+<td>X18</td>
+<td>Chat / "Grup Chat"</td>
+<td>detail-*</td>
+<td>Placeholder lokal; diputuskan DB terpisah (<code>docs/API.md</code> "Belum ada")</td>
+<td>Di luar cakupan API ini</td>
+</tr>
+<tr>
+<td>X19</td>
+<td>Tombol "share", saran POI di peta, "Bahasa Aplikasi", versi app</td>
+<td>detail-*, pilih-lokasi, akun</td>
+<td>Tidak perlu</td>
+<td>Share link web (opsional); POI dari geocoder klien; bahasa &amp; versi lokal</td>
+</tr>
+<tr>
+<td>X20</td>
+<td>Kartu "Garansi Amanah", "Kategori Populer", "~28 mitra aktif" (UX Enh. #8, #14)</td>
+<td>beranda, pasang-tugas</td>
+<td>Tidak ada</td>
+<td>Banner statis; hitungan mitra aktif butuh B13/U13</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h3>Catatan untuk implementasi</h3>
+<ul>
+<li>Urutan disarankan: <strong>U2 → U1 → B1 → B2</strong> (P0), lalu U3/U4 (dompet), U6/U7/B4/B5 (ulasan &amp; profil), B6, B3, U12/U13, U8–U11.</li>
+<li>U2 menyentuh batas pengungkapan: tambahkan test disclosure seperti yang sudah ada untuk NIK/nomor rekening.</li>
+<li>Semua rute baru: FormRequest → DTO → Action → Resource, cursor pagination, didaftarkan di <code>openapi.yaml</code> + tabel ringkasan <code>API.md</code> (dijaga <code>ApiDocumentationTest</code>).</li>
+<li>Setelah BE siap, perbarui skill mobile <code>references/arch/api-*.md</code> (terutama catatan "Belum ada endpoint alamat" dan "Pendapatan masih salah hitung").</li>
+</ul></main></body></html>

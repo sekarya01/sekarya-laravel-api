@@ -25,6 +25,8 @@ final readonly class CreateTaskData
         public array $options = [],
         public array $photos = [],
         public ?string $locationText = null,
+        /** Wilayah kasar yang selalu tampil — lihat Task::revealsLocationTo. */
+        public ?string $area = null,
         public ?float $latitude = null,
         public ?float $longitude = null,
         public bool $isRemote = false,
@@ -56,6 +58,7 @@ final readonly class CreateTaskData
             locationText: $request->filled('location_text')
                 ? trim($request->string('location_text')->value())
                 : null,
+            area: $request->filled('area') ? trim($request->string('area')->value()) : null,
             latitude: $request->filled('latitude') ? $request->float('latitude') : null,
             longitude: $request->filled('longitude') ? $request->float('longitude') : null,
             isRemote: $request->boolean('is_remote'),

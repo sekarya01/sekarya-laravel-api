@@ -115,6 +115,27 @@ final class TaskPhotoUploadTest extends TestCase
             ->assertJsonPath('data.photos.0', $path);
     }
 
+    /**
+     * Bukti kerja masuk folder sendiri (`uploads/proofs`) supaya
+     * penyajiannya bisa dibatasi dan kepemilikannya diperiksa saat
+     * penyerahan hasil (U11).
+     */
+    public function test_proof_upload_lands_in_the_proof_folder(): void
+    {
+        Storage::fake('public');
+
+        $path = $this->asUser($this->poster)
+            ->postJson(route('v1.uploads.store'), [
+                'file' => UploadedFile::fake()->image('bukti.jpg', 800, 600)->size(300),
+                'purpose' => 'proof',
+            ])
+            ->assertCreated()
+            ->json('data.path');
+
+        $this->assertStringStartsWith('uploads/proofs/', $path);
+        Storage::disk('public')->assertExists($path);
+    }
+
     public function test_non_image_is_rejected(): void
     {
         Storage::fake('public');

@@ -18,7 +18,7 @@ final class ListTaskBidsController
     public function __invoke(ListTaskBidsRequest $request, Task $task): AnonymousResourceCollection
     {
         return BidResource::collection(
-            $this->action->forTask($task, $request->page(), $request->sort()),
+            $this->action->forTask($task, $request->page(), $request->sort(), $request->user()),
         );
     }
 }

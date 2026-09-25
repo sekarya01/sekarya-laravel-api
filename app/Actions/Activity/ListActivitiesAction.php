@@ -8,6 +8,7 @@ use App\Data\CursorPageData;
 use App\Models\Activity;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\CursorPaginator;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 final class ListActivitiesAction
 {
@@ -18,7 +19,12 @@ final class ListActivitiesAction
             ->where('worker_id', $worker->getKey())
             // worker wajib: mobile memakai worker.name sebagai syarat
             // tampil stepper status pengerjaan di detail.
-            ->with(['worker', 'task.category', 'task.poster', 'payment'])
+            ->with([
+                'worker', 'task.category', 'task.poster', 'payment',
+                // Penentu lokasi presisi (Task::revealsLocationTo) tanpa
+                // satu kueri per baris.
+                'task.myBid' => fn (Relation $q) => $q->where('bidder_id', $worker->getKey()),
+            ])
             ->latestFirst()
             ->cursorPaginate($page->perPage);
     }

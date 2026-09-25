@@ -6,6 +6,7 @@ namespace App\Http\Requests\Api\V1\User;
 
 use App\Enums\Gender;
 use App\Enums\UserActiveMode;
+use App\Support\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,6 +22,13 @@ final class UpdateProfileRequest extends FormRequest
             'username' => [
                 'sometimes', 'nullable', 'string', 'max:30', 'regex:/\A[A-Za-z0-9._]+\z/',
                 Rule::unique('users', 'username')->ignore($this->user()?->getKey()),
+            ],
+            // Aturan bentuk yang SAMA dengan pendaftaran (PhoneNumber), unik
+            // kecuali milik sendiri. Mengganti nomor mencabut status
+            // terverifikasinya — lihat UpdateProfileAction.
+            'phone' => [
+                'sometimes', 'nullable', 'string', 'max:20', 'regex:'.PhoneNumber::PATTERN,
+                Rule::unique('users', 'phone')->ignore($this->user()?->getKey()),
             ],
             'gender' => ['sometimes', 'nullable', Rule::enum(Gender::class)],
 
@@ -74,6 +82,8 @@ final class UpdateProfileRequest extends FormRequest
                 config('sekarya.profile.min_age'),
             ),
             'birth_date.after_or_equal' => 'Tanggal lahir tidak masuk akal.',
+            'phone.unique' => 'Nomor HP sudah dipakai akun lain.',
+            'phone.regex' => 'Nomor HP harus angka, boleh diawali +, panjang 9-19 digit.',
         ];
     }
 }

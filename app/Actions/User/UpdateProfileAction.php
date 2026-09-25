@@ -19,7 +19,20 @@ final class UpdateProfileAction
             $attributes = $data->toAttributes();
 
             if ($attributes !== []) {
-                $user->fill($attributes)->save();
+                // Nomor yang BERUBAH belum pernah diverifikasi siapa pun:
+                // status terverifikasi milik nomor lama tidak boleh ikut
+                // pindah. Mengirim ulang nomor yang sama tidak mencabutnya.
+                $phoneChanged = array_key_exists('phone', $attributes)
+                    && $attributes['phone'] !== $user->phone;
+
+                $user->fill($attributes);
+
+                if ($phoneChanged) {
+                    // Di luar mass assignment: kolom penanda verifikasi.
+                    $user->forceFill(['phone_verified_at' => null]);
+                }
+
+                $user->save();
             }
 
             $this->syncDisplayName($data, $user);

@@ -11,6 +11,8 @@ use App\Enums\TaskStatus;
 use App\Enums\WalletEntryType;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\Push\PushDispatcher;
+use App\Support\Push\PushMessages;
 use App\Support\TaskStatusRecorder;
 use App\Support\WalletLedger;
 use Illuminate\Database\ConnectionInterface;
@@ -31,6 +33,7 @@ final class CancelTaskAction
         private readonly ConnectionInterface $db,
         private readonly TaskStatusRecorder $recorder,
         private readonly WalletLedger $ledger,
+        private readonly PushDispatcher $push,
     ) {}
 
     public function handle(Task $task, User $actor, ?string $reason = null): Task
@@ -100,7 +103,22 @@ final class CancelTaskAction
                 $actor->increment('cancellations');
             }
 
-            return $task->refresh();
+            $task->refresh();
+
+            // Pekerja yang sudah diterima kehilangan pekerjaannya — mereka
+            // diberi tahu (U12). Sumbernya penawaran `accepted`, bukan kolom
+            // di task (satu task bisa merekrut banyak orang). Pembatalnya
+            // sendiri tidak dikabari tentang aksinya sendiri.
+            $workerIds = $task->workers()
+                ->pluck('users.id')
+                ->map(static fn (mixed $id): int => (int) $id)
+                ->reject(static fn (int $id): bool => $id === $actor->getKey());
+
+            foreach ($workerIds as $workerId) {
+                $this->push->send($workerId, PushMessages::taskCancelled($task));
+            }
+
+            return $task;
         });
     }
 }

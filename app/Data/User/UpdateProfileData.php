@@ -7,6 +7,7 @@ namespace App\Data\User;
 use App\Enums\Gender;
 use App\Enums\UserActiveMode;
 use App\Http\Requests\Api\V1\User\UpdateProfileRequest;
+use App\Support\PhoneNumber;
 use Carbon\CarbonImmutable;
 
 final readonly class UpdateProfileData
@@ -33,6 +34,7 @@ final readonly class UpdateProfileData
         public ?string $firstName = null,
         public ?string $lastName = null,
         public ?string $username = null,
+        public ?string $phone = null,
         public ?Gender $gender = null,
         public ?CarbonImmutable $birthDate = null,
         public ?string $bio = null,
@@ -59,6 +61,9 @@ final readonly class UpdateProfileData
             lastName: $str('last_name'),
             username: $request->has('username')
                 ? ($request->filled('username') ? mb_strtolower(trim($request->string('username')->value())) : null)
+                : null,
+            phone: $request->filled('phone')
+                ? PhoneNumber::normalize($request->string('phone')->value())
                 : null,
             gender: $request->filled('gender')
                 ? Gender::from($request->string('gender')->value())
@@ -99,6 +104,7 @@ final readonly class UpdateProfileData
         'first_name' => 'first_name',
         'last_name' => 'last_name',
         'username' => 'username',
+        'phone' => 'phone',
         'gender' => 'gender',
         'birth_date' => 'birth_date',
         'bio' => 'bio',
@@ -124,6 +130,7 @@ final readonly class UpdateProfileData
             'first_name' => $this->firstName,
             'last_name' => $this->lastName,
             'username' => $this->username,
+            'phone' => $this->phone,
             'gender' => $this->gender,
             'birth_date' => $this->birthDate,
             'bio' => $this->bio,

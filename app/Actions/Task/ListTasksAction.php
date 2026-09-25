@@ -62,7 +62,7 @@ final class ListTasksAction
     {
         return $this->base($data)
             ->where('tasks.poster_id', $poster->getKey())
-            ->when($data->status, fn (Builder $q, TaskStatus $s) => $q->where('tasks.status', $s))
+            ->when($data->statuses !== [], fn (Builder $q) => $this->applyStatuses($q, $data->statuses))
             // Pemberi kerja melihat status pekerja tiap tugas yang sedang
             // dikerjakan dari daftar — tanpa ini kartu hanya bisa menulis
             // "Dikerjakan" dan berselisih dengan Detail.
@@ -87,10 +87,13 @@ final class ListTasksAction
                 ->whereColumn('bids.task_id', 'tasks.id')
                 ->where('bids.bidder_id', $worker->getKey())
                 ->where('bids.status', BidStatus::Accepted->value))
-            ->when($data->status, fn (Builder $q, TaskStatus $s) => $q->where('tasks.status', $s))
+            ->when($data->statuses !== [], fn (Builder $q) => $this->applyStatuses($q, $data->statuses))
             // Mitra melihat status pekerjaannya sendiri dari daftar (mis.
             // "Sudah sampai"), bukan hanya "Dikerjakan".
             ->with('activities.worker')
+            // Penawarannya sendiri — juga yang dibaca Task::revealsLocationTo
+            // tanpa satu kueri per baris.
+            ->with(['myBid' => fn (Relation $q) => $q->where('bidder_id', $worker->getKey())])
             ->cursorPaginate($data->page->perPage);
     }
 
@@ -103,7 +106,10 @@ final class ListTasksAction
         $query = Task::query()
             ->select('tasks.*')
             ->with(['category', 'poster', 'skills'])
-            ->when($data->categoryId, fn (Builder $q, int $id) => $q->where('tasks.category_id', $id))
+            // Satu kategori tetap `=`, beberapa `IN` — keduanya rentang pada
+            // indeks (category_id, status, created_at).
+            ->when(count($data->categoryIds) === 1, fn (Builder $q) => $q->where('tasks.category_id', $data->categoryIds[0]))
+            ->when(count($data->categoryIds) > 1, fn (Builder $q) => $q->whereIn('tasks.category_id', $data->categoryIds))
             ->when($data->city, fn (Builder $q, string $c) => $q->where('tasks.city', $c))
             // budget_max nullable, jadi acuan filter adalah budget_min.
             ->when($data->budgetFrom, fn (Builder $q, int $v) => $q->where('tasks.budget_min', '>=', $v))
@@ -135,6 +141,28 @@ final class ListTasksAction
 
         // Urutan default. `id` wajib sebagai tiebreaker cursor.
         return $query->orderByDesc('tasks.created_at')->orderByDesc('tasks.id');
+    }
+
+    /**
+     * Penyaring status untuk daftar milik sendiri (tab Tugas). Satu status
+     * tetap `=`; beberapa `IN` — rentang pada indeks
+     * (poster_id, status, created_at).
+     *
+     * @param  Builder<Task>  $query
+     * @param  list<TaskStatus>  $statuses
+     */
+    private function applyStatuses(Builder $query, array $statuses): void
+    {
+        if (count($statuses) === 1) {
+            $query->where('tasks.status', $statuses[0]);
+
+            return;
+        }
+
+        $query->whereIn('tasks.status', array_map(
+            static fn (TaskStatus $s): string => $s->value,
+            $statuses,
+        ));
     }
 
     /**

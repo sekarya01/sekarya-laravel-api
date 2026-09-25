@@ -6,6 +6,7 @@ namespace App\Data\Auth;
 
 use App\Enums\Gender;
 use App\Http\Requests\Api\V1\Auth\RegisterRequest;
+use App\Support\PhoneNumber;
 
 final readonly class RegisterData
 {
@@ -40,7 +41,7 @@ final readonly class RegisterData
         }
 
         $phone = $request->filled('phone')
-            ? preg_replace('/\s+/', '', $request->string('phone')->value())
+            ? PhoneNumber::normalize($request->string('phone')->value())
             : null;
 
         return new self(
@@ -55,7 +56,7 @@ final readonly class RegisterData
             // tergantung collation, dan "A@x.com" vs "a@x.com" harus dianggap
             // satu orang.
             email: mb_strtolower(trim($request->string('email')->value())),
-            phone: $phone !== '' ? $phone : null,
+            phone: $phone,
             password: $request->string('password')->value(),
             gender: $request->filled('gender')
                 ? Gender::from($request->string('gender')->value())

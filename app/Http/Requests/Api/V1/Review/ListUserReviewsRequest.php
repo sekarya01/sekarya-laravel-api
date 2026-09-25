@@ -16,16 +16,17 @@ final class ListUserReviewsRequest extends FormRequest
     /** @return array<string, mixed> */
     protected function filters(): array
     {
-        // Reputasi dipisah per peran: sebagai pemberi kerja vs penerima kerja.
         return [
+            // Reputasi dipisah per peran: sebagai pemberi kerja vs penerima kerja.
             'role' => ['sometimes', Rule::enum(ReviewerRole::class)],
+            // Chip bintang: `rating=5` tepat lima; `rating_max=2` untuk
+            // "1-2★". Tidak boleh dikirim bersamaan — dua penyaring yang bisa
+            // saling meniadakan hanya menghasilkan daftar kosong yang
+            // membingungkan.
+            'rating' => ['sometimes', 'integer', 'between:1,5', 'prohibits:rating_max'],
+            'rating_max' => ['sometimes', 'integer', 'between:1,5'],
+            // Cari di komentar (FULLTEXT lewat `review_search`, bukan LIKE).
+            'q' => ['sometimes', 'nullable', 'string', 'max:100'],
         ];
-    }
-
-    public function role(): ?ReviewerRole
-    {
-        return $this->filled('role')
-            ? ReviewerRole::from($this->string('role')->value())
-            : null;
     }
 }

@@ -306,6 +306,36 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonValidationErrors(['status']);
     }
 
+    /**
+     * Tab "Berjalan / Selesai / Dibatalkan" butuh LEBIH DARI SATU status
+     * sekaligus supaya paginasinya tidak berlubang: menyaring satu status per
+     * halaman memaksa klien menggabungkan halaman yang masing-masing bisa
+     * terpotong.
+     */
+    public function test_posted_list_can_filter_by_multiple_statuses(): void
+    {
+        $this->createTask();
+        $this->createTask(['publish_now' => false]);
+
+        $this->asUser($this->poster)
+            ->getJson(route('v1.tasks.posted', [
+                'statuses' => ['open', 'draft'],
+            ]))
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
+
+    public function test_status_and_statuses_are_mutually_exclusive(): void
+    {
+        $this->asUser($this->poster)
+            ->getJson(route('v1.tasks.posted', [
+                'status' => 'open',
+                'statuses' => ['draft'],
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['statuses']);
+    }
+
     // ── lelang ──────────────────────────────────────────────────────────────
 
     public function test_placing_a_bid_returns_the_full_shape(): void
@@ -656,7 +686,7 @@ final class TaskLifecycleTest extends TestCase
         $this->asUser($this->poster)->postJson(route('v1.activities.submit', $activity))->assertForbidden();
         $this->asUser($this->worker)->postJson(route('v1.activities.submit', $activity), [
             'worker_note' => 'Sudah beres',
-            'proof_photos' => ['p/a.jpg', 'p/b.jpg'],
+            'proof_photos' => $this->proofPhotosFor($this->worker, 2),
         ])->assertOk()->assertJsonCount(2, 'data.proof_photos');
     }
 
@@ -670,12 +700,47 @@ final class TaskLifecycleTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors(['proof_photos']);
     }
 
+    /**
+     * "Tandai selesai" di UI menuntut SATU foto bukti. Itu bukan hiasan:
+     * tanpa foto, pemberi kerja menyetujui hasil yang tidak bisa dilihatnya.
+     */
+    public function test_submit_needs_at_least_one_proof_photo(): void
+    {
+        [, , $activity] = $this->throughToArrival();
+        $this->asUser($this->worker)->postJson(route('v1.activities.start', $activity))->assertOk();
+
+        $this->asUser($this->worker)
+            ->postJson(route('v1.activities.submit', $activity), ['worker_note' => 'beres'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['proof_photos']);
+    }
+
+    /**
+     * Path foto bukti milik ORANG LAIN ditolak. URL-nya publik — ia terlihat di
+     * Detail Tugas — jadi tanpa pemeriksaan ini seorang pekerja bisa
+     * menyerahkan hasil kerja orang lain sebagai hasilnya sendiri.
+     */
+    public function test_submit_rejects_a_photo_owned_by_someone_else(): void
+    {
+        [, , $activity] = $this->throughToArrival();
+        $this->asUser($this->worker)->postJson(route('v1.activities.start', $activity))->assertOk();
+
+        $orangLain = $this->activeUser();
+
+        $this->asUser($this->worker)
+            ->postJson(route('v1.activities.submit', $activity), [
+                'proof_photos' => $this->proofPhotosFor($orangLain),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['proof_photos.0']);
+    }
+
     private function submitted(): array
     {
         [$task, $bid, $activity] = $this->throughToArrival();
         $this->asUser($this->worker)->postJson(route('v1.activities.start', $activity))->assertOk();
         $this->asUser($this->worker)->postJson(route('v1.activities.submit', $activity), [
-            'worker_note' => 'Beres', 'proof_photos' => ['p/a.jpg'],
+            'worker_note' => 'Beres', 'proof_photos' => $this->proofPhotosFor($this->worker),
         ])->assertOk();
 
         return [$task, $bid, $activity];

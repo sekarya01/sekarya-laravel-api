@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\User;
 
 use App\Data\User\UpsertWorkerProfileData;
+use App\Exceptions\Domain\NotAWorkerException;
 use App\Exceptions\Domain\ProfileIncompleteException;
 use App\Models\User;
 use App\Models\UserWorker;
@@ -37,6 +38,14 @@ final class UpsertWorkerProfileAction
                 $user->gender === null ? 'gender' : null,
                 $user->birth_date === null ? 'birth_date' : null,
             ])));
+        }
+
+        // Ketersediaan hanya berarti bagi yang SUDAH pekerja. Tanpa penjaga
+        // ini, `{is_available: false}` dari akun pemberi kerja akan melahirkan
+        // baris `user_workers` — dan orang itu tiba-tiba muncul di
+        // `GET workers` hanya karena menekan sakelar.
+        if ($data->changesAvailability() && ! $user->hasWorkerProfile()) {
+            throw new NotAWorkerException;
         }
 
         return $this->db->transaction(function () use ($data, $user): UserWorker {

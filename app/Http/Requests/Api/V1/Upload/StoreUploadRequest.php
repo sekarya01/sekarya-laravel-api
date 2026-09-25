@@ -19,8 +19,9 @@ final class StoreUploadRequest extends FormRequest
             'file' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             // Hanya tujuan yang aman dipublikasikan. Dokumen identitas
             // (KTP/selfie) TIDAK boleh lewat sini — ia tidak boleh
-            // bisa diakses publik.
-            'purpose' => ['sometimes', 'string', 'in:task,avatar'],
+            // bisa diakses publik. `proof` = foto bukti hasil kerja (U11),
+            // disimpan di `uploads/proofs` dengan tanda pemilik.
+            'purpose' => ['sometimes', 'string', 'in:task,avatar,proof'],
         ];
     }
 

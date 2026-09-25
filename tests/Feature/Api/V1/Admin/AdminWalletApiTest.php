@@ -273,7 +273,15 @@ final class AdminWalletApiTest extends TestCase
             ->getContent();
 
         $this->assertStringNotContainsString('1234567890', $body);
-        $this->assertStringNotContainsString('account_number', $body);
+        // Kunci nomor UTUH (maupun kolom terenkripsinya) tidak ada. Yang boleh
+        // hanya empat digit terakhir di `account_number_masked`.
+        $this->assertStringNotContainsString('"account_number"', $body);
+        $this->assertStringNotContainsString('account_number_enc', $body);
+        $this->assertStringNotContainsString('account_number_last4', $body);
+        $this->assertSame(
+            ['verification_id', 'bank_code', 'account_holder_name', 'account_number_masked'],
+            array_keys((array) json_decode($body, true)['data'][0]['destination']),
+        );
     }
 
     /** Menyelesaikan TIDAK memotong saldo lagi — sudah ditahan sejak diminta. */

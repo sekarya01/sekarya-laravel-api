@@ -16,6 +16,7 @@ final readonly class ListWorkersData
         public ?string $province = null,
         public ?Gender $gender = null,
         public ?bool $readyToWork = null,
+        public ?bool $available = null,
     ) {}
 
     public static function fromRequest(ListWorkersRequest $request): self
@@ -32,6 +33,10 @@ final readonly class ListWorkersData
             // pada nilai "0" mudah salah dibaca saat aturannya berubah.
             readyToWork: $request->has('ready_to_work')
                 ? $request->boolean('ready_to_work')
+                : null,
+            // `has()` dengan alasan yang sama: `available=0` sah.
+            available: $request->has('available')
+                ? $request->boolean('available')
                 : null,
         );
     }

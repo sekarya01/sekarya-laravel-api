@@ -56,6 +56,9 @@ final class PublicUserResource extends BaseResource
                 'rating_avg' => (float) $worker->worker_rating_avg,
                 'rating_count' => $worker->worker_rating_count,
                 'tasks_completed' => $worker->tasks_completed,
+                // "Siap menerima kerja" (U13) — badge "Tersedia" di daftar
+                // penawar. Bawaan true, juga untuk yang belum punya profil.
+                'is_available' => (bool) $worker->is_available,
                 // Sejauh apa ia bersedia berangkat, dan dari kota mana.
                 // Tanpa jalan, tanpa koordinat — lihat catatan kelas.
                 'work_area' => [

@@ -286,6 +286,26 @@ class User extends Authenticatable
         return $this->hasMany(DeviceToken::class);
     }
 
+    /**
+     * Kotak masuk notifikasi in-app. Ditulis hanya oleh PushDispatcher.
+     *
+     * @return HasMany<UserNotification, $this>
+     */
+    public function notificationsInbox(): HasMany
+    {
+        return $this->hasMany(UserNotification::class);
+    }
+
+    /**
+     * Alamat tersimpan — nol atau satu baris, hanya untuk pemiliknya.
+     *
+     * @return HasOne<UserAddress, $this>
+     */
+    public function savedAddress(): HasOne
+    {
+        return $this->hasOne(UserAddress::class);
+    }
+
     /** @return HasMany<Activity, $this> */
     public function activities(): HasMany
     {

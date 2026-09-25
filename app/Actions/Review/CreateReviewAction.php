@@ -6,9 +6,11 @@ namespace App\Actions\Review;
 
 use App\Data\Review\CreateReviewData;
 use App\Enums\ReviewerRole;
+use App\Enums\ReviewTag;
 use App\Enums\TaskStatus;
 use App\Exceptions\Domain\NotTaskParticipantException;
 use App\Exceptions\Domain\ReviewNotAllowedYetException;
+use App\Exceptions\Domain\ReviewTagNotAllowedException;
 use App\Exceptions\Domain\ReviewTargetRequiredException;
 use App\Models\Review;
 use App\Models\Task;
@@ -40,6 +42,8 @@ final class CreateReviewAction
                 throw ReviewNotAllowedYetException::taskNotCompleted();
             }
 
+            $this->assertTagsFit($data->tags, $role);
+
             $revieweeId = $this->revieweeFor($task, $role, $data->workerUlid);
 
             $exists = Review::query()
@@ -59,12 +63,36 @@ final class CreateReviewAction
                 'reviewer_role' => $role,
                 'rating' => $data->rating,
                 'comment' => $data->comment,
+                // `null`, bukan `[]`, untuk ulasan tanpa tag — sama dengan
+                // ulasan lama. Resource mengeluarkan keduanya sebagai `[]`.
+                'tags' => $data->tags === []
+                    ? null
+                    : array_map(static fn (ReviewTag $t): string => $t->value, $data->tags),
             ]);
 
             $this->recalculateAggregate($revieweeId, $role);
 
             return $review;
         });
+    }
+
+    /**
+     * Tag harus milik arah penilaian ini (ReviewTag::forRole) dan tidak lebih
+     * dari batasnya.
+     *
+     * @param  list<ReviewTag>  $tags
+     */
+    private function assertTagsFit(array $tags, ReviewerRole $role): void
+    {
+        $allowed = ReviewTag::forRole($role);
+        $rejected = array_values(array_filter(
+            $tags,
+            static fn (ReviewTag $tag): bool => ! in_array($tag, $allowed, true),
+        ));
+
+        if ($rejected !== [] || count($tags) > ReviewTag::MAX_PER_REVIEW) {
+            throw new ReviewTagNotAllowedException($rejected, $role);
+        }
     }
 
     private function roleOf(Task $task, User $user): ReviewerRole

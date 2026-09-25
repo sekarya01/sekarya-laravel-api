@@ -65,6 +65,7 @@ final class UpdateTaskAction
                 'budget_min' => $data->budgetMin,
                 'budget_max' => $data->budgetMax,
                 'location_text' => $data->locationText,
+                'area' => $data->area,
                 'city' => $data->city,
                 'latitude' => $data->latitude,
                 'longitude' => $data->longitude,

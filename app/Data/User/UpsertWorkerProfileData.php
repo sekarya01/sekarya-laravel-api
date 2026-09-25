@@ -30,6 +30,7 @@ final readonly class UpsertWorkerProfileData
         public ?float $latitude = null,
         public ?float $longitude = null,
         public ?int $radiusKm = null,
+        public ?bool $isAvailable = null,
         public array $present = [],
     ) {}
 
@@ -45,6 +46,7 @@ final readonly class UpsertWorkerProfileData
         'latitude' => 'latitude',
         'longitude' => 'longitude',
         'radius_km' => 'radius_km',
+        'is_available' => 'is_available',
     ];
 
     public static function fromRequest(UpsertWorkerProfileRequest $request): self
@@ -69,6 +71,7 @@ final readonly class UpsertWorkerProfileData
             latitude: $request->filled('latitude') ? (float) $request->input('latitude') : null,
             longitude: $request->filled('longitude') ? (float) $request->input('longitude') : null,
             radiusKm: $request->filled('radius_km') ? (int) $request->input('radius_km') : null,
+            isAvailable: $request->has('is_available') ? $request->boolean('is_available') : null,
             present: array_values(array_intersect(
                 array_keys(self::COLUMN_MAP),
                 array_keys($request->all()),
@@ -95,7 +98,13 @@ final readonly class UpsertWorkerProfileData
             'latitude' => $this->latitude,
             'longitude' => $this->longitude,
             'radius_km' => $this->radiusKm,
+            'is_available' => $this->isAvailable,
         ];
+
+        // Tidak nullable (lihat request): dikirim atau tidak sama sekali.
+        if ($this->isAvailable === null) {
+            unset($values['is_available']);
+        }
 
         if ($this->present === []) {
             return array_filter($values, fn (mixed $v): bool => $v !== null);
@@ -107,5 +116,11 @@ final readonly class UpsertWorkerProfileData
         );
 
         return array_intersect_key($values, array_flip($columns));
+    }
+
+    /** Klien meminta mengubah ketersediaan. */
+    public function changesAvailability(): bool
+    {
+        return $this->isAvailable !== null;
     }
 }

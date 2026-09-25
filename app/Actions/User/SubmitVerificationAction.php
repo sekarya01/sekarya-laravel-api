@@ -9,6 +9,7 @@ use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
 use App\Models\User;
 use App\Models\UserVerification;
+use App\Support\BankAccountNumber;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -52,6 +53,9 @@ final class SubmitVerificationAction
                 $attributes += [
                     'bank_code' => $data->bankCode,
                     'account_number_enc' => $data->accountNumber,
+                    // Empat digit untuk masker di daftar — supaya daftar tidak
+                    // perlu mendekripsi nomor utuh hanya untuk menampilkannya.
+                    'account_number_last4' => BankAccountNumber::lastFour($data->accountNumber),
                     'account_holder_name' => $data->accountHolderName,
                 ];
             }

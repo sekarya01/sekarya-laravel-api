@@ -24,7 +24,7 @@ final class CreateReviewController
             $request->user(),
         );
 
-        return ReviewResource::make($review->load('reviewer'))
+        return ReviewResource::make($review->load(['reviewer', 'task.category']))
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
     }
