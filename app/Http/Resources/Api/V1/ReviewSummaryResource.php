@@ -26,7 +26,6 @@ final class ReviewSummaryResource extends BaseResource
         $summary = $this->resource;
 
         return [
-            'role' => $summary->role?->value,
             'rating_avg' => $summary->average,
             'rating_count' => $summary->count,
             'distribution' => (object) array_combine(

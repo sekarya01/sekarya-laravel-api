@@ -265,7 +265,6 @@ final class ReviewTagsAndSummaryTest extends TestCase
             ->getJson(route('v1.users.reviews.summary', $this->worker).'?role=poster')
             ->assertOk()
             ->assertExactJson(['data' => [
-                'role' => 'poster',
                 'rating_avg' => 4.2,
                 'rating_count' => 5,
                 'distribution' => ['5' => 3, '4' => 1, '3' => 0, '2' => 1, '1' => 0],
@@ -280,7 +279,6 @@ final class ReviewTagsAndSummaryTest extends TestCase
         $this->asUser($this->activeUser())
             ->getJson(route('v1.users.reviews.summary', $this->worker))
             ->assertOk()
-            ->assertJsonPath('data.role', null)
             ->assertJsonPath('data.rating_count', 2)
             ->assertJsonPath('data.rating_avg', 4);
     }

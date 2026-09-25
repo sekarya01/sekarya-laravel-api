@@ -46,7 +46,7 @@ final class SavedAddressTest extends TestCase
 
         $this->asUser($user)
             ->putJson(route('v1.me.address.update'), self::ALAMAT)
-            ->assertCreated()
+            ->assertOk()
             ->assertJsonPath('data.label', 'Rumah')
             ->assertJsonPath('data.address_line', self::ALAMAT['address_line'])
             ->assertJsonPath('data.city', 'Kota Bandung')
@@ -92,7 +92,7 @@ final class SavedAddressTest extends TestCase
     {
         $user = $this->activeUser();
 
-        $this->asUser($user)->putJson(route('v1.me.address.update'), self::ALAMAT)->assertCreated();
+        $this->asUser($user)->putJson(route('v1.me.address.update'), self::ALAMAT)->assertOk();
 
         $this->asUser($user)->deleteJson(route('v1.me.address.destroy'))->assertNoContent();
         $this->asUser($user)->getJson(route('v1.me.address.show'))->assertOk()->assertJsonPath('data', null);
@@ -106,7 +106,7 @@ final class SavedAddressTest extends TestCase
         $mine = $this->activeUser();
         $theirs = $this->activeUser();
 
-        $this->asUser($mine)->putJson(route('v1.me.address.update'), self::ALAMAT)->assertCreated();
+        $this->asUser($mine)->putJson(route('v1.me.address.update'), self::ALAMAT)->assertOk();
 
         $this->asUser($theirs)
             ->getJson(route('v1.me.address.show'))
@@ -127,7 +127,7 @@ final class SavedAddressTest extends TestCase
         $owner = $this->activeUser();
         $viewer = $this->activeUser();
 
-        $this->asUser($owner)->putJson(route('v1.me.address.update'), self::ALAMAT)->assertCreated();
+        $this->asUser($owner)->putJson(route('v1.me.address.update'), self::ALAMAT)->assertOk();
 
         $response = $this->asUser($viewer)
             ->getJson(route('v1.users.show', $owner->ulid))

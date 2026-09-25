@@ -29,10 +29,6 @@ final class CategoryResource extends BaseResource
                 // data nyata akan menyesatkan pemberi kerja sejak hari pertama.
                 'from_real_data' => $this->hasRealPriceData(),
                 'computed_at' => $this->iso($this->ref_computed_at),
-                // Cakupan acuan (U17): 'city' bila dari kota yang diminta,
-                // 'national' bila jatuh ke angka nasional.
-                'scope' => $this->price_scope ?? 'national',
-                'city' => $this->price_city ?? null,
             ],
         ];
     }

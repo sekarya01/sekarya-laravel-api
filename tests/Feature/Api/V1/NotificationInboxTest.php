@@ -187,16 +187,17 @@ final class NotificationInboxTest extends TestCase
         $sudah->forceFill(['read_at' => now()])->save();
         $this->notify($other, 'jangan_ikut_terbaca');
 
+        // Balasannya bentuk `unread-count`: sisa belum dibaca.
         $this->asUser($me)
             ->postJson(route('v1.me.notifications.read-all'))
             ->assertOk()
-            ->assertJsonPath('data.marked', 2);
+            ->assertJsonPath('data.count', 0);
 
-        // Idempoten: yang kedua kali tidak ada lagi yang berubah.
+        // Idempoten.
         $this->asUser($me)
             ->postJson(route('v1.me.notifications.read-all'))
             ->assertOk()
-            ->assertJsonPath('data.marked', 0);
+            ->assertJsonPath('data.count', 0);
 
         $this->assertSame(0, UserNotification::query()
             ->where('user_id', $me->getKey())

@@ -569,8 +569,7 @@ paths:
         angkanya).
 
         Kirim `city` untuk acuan per kota (U17): bila sampel kota itu cukup,
-        `reference_price.scope` bernilai `city`; kalau tidak, ia jatuh ke angka
-        nasional (`scope: national`).
+        angkanya dari kota itu; kalau tidak, jatuh ke angka nasional.
       parameters:
         - name: city
           in: query
@@ -1206,11 +1205,11 @@ paths:
       operationId: markAllNotificationsRead
       summary: Tandai seluruh kotak masuk sudah dibaca
       description: |
-        Mengembalikan berapa baris yang benar-benar berubah. Memanggilnya dua
-        kali aman: yang kedua kalinya `marked` bernilai 0.
+        Menandai seluruh kotak masuk sudah dibaca. Balasannya bentuk yang sama
+        dengan `unread-count`; sesudahnya sisanya nol.
       responses:
         '200':
-          description: Jumlah yang baru ditandai.
+          description: Jumlah belum dibaca sesudah penandaan (nol).
           content:
             application/json:
               schema:
@@ -1220,7 +1219,7 @@ paths:
                   data:
                     $ref: '#/components/schemas/NotificationCount'
               example:
-                data: { marked: 3 }
+                data: { count: 0 }
         '401':
           $ref: '#/components/responses/Unauthenticated'
 
@@ -3299,7 +3298,6 @@ paths:
                     $ref: '#/components/schemas/ReviewSummary'
               example:
                 data:
-                  role: worker
                   rating_avg: 4.9
                   rating_count: 41
                   distribution: { '5': 38, '4': 2, '3': 1, '2': 0, '1': 0 }
@@ -5724,13 +5722,6 @@ components:
               type: boolean
               description: '**Wajib dipakai UI.** `false` = angka di atas masih perkiraan, bukan data nyata.'
             computed_at: { type: [string, 'null'], format: date-time }
-            scope:
-              type: string
-              enum: [national, city]
-              description: 'Cakupan acuan (U17): dari kota yang diminta, atau nasional.'
-            city:
-              type: [string, 'null']
-              description: Kota yang dipakai bila `scope=city`.
     Skill:
       type: object
       required: [slug, name]
@@ -6130,12 +6121,8 @@ components:
         created_at: { type: [string, 'null'], format: date-time }
     ReviewSummary:
       type: object
-      required: [role, rating_avg, rating_count, distribution]
+      required: [rating_avg, rating_count, distribution]
       properties:
-        role:
-          oneOf:
-            - $ref: '#/components/schemas/ReviewerRole'
-            - type: 'null'
         rating_avg: { type: number, description: 'Rata-rata 2 desimal; 0 bila belum ada ulasan.' }
         rating_count: { type: integer }
         distribution:
@@ -6986,11 +6973,7 @@ components:
     UserNotification:
       type: object
       title: UserNotification
-      description: |
-        Satu baris kotak masuk. `task_id`/`activity_id` diangkat dari `data`
-        supaya klien tidak perlu mengurai payload untuk kasus paling umum.
-        `data` selalu objek (`{}` bila kosong), sama persis dengan payload push
-        FCM untuk jenis peristiwa itu.
+      description: Satu baris kotak masuk.
       required: [id, type, title, body, read_at, created_at]
       properties:
         id: { type: string, description: ULID notifikasi., example: '01M20DM1Q9V6N8P4R2S7T3W5XZ' }
@@ -7001,21 +6984,17 @@ components:
         body: { type: string }
         task_id: { type: [string, 'null'] }
         activity_id: { type: [string, 'null'] }
-        data: { type: object, additionalProperties: true }
         read_at: { type: [string, 'null'], format: date-time }
         created_at: { type: string, format: date-time }
 
     NotificationCount:
       type: object
       title: NotificationCount
-      description: |
-        `unread-count` mengeluarkan `{count}`; `read-all` mengeluarkan `{marked}`
-        (berapa yang baru saja ditandai). Keduanya bilangan bulat.
+      description: 'Angka belum dibaca.'
       minProperties: 1
       additionalProperties: false
       properties:
         count: { type: integer, minimum: 0 }
-        marked: { type: integer, minimum: 0 }
 
     UserAddress:
       type: object

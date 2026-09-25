@@ -80,16 +80,14 @@ final class CatalogAndProfileTest extends TestCase
             ->json('data');
 
         $mencuci = collect($rows)->firstWhere('slug', 'mencuci');
-        $this->assertSame('city', $mencuci['reference_price']['scope']);
-        $this->assertSame('Kota Bandung', $mencuci['reference_price']['city']);
         $this->assertSame(120_000, $mencuci['reference_price']['median']);
 
-        // Kota lain tidak punya barisnya → jatuh ke nasional.
+        // Kota lain tidak punya barisnya → jatuh ke angka nasional (bukan 120rb).
         $lain = $this->asUser($this->activeUser())
             ->getJson(route('v1.categories.index', ['city' => 'Kota Surabaya']))
             ->assertOk()
             ->json('data');
-        $this->assertSame('national', collect($lain)->firstWhere('slug', 'mencuci')['reference_price']['scope']);
+        $this->assertNotSame(120_000, collect($lain)->firstWhere('slug', 'mencuci')['reference_price']['median']);
     }
 
     public function test_skills_are_listed(): void

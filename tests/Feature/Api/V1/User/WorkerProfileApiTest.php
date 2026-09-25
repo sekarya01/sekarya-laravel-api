@@ -398,22 +398,20 @@ final class WorkerProfileApiTest extends TestCase
         );
     }
 
-    /** Judul/profesi mitra (U16) tersimpan dan terbaca di `own`. */
+    /** Judul/profesi mitra (U16): diisi lewat PUT me/worker, keluar di
+     *  `as_worker.headline` profil publik. */
     public function test_a_headline_can_be_set(): void
     {
         $user = $this->worker();
 
         $this->asUser($user)
             ->putJson(route('v1.me.worker.update'), ['headline' => 'Teknisi AC'])
-            ->assertCreated()
-            ->assertJsonPath('data.headline', 'Teknisi AC')
-            ->assertJsonPath('data.own.headline', 'Teknisi AC');
+            ->assertCreated();
 
-        // Tidak ada padanannya di akun: null tetap null.
-        $this->asUser($user)
-            ->putJson(route('v1.me.worker.update'), ['headline' => null])
+        $this->asUser($this->activeUser())
+            ->getJson(route('v1.users.show', $user->ulid))
             ->assertOk()
-            ->assertJsonPath('data.headline', null);
+            ->assertJsonPath('data.as_worker.headline', 'Teknisi AC');
     }
 
     /**

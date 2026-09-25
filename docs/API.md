@@ -771,7 +771,7 @@ curl -s "$BASE/users/<ulid>/reviews/summary?role=worker" -H "Authorization: Bear
 ```
 
 ```json
-{"data": {"role": "worker", "rating_avg": 4.9, "rating_count": 41,
+{"data": {"rating_avg": 4.9, "rating_count": 41,
           "distribution": {"5": 38, "4": 2, "3": 1, "2": 0, "1": 0}}}
 ```
 
@@ -1883,7 +1883,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
 | `GET` | `/cities` | — | `api` | Master kabupaten/kota (B12). **Publik**; `q` awalan nama, `limit` ≤100. |
-| `GET` | `/categories` | access | `api` | Katalog kategori + harga referensi. `?city=` memakai acuan per kota bila sampel cukup (`scope: city`), kalau tidak nasional. |
+| `GET` | `/categories` | access | `api` | Katalog kategori + harga referensi. `?city=` memakai acuan per kota bila sampel cukup, kalau tidak nasional. |
 | `GET` | `/me` | access | `api` | Profil sendiri, lengkap dengan data kontak. |
 | `PATCH` | `/me` | access | `api` | Ubah profil. `extras` divalidasi per peran. `phone`: aturan sama dengan pendaftaran, unik kecuali milik sendiri; nomor yang berubah membuat `phone_verified` kembali `false`. |
 | `GET` | `/me/worker` | access | `api` | Profil pekerja sendiri. Membacanya tidak membuat baris. |
@@ -1896,7 +1896,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `DELETE` | `/me/devices/{token}` | access | `api` | Lepaskan token perangkat saat logout. Idempoten. |
 | `GET` | `/me/notifications` | access | `api` | Kotak masuk notifikasi sendiri — riwayat yang sama dengan push FCM. `unread=1` menyaring yang belum dibaca. Cursor, terbaru dulu. |
 | `GET` | `/me/notifications/unread-count` | access | `api` | Jumlah belum dibaca untuk badge lonceng, dihitung server. Balasan `{count}`. |
-| `POST` | `/me/notifications/read-all` | access | `api` | Tandai seluruh kotak masuk sudah dibaca. Balasan `{marked}`. Idempoten. |
+| `POST` | `/me/notifications/read-all` | access | `api` | Tandai seluruh kotak masuk sudah dibaca. Balasan `{count}` (sisa belum dibaca = 0). Idempoten. |
 | `POST` | `/me/notifications/{notification}/read` | access | `api` | Tandai satu notifikasi sudah dibaca. Milik orang lain dijawab 404 yang sama dengan id yang tidak ada. |
 | `GET` | `/me/address` | access | `api` | Alamat tersimpan sendiri. `{"data": null}` (200) bila belum pernah diisi. Hanya pemiliknya. |
 | `PUT` | `/me/address` | access | `api` | Simpan/ganti alamat tersimpan (ganti utuh). Koordinat wajib berpasangan. |
