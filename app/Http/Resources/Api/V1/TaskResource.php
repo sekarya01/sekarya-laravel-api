@@ -25,8 +25,6 @@ final class TaskResource extends BaseResource
             'description' => $this->description,
             'status' => $this->status->value,
             'options' => $this->options ?? [],
-            // Checklist pekerjaan (B10) — larik langkah; `[]` bila tidak ada.
-            'checklist' => array_values($this->checklist ?? []),
             'photos' => array_values($this->photos ?? []),
             'budget' => [
                 'min' => $this->budget_min,

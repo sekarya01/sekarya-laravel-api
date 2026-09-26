@@ -29,7 +29,7 @@ final class Task extends Model
     use HasFactory, HasUlid, SoftDeletes;
 
     protected $fillable = [
-        'poster_id', 'category_id', 'title', 'description', 'options', 'checklist', 'photos',
+        'poster_id', 'category_id', 'title', 'description', 'options', 'photos',
         'budget_min', 'budget_max', 'ref_price_median',
         'location_text', 'area', 'city', 'latitude', 'longitude', 'is_remote',
         'needed_at', 'end_at', 'bidding_closes_at', 'status', 'workers_needed',
@@ -90,7 +90,6 @@ final class Task extends Model
             'poster_id' => 'integer',
             'category_id' => 'integer',
             'options' => 'array',
-            'checklist' => 'array',
             'photos' => 'array',
             'budget_min' => 'integer',
             'budget_max' => 'integer',
