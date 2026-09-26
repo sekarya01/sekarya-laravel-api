@@ -8,6 +8,7 @@ use App\Enums\UserStatus;
 use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
 use App\Models\User;
+use App\Models\UserBlock;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -29,9 +30,9 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 final class ShowPublicUserAction
 {
     /** @throws ModelNotFoundException<User> */
-    public function handle(string $ulid): User
+    public function handle(string $ulid, ?int $viewerId = null): User
     {
-        return User::query()
+        $user = User::query()
             ->where('ulid', $ulid)
             ->where('status', UserStatus::Active)
             ->with('skills')
@@ -43,5 +44,13 @@ final class ShowPublicUserAction
                     ->where('status', VerificationStatus::Verified),
             ])
             ->firstOrFail();
+
+        // Blokir (G7): profil pihak yang diblokir tampil seperti ULID yang
+        // tidak ada — jangan mengonfirmasi keberadaannya.
+        if ($viewerId !== null && UserBlock::existsBetween($viewerId, (int) $user->getKey())) {
+            throw (new ModelNotFoundException)->setModel(User::class, [$ulid]);
+        }
+
+        return $user;
     }
 }

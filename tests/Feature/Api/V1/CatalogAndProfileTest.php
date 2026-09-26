@@ -8,8 +8,12 @@ use App\Enums\UserActiveMode;
 use App\Models\Category;
 use App\Models\CategoryCityPrice;
 use App\Models\Skill;
+use App\Models\User;
 use App\Models\UserVerification;
+use App\Support\VerificationDocuments;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 final class CatalogAndProfileTest extends TestCase
@@ -222,18 +226,43 @@ final class CatalogAndProfileTest extends TestCase
 
     // ── verifikasi identitas ────────────────────────────────────────────────
 
-    private const IDENTITY = [
-        'type' => 'identity',
-        'id_card_photo_path' => 'verifications/ktp-rahasia.jpg',
-        'selfie_photo_path' => 'verifications/selfie-rahasia.jpg',
-        'document_number' => '3174012345678901',
-        'name_on_document' => 'Budi Prasetyo',
-    ];
+    /**
+     * Unggah dua dokumen identitas (G2a) lalu susun payload pengajuan.
+     * Path-nya harus milik `$user` — penyerahan memeriksa kepemilikan.
+     */
+    private function identityPayload(User $user): array
+    {
+        Storage::fake(VerificationDocuments::DISK);
+
+        $idPath = $this->asUser($user)
+            ->postJson(route('v1.me.verifications.documents.store'), [
+                'file' => UploadedFile::fake()->image('ktp.jpg', 900, 560)->size(200),
+            ])
+            ->assertCreated()
+            ->json('data.path');
+
+        $selfiePath = $this->asUser($user)
+            ->postJson(route('v1.me.verifications.documents.store'), [
+                'file' => UploadedFile::fake()->image('selfie.jpg', 640, 800)->size(200),
+            ])
+            ->assertCreated()
+            ->json('data.path');
+
+        return [
+            'type' => 'identity',
+            'id_card_photo_path' => $idPath,
+            'selfie_photo_path' => $selfiePath,
+            'document_number' => '3174012345678901',
+            'name_on_document' => 'Budi Prasetyo',
+        ];
+    }
 
     public function test_submitting_identity_verification(): void
     {
-        $this->asUser($this->activeUser())
-            ->postJson(route('v1.me.verifications.store'), self::IDENTITY)
+        $user = $this->activeUser();
+
+        $this->asUser($user)
+            ->postJson(route('v1.me.verifications.store'), $this->identityPayload($user))
             ->assertAccepted()
             ->assertJsonPath('data.type', 'identity')
             ->assertJsonPath('data.status', 'pending')
@@ -242,15 +271,27 @@ final class CatalogAndProfileTest extends TestCase
             ->assertJsonPath('data.has_selfie_photo', true);
     }
 
+    /** Dokumen milik orang lain ditolak — verifikasi harus tidak bisa dipalsukan (G2a). */
+    public function test_identity_verification_rejects_a_document_owned_by_someone_else(): void
+    {
+        Storage::fake(VerificationDocuments::DISK);
+        $payload = $this->identityPayload($this->activeUser());
+
+        $this->asUser($this->activeUser())
+            ->postJson(route('v1.me.verifications.store'), $payload)
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'verification_document_invalid');
+    }
+
     /** Path foto, NIK, dan rekening tidak boleh pernah keluar dari API. */
     public function test_verification_never_leaks_paths_or_the_id_number(): void
     {
         $user = $this->activeUser();
-        $this->asUser($user)->postJson(route('v1.me.verifications.store'), self::IDENTITY)->assertAccepted();
+        $this->asUser($user)->postJson(route('v1.me.verifications.store'), $this->identityPayload($user))->assertAccepted();
 
         $body = $this->asUser($user)->getJson(route('v1.me.verifications.index'))->getContent();
 
-        foreach (['ktp-rahasia', 'selfie-rahasia', '3174012345678901', 'photo_path', 'document_number'] as $secret) {
+        foreach (['verifications/', 'ktp.jpg', 'selfie.jpg', '3174012345678901', 'photo_path', 'document_number'] as $secret) {
             $this->assertStringNotContainsString($secret, $body, $secret.' bocor');
         }
     }
@@ -267,8 +308,10 @@ final class CatalogAndProfileTest extends TestCase
 
     public function test_identity_verification_requires_a_16_digit_number(): void
     {
-        $this->asUser($this->activeUser())
-            ->postJson(route('v1.me.verifications.store'), [...self::IDENTITY, 'document_number' => '123'])
+        $user = $this->activeUser();
+
+        $this->asUser($user)
+            ->postJson(route('v1.me.verifications.store'), [...$this->identityPayload($user), 'document_number' => '123'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['document_number']);
     }
@@ -307,9 +350,10 @@ final class CatalogAndProfileTest extends TestCase
     public function test_resubmitting_replaces_the_pending_request(): void
     {
         $user = $this->activeUser();
-        $this->asUser($user)->postJson(route('v1.me.verifications.store'), self::IDENTITY)->assertAccepted();
+        $payload = $this->identityPayload($user);
+        $this->asUser($user)->postJson(route('v1.me.verifications.store'), $payload)->assertAccepted();
         $this->asUser($user)->postJson(route('v1.me.verifications.store'), [
-            ...self::IDENTITY,
+            ...$payload,
             'name_on_document' => 'Budi P',
         ])->assertAccepted();
 
@@ -322,7 +366,7 @@ final class CatalogAndProfileTest extends TestCase
         $user = $this->activeUser();
         UserVerification::factory()->verified()->create(['user_id' => $user->getKey()]);
 
-        $this->asUser($user)->postJson(route('v1.me.verifications.store'), self::IDENTITY)->assertAccepted();
+        $this->asUser($user)->postJson(route('v1.me.verifications.store'), $this->identityPayload($user))->assertAccepted();
 
         $this->assertSame(2, UserVerification::query()->where('user_id', $user->getKey())->count());
     }
@@ -334,7 +378,7 @@ final class CatalogAndProfileTest extends TestCase
             'user_id' => $user->getKey(),
             'submitted_at' => now()->subDay(),
         ]);
-        $this->asUser($user)->postJson(route('v1.me.verifications.store'), self::IDENTITY)->assertAccepted();
+        $this->asUser($user)->postJson(route('v1.me.verifications.store'), $this->identityPayload($user))->assertAccepted();
 
         $statuses = $this->asUser($user)
             ->getJson(route('v1.me.verifications.index'))

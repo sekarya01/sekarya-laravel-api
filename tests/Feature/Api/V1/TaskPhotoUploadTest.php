@@ -136,6 +136,30 @@ final class TaskPhotoUploadTest extends TestCase
         Storage::disk('public')->assertExists($path);
     }
 
+    /** Foto ulasan & catatan kemajuan masuk folder sendiri (G1). */
+    public function test_review_and_update_uploads_land_in_their_folders(): void
+    {
+        Storage::fake('public');
+
+        $review = $this->asUser($this->poster)
+            ->postJson(route('v1.uploads.store'), [
+                'file' => UploadedFile::fake()->image('ulasan.jpg')->size(300),
+                'purpose' => 'review',
+            ])
+            ->assertCreated()
+            ->json('data.path');
+        $this->assertStringStartsWith('uploads/reviews/', $review);
+
+        $update = $this->asUser($this->poster)
+            ->postJson(route('v1.uploads.store'), [
+                'file' => UploadedFile::fake()->image('catatan.jpg')->size(300),
+                'purpose' => 'update',
+            ])
+            ->assertCreated()
+            ->json('data.path');
+        $this->assertStringStartsWith('uploads/updates/', $update);
+    }
+
     public function test_non_image_is_rejected(): void
     {
         Storage::fake('public');

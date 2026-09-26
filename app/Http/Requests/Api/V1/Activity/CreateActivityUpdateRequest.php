@@ -14,8 +14,9 @@ final class CreateActivityUpdateRequest extends FormRequest
     {
         return [
             'note' => ['required', 'string', 'max:200'],
-            // Path foto dari `POST uploads` — opsional.
-            'photo' => ['sometimes', 'nullable', 'string', 'max:255'],
+            // Path foto dari `POST uploads purpose=update` — opsional.
+            // Awalan folder divalidasi agar path task/bukti tidak bisa dipakai.
+            'photo' => ['sometimes', 'nullable', 'string', 'max:255', 'starts_with:uploads/updates/'],
         ];
     }
 }

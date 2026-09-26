@@ -10,6 +10,8 @@ use App\Exceptions\Domain\WalletRequestNotPendingException;
 use App\Models\Admin;
 use App\Models\WalletWithdrawal;
 use App\Support\AdminAuditRecorder;
+use App\Support\Push\PushDispatcher;
+use App\Support\Push\PushMessages;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -26,6 +28,7 @@ final class CompleteWithdrawalAction
     public function __construct(
         private readonly ConnectionInterface $db,
         private readonly AdminAuditRecorder $audit,
+        private readonly PushDispatcher $push,
     ) {}
 
     public function handle(
@@ -65,6 +68,9 @@ final class CompleteWithdrawalAction
                 ),
                 $ip,
             );
+
+            // Transfer selesai → pengguna diberi tahu (G11).
+            $this->push->send((int) $fresh->user_id, PushMessages::withdrawalCompleted($fresh));
 
             return $fresh;
         });

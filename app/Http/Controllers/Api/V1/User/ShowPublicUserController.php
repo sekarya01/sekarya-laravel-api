@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\User;
 
 use App\Actions\User\ShowPublicUserAction;
 use App\Http\Resources\Api\V1\PublicUserResource;
+use Illuminate\Http\Request;
 
 /**
  * Profil publik — PublicUserResource yang sama dengan yang disematkan di
@@ -19,8 +20,10 @@ final class ShowPublicUserController
 {
     public function __construct(private readonly ShowPublicUserAction $action) {}
 
-    public function __invoke(string $user): PublicUserResource
+    public function __invoke(Request $request, string $user): PublicUserResource
     {
-        return PublicUserResource::make($this->action->handle($user));
+        return PublicUserResource::make(
+            $this->action->handle($user, (int) $request->user()?->getKey()),
+        );
     }
 }

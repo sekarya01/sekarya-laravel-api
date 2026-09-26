@@ -26,6 +26,8 @@ final class StoreUploadController
         $path = match ($request->string('purpose', 'task')->value()) {
             'avatar' => $file->store('uploads/avatars', 'public'),
             'proof' => $this->proofs->store($file, $request->user()),
+            'review' => $file->store('uploads/reviews', 'public'),
+            'update' => $file->store('uploads/updates', 'public'),
             default => $file->store('uploads/tasks', 'public'),
         };
 

@@ -25,6 +25,9 @@ enum AdminAction: string
      */
     case VerificationViewed = 'verification.viewed';
 
+    /** Membuka BERKAS foto KTP/selfie — lebih sensitif dari detail teks. */
+    case VerificationDocumentViewed = 'verification.document_viewed';
+
     case VerificationApproved = 'verification.approved';
     case VerificationRejected = 'verification.rejected';
     case VerificationRevoked = 'verification.revoked';
@@ -60,6 +63,7 @@ enum AdminAction: string
     {
         return match ($this) {
             self::VerificationViewed,
+            self::VerificationDocumentViewed,
             self::VerificationApproved,
             self::VerificationRejected,
             self::VerificationRevoked => 'user_verification',

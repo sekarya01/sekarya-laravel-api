@@ -350,4 +350,20 @@ return [
         ),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Biaya layanan (G6)
+    |--------------------------------------------------------------------------
+    |
+    | Dipotong DARI UPAH PEKERJA saat dana task dilepas (bukan ditambahkan ke
+    | pemberi kerja). 0 = tidak ada potongan sama sekali; nilai sebenarnya
+    | diisi lewat env, bukan dihardcode di repo. Persen dihitung dari
+    | `activities.agreed_amount` masing-masing pekerja.
+    |
+    */
+
+    'fees' => [
+        'service_percent' => (float) env('SEKARYA_SERVICE_FEE_PERCENT', 0),
+    ],
+
 ];

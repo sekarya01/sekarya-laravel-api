@@ -7,11 +7,13 @@ namespace App\Actions\Bid;
 use App\Data\Bid\PlaceBidData;
 use App\Enums\BidStatus;
 use App\Exceptions\Domain\BidBelowMinimumException;
+use App\Exceptions\Domain\BlockedUserException;
 use App\Exceptions\Domain\CannotBidOwnTaskException;
 use App\Exceptions\Domain\TaskNotBiddableException;
 use App\Models\Bid;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\UserBlock;
 use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
 use Illuminate\Database\ConnectionInterface;
@@ -83,6 +85,11 @@ final class PlaceBidAction
     {
         if ($task->poster_id === $bidder->getKey()) {
             throw CannotBidOwnTaskException::make();
+        }
+
+        // Blokir (G7) menutup pintu penawaran dua arah.
+        if (UserBlock::existsBetween((int) $task->poster_id, (int) $bidder->getKey())) {
+            throw BlockedUserException::make($task->poster);
         }
 
         if (! $task->status->acceptsBids()) {

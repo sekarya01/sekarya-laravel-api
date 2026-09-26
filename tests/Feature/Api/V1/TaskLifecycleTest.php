@@ -267,6 +267,17 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonValidationErrors(['reason']);
     }
 
+    public function test_a_completed_task_cannot_be_cancelled(): void
+    {
+        $id = $this->createTask();
+        Task::query()->where('ulid', $id)->update(['status' => TaskStatus::Completed->value]);
+
+        $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.cancel', $id))
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'task_not_cancellable');
+    }
+
     public function test_an_unknown_task_is_not_found(): void
     {
         $this->asUser($this->poster)
@@ -701,34 +712,6 @@ final class TaskLifecycleTest extends TestCase
             ->exists());
     }
 
-    /** Kontak hanya setelah deal, dan hanya untuk peserta (B17). */
-    public function test_contacts_are_shared_after_a_deal(): void
-    {
-        [$task] = $this->throughToActivity();
-
-        $contacts = $this->asUser($this->poster)
-            ->getJson(route('v1.tasks.contacts', $task))
-            ->assertOk()
-            ->json('data');
-
-        $roles = array_column($contacts, 'role');
-        $this->assertContains('poster', $roles);
-        $this->assertContains('worker', $roles);
-
-        $this->asUser($this->worker)->getJson(route('v1.tasks.contacts', $task))->assertOk();
-        $this->asUser($this->stranger)->getJson(route('v1.tasks.contacts', $task))->assertForbidden();
-    }
-
-    public function test_contacts_are_hidden_before_a_deal(): void
-    {
-        $task = $this->createTask();
-
-        $this->asUser($this->poster)
-            ->getJson(route('v1.tasks.contacts', $task))
-            ->assertUnprocessable()
-            ->assertJsonPath('code', 'invalid_status_transition');
-    }
-
     public function test_live_location_is_reported_while_on_the_way(): void
     {
         $activity = $this->dealtOnTheWay(['latitude' => -6.2, 'longitude' => 106.8]);
@@ -1032,7 +1015,7 @@ final class TaskLifecycleTest extends TestCase
         $this->asUser($this->poster)
             ->postJson(route('v1.tasks.reviews.store', $task), [
                 'rating' => 5,
-                'photos' => ['uploads/tasks/a.jpg', 'uploads/tasks/b.jpg'],
+                'photos' => ['uploads/reviews/a.jpg', 'uploads/reviews/b.jpg'],
             ])
             ->assertCreated()
             ->assertJsonPath('data.has_photos', true)

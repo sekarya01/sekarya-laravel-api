@@ -9,6 +9,7 @@ use App\Enums\BidStatus;
 use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\UserBlock;
 use App\Support\TaskSearch;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\CursorPaginator;
@@ -40,6 +41,11 @@ final class ListTasksAction
         $query = $this->base($data)
             ->biddable()
             ->where('tasks.poster_id', '!=', $actor->getKey())
+            // Blokir (G7) menyembunyikan task dua arah.
+            ->when(
+                ($hidden = UserBlock::hiddenIdsFor((int) $actor->getKey())) !== [],
+                fn (Builder $q) => $q->whereNotIn('tasks.poster_id', $hidden),
+            )
             ->when(
                 $data->excludeMyBids,
                 fn (Builder $q) => $q->whereDoesntHave(

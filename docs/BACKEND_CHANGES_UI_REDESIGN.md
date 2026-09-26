@@ -4,6 +4,32 @@
 > Sumber API: `routes/api.php`, `app/Http/Resources/Api/V1/*`, `app/Http/Requests/Api/V1/*`, `app/Actions/*`, `database/migrations/*`, `docs/API.md`.
 > Referensi baris (`file:line`) merujuk ke HEAD `35e9351` + perubahan working tree yang belum di-commit (filter `me/wallet/entries`: `ListWalletEntriesRequest`, `ListWalletEntriesAction`). **Filter riwayat saldo baru jalan di produksi setelah perubahan itu di-commit dan di-deploy.**
 > Dokumen ini hanya analisis, tidak ada kode yang diubah.
+>
+> **Update 2026-09-26 (diverifikasi ulang saat migrasi mobile):** lima item di
+> bawah kini SUDAH diimplementasikan di backend dan terdokumentasi di
+> `docs/API.md` + `openapi.yaml` — **U7** (filter `rating`/`rating_max`/`q` +
+> `task{id,title,category}` di `ReviewResource`), **B10** (`tasks.checklist` +
+> `PUT /activities/{activity}/checklist` + `ActivityResource.checklist_state`),
+> **B11** (`task_bookmarks`, `PUT/DELETE /tasks/{task}/bookmark`,
+> `GET /tasks/bookmarked`, `is_bookmarked`), **B15** (`reviews.photos`/`tags`,
+> `has_photos` + filter `has_photos`).
+> Sel Status-nya sudah ditandai **Sudah ada**; item lain (B1, B2, U1, U2, dst.)
+> masih berlaku. Catatan: **B17** (kontak/telepon) DIHAPUS dari API
+> (keputusan produk 2026-09-26: aplikasi tanpa fitur telepon) — route,
+> controller, action, resource, policy, test, dan dokumennya dibuang;
+> kolom/profil `contact_phone` tetap ada sebagai field profil sendiri.
+> **X1/X2** ("level"/"Poin
+> Sekarya") tetap tidak ada dan tidak akan dibangun dari sisi mobile.
+>
+> **Update 2026-09-26 (3):** seluruh gap terbuka dikerjakan di API —
+> **G1** (`purpose=review`/`update`), **G2a/G2b** (unggah aman KTP/selfie +
+> admin melihat berkasnya), **G3** (`DELETE /me` soft-delete + anonimisasi),
+> **G4** (`POST auth/change-password`), **G5** (tiket kendala + resolusi admin
+> release/refund), **G6** (biaya layanan dipotong dari pekerja,
+> `fees.service_percent`), **G7** (report + blokir pengguna), **G11**
+> (notifikasi event dompet), **G12** (job tutup lelang → `expired`), **G13**
+> (`cancel` menolak status final). **G8** (chat) & **G9** (payment gateway)
+> tetap ditunda; **G10** (loyalty) tidak dibangun.
 
 ---
 
@@ -11,9 +37,9 @@
 
 | Status | Jumlah | Keterangan |
 |---|---:|---|
-| Sudah ada | **24** | Bisa dipakai langsung, paling banyak hanya perlu pemetaan di mobile |
-| Perlu ubah | **17** | Endpoint sudah ada, perlu field/parameter/aturan tambahan |
-| Perlu baru | **17** | Endpoint/tabel baru |
+| Sudah ada | **29** | Bisa dipakai langsung, paling banyak hanya perlu pemetaan di mobile |
+| Perlu ubah | **16** | Endpoint sudah ada, perlu field/parameter/aturan tambahan |
+| Perlu baru | **13** | Endpoint/tabel baru |
 | UI-only / keputusan produk | **20** | Konten demo/klaim marketing: tidak perlu BE, atau perlu diputuskan dulu |
 
 **P0 (wajib supaya UI inti tidak berbohong atau buntu): 4 item**
@@ -68,7 +94,7 @@ Legenda prioritas: **P0** wajib untuk UI inti · **P1** penting, UI bisa tayang 
 | U4 | Rekening tujuan "BCA · Ratna Dewi · **** 4910 · Terverifikasi" | tarik-saldo | Perlu ubah | `VerificationResource.php:39-46` (`bank_code`, `account_holder_name`), `WalletWithdrawalResource.php:31-34` | Tambah `account_number_masked` ("•••• 4910", 4 digit terakhir) di kedua resource. Nomor utuh tetap tidak keluar. | P1 |
 | U5 | Ubah nomor HP di Edit profil | edit-profil | Perlu ubah | `UpdateProfileRequest.php:18-51` tidak punya `phone` | Tambah `phone` (regex sama dengan `RegisterRequest.php:35`, unique kecuali diri sendiri), reset `phone_verified_at`. Email: jadikan read-only di UI (ganti email butuh alur verifikasi baru, keputusan produk). | P1 |
 | U6 | Tag rating ("Tepat Waktu", "Kerja Rapi", "Sangat Ramah") | dialog-beri-rating | Perlu ubah | `CreateReviewRequest.php:15-24` (rating, comment, worker_id); tabel `reviews` tanpa kolom tag | Migrasi `reviews.tags` JSON; enum `ReviewTag`; request `tags[]` (maks 5); `ReviewResource` + `tags` | P1 |
-| U7 | Semua ulasan: chip bintang, cari ulasan, nama tugas per ulasan ("Cuci AC Daikin 1 PK") | semua-ulasan, profil-publik-mitra | Perlu ubah | `ListUserReviewsAction.php:22-28` hanya filter `role`; `ReviewResource.php:16-23` tanpa task | Param `rating` (1–5) atau `rating_max` untuk "1-2★", `q` (CLAUDE.md melarang `LIKE` di `app/`: pakai FULLTEXT di `reviews.comment` + `SearchTerms`, atau minta pengecualian eksplisit seperti wallet entries); resource + `task:{id,title,category}` | P1 |
+| U7 | Semua ulasan: chip bintang, cari ulasan, nama tugas per ulasan ("Cuci AC Daikin 1 PK") | semua-ulasan, profil-publik-mitra | **Sudah ada** | `ListUserReviewsAction.php:22-28` hanya filter `role`; `ReviewResource.php:16-23` tanpa task | Param `rating` (1–5) atau `rating_max` untuk "1-2★", `q` (CLAUDE.md melarang `LIKE` di `app/`: pakai FULLTEXT di `reviews.comment` + `SearchTerms`, atau minta pengecualian eksplisit seperti wallet entries); resource + `task:{id,title,category}` | P1 |
 | U8 | Jarak penawar/pekerja ("★4,9 (41) · 1,1 km") | detail-tugas, detail-tugas-sedang-dikerjakan | Perlu ubah | `BidResource.php:16-31` tanpa jarak; koordinat pekerja (`user_workers.latitude/longitude`) sengaja tidak dibuka | Tambah `distance_km` terhitung di server (haversine koordinat task ↔ lokasi kerja pekerja, 1 desimal, `null` bila salah satu kosong) di `BidResource`, dan sama untuk `TaskResource.workers[]`. Koordinat tetap tidak keluar. | P1 |
 | U9 | Filter kategori pilih >1 | filter-tugas-bottom-sheet | Perlu ubah | `ListTasksRequest.php:22` `category_id` tunggal | Tambah `category_ids[]` (maks 20), `whereIn` pada indeks `(category_id,status,created_at)` | P1 |
 | U10 | Tab Tugas: Berjalan / Dikerjakan / Selesai / Dibatalkan | tugas | Perlu ubah | `ListTasksAction.php:65,90` hanya `status` tunggal | Tambah `statuses[]` di `tasks/posted` & `tasks/worked` supaya tiap tab bisa dipaginasi dengan cursor tanpa halaman kosong | P1 |
@@ -93,14 +119,14 @@ Legenda prioritas: **P0** wajib untuk UI inti · **P1** penting, UI bisa tayang 
 | B7 | Hitungan per tab ("Berjalan (2)", "Dikerjakan (1)") dan per kategori feed ("Pindahan (3)") | tugas, beranda-cari-kerja | Perlu baru | Cursor tanpa total (disengaja) | `GET tasks/posted/counts`, `GET tasks/worked/counts` (COUNT per grup status); counts per kategori feed opsional | P2 |
 | B8 | ETA "Tiba 15 mnt lagi", "Sedang dalam perjalanan (2.4 km)", live location | beranda-cari-bantuan, dialog-minta-batalkan-tugas | Perlu baru | Hanya `departed_at` | `POST activities/{a}/location {lat,lng}` (throttle, hanya `on_the_way`), `activity.live: {distance_km, eta_minutes, updated_at}`; retensi pendek. *Alternatif murah: tampilkan "Berangkat 09.40" dari `departed_at`.* | P2 |
 | B9 | Catatan update per pekerja ("09.52 WIB · Tiba di lokasi dan mulai angkut lemari") | detail-tugas-sedang-dikerjakan | Perlu baru | Jam per langkah sudah ada (S11), teks bebas tidak ada | `activity_updates` (activity_id, note ≤200, photo?, created_at); `POST activities/{a}/updates`; `latest_update` di `ActivityResource`. *Tanpa BE: tulis kalimat tetap per status + jam.* | P2 |
-| B10 | Checklist "Persiapan Mitra 3/3" & checklist sebelum "Tandai selesai" | detail-kerjaan-menuju-lokasi, -tandai-selesai | Perlu baru | Tidak ada di model | `tasks.checklist` JSON (dibuat poster/template kategori) + `activities.checklist_state`; atau jadikan UI lokal saja | P2 |
-| B11 | Bookmark/simpan tugas | beranda-cari-kerja (UX Enh. #10) | Perlu baru | Tidak ada | `task_bookmarks`; `PUT/DELETE tasks/{task}/bookmark`, `GET tasks/bookmarked`, `is_bookmarked` di feed | P2 |
+| B10 | Checklist "Persiapan Mitra 3/3" & checklist sebelum "Tandai selesai" | detail-kerjaan-menuju-lokasi, -tandai-selesai | **Sudah ada** | Tidak ada di model | `tasks.checklist` JSON (dibuat poster/template kategori) + `activities.checklist_state`; atau jadikan UI lokal saja | P2 |
+| B11 | Bookmark/simpan tugas | beranda-cari-kerja (UX Enh. #10) | **Sudah ada** | Tidak ada | `task_bookmarks`; `PUT/DELETE tasks/{task}/bookmark`, `GET tasks/bookmarked`, `is_bookmarked` di feed | P2 |
 | B12 | Pemilih kota (header Beranda, register, edit profil) | beranda-*, daftar-1, edit-profil, alamat-tersimpan | Perlu baru | Kota = teks bebas (`city` max 80) | `GET cities?q=` (master kab/kota + provinsi). *Atau daftar statis di app.* | P2 |
 | B13 | Push tugas baru ke mitra terdekat + "Notifikasi telah dikirim ke ~14 mitra terdekat di area Coblong" | dialog-sukses-tugas-sudah-tayang, dialog-daftar-jadi-mitra ("Radius 5 km") | Perlu baru | Tidak ada `PushType` tugas baru | Job saat publish: cari `user_workers` `is_available` dalam radius; push `task_published`; respons `POST tasks` + `meta.notified_workers` | P2 |
 | B14 | Kode unik 3 digit transfer manual | isi-saldo | Perlu baru | Tidak ada | `wallet_topups.unique_code` + `transfer_amount` (keputusan produk: mempermudah pencocokan mutasi) | P2 |
-| B15 | Ulasan dengan foto ("Dengan Foto (12)") | semua-ulasan | Perlu baru | Tidak ada | `reviews.photos` JSON, `has_photos` filter | P2 |
+| B15 | Ulasan dengan foto ("Dengan Foto (12)") | semua-ulasan | **Sudah ada** | Tidak ada | `reviews.photos` JSON, `has_photos` filter | P2 |
 | B16 | Konfirmasi selesai semua pekerja sekali tekan ("Konfirmasi Selesai & Rilis Dana") | detail-tugas-sedang-dikerjakan | Perlu baru | Per activity (`approve` `:317`) | `POST tasks/{task}/approve-all`. *Klien bisa loop per activity.* | P2 |
-| B17 | Tombol telepon ke pemberi kerja/pekerja setelah deal | detail-kerjaan-* | Perlu baru | Nomor tidak pernah keluar di `PublicUserResource` (disengaja) | Keputusan produk. Bila ya: `contact_phone` hanya untuk pasangan yang sudah deal dan task aktif (`GET tasks/{task}/contacts`) | P2 |
+| B17 | Tombol telepon ke pemberi kerja/pekerja setelah deal | detail-kerjaan-* | **Dihapus** | Tidak ada fitur telepon (keputusan produk 2026-09-26). Route/controller/action/resource/policy/test dibuang; `contact_phone` tetap sebagai field profil sendiri | — |
 
 ---
 

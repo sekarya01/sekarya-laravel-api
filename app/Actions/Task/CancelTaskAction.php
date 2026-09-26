@@ -9,6 +9,7 @@ use App\Enums\BidStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\TaskStatus;
 use App\Enums\WalletEntryType;
+use App\Exceptions\Domain\TaskNotCancellableException;
 use App\Models\Task;
 use App\Models\User;
 use App\Support\Push\PushDispatcher;
@@ -38,6 +39,19 @@ final class CancelTaskAction
 
     public function handle(Task $task, User $actor, ?string $reason = null): Task
     {
+        // Status yang boleh dibatalkan = yang punya transisi ke `cancelled`
+        // (lihat TaskStatus::allowedNext): `draft`, `open`, `dealt`, `active`.
+        // Di luar itu tolak SEBELUM menyentuh uang, supaya task yang sudah
+        // selesai tidak bisa mengembalikan dana yang sudah dilepas.
+        if (! in_array($task->status, [
+            TaskStatus::Draft,
+            TaskStatus::Open,
+            TaskStatus::Dealt,
+            TaskStatus::Active,
+        ], true)) {
+            throw TaskNotCancellableException::becauseStatus($task->status);
+        }
+
         return $this->db->transaction(function () use ($task, $actor, $reason): Task {
             $isPoster = $task->poster_id === $actor->getKey();
             $actorType = $isPoster ? ActorType::Poster : ActorType::Worker;

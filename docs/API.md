@@ -5,7 +5,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 | | |
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
-| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 116 operation cocok dengan 116 rute nyata |
+| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 129 operation cocok dengan 129 rute nyata |
 | **Uji otomatis** | `bash docs/smoke.sh` — 194 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
@@ -1851,7 +1851,7 @@ Keempat tindakan itu tercatat di `admin_audit_logs` sebagai `wallet_topup.confir
 
 ## Ringkasan endpoint
 
-**116 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**129 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1927,7 +1927,6 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `GET` | `/tasks/posted/counts` | access | `api` | Hitungan task saya per status (judul tab). Setiap status selalu ada. |
 | `GET` | `/tasks/worked/counts` | access | `api` | Hitungan task yang saya kerjakan per status. |
 | `GET` | `/tasks/bookmarked` | access | `api` | Tugas yang saya simpan. Cursor. Tiap baris membawa `is_bookmarked`. |
-| `GET` | `/tasks/{task}/contacts` | access | `api` | Nomor kontak peserta setelah deal (B17). Peserta task saja; belum deal → `422`. |
 | `PUT` | `/tasks/{task}/bookmark` | access | `api` | Simpan tugas. Idempoten (204). |
 | `DELETE` | `/tasks/{task}/bookmark` | access | `api` | Lepas simpanan. Idempoten (204). |
 
@@ -2030,6 +2029,25 @@ Tidak ada `POST /admin/auth/register`, dan itu disengaja: akun pengelola hanya l
 `php artisan sekarya:admin create` (super_admin, sekali seumur pemasangan) dan
 `POST /admin/admins`.
 
+### Tambahan (G1–G13)
+
+| | Endpoint | Token | Limit | Keterangan |
+|---|---|---|---|---|
+| `POST` | `/auth/change-password` | access | `write` | Ganti kata sandi saat login (G4). Sandi lama diperiksa; token dicabut. |
+| `POST` | `/me/verifications/documents` | access | `write` | Unggah KTP/selfie ke disk privat (G2a). Balasan hanya `path`. |
+| `GET` | `/admin/verifications/{verification}/documents/{kind}` | admin | `admin` | Alirkan berkas KTP/selfie ke pengelola (G2b); pembacaan dicatat. |
+| `DELETE` | `/me` | access | `write` | Hapus akun — soft-delete + anonimisasi (G3). Konfirmasi sandi. |
+| `POST` | `/users/{user}/reports` | access | `write` | Laporkan pengguna lain (G7). |
+| `PUT` | `/users/{user}/block` | access | `write` | Blokir pengguna (G7), idempoten. |
+| `DELETE` | `/users/{user}/block` | access | `api` | Lepas blokir pengguna (G7), idempoten. |
+| `GET` | `/me/blocks` | access | `api` | Daftar pengguna yang saya blokir (G7). Cursor. |
+| `GET` | `/admin/reports` | admin | `admin` | Antrean laporan pengguna (G7). |
+| `POST` | `/admin/reports/{report}/review` | admin | `admin` | Tandai laporan ditinjau (G7). |
+| `POST` | `/tasks/{task}/disputes` | access | `write` | Ajukan kendala atas task `disputed` (G5). |
+| `GET` | `/tasks/{task}/dispute` | access | `api` | Tiket kendala task ini (G5). |
+| `GET` | `/admin/disputes` | admin | `admin` | Antrean sengketa (G5). |
+| `POST` | `/admin/disputes/{dispute}/resolve` | admin | `admin` | Putuskan sengketa — `release`/`refund` (G5). |
+
 Health check tanpa prefix: `GET /up`. Referensi ter-render: `GET /docs`, spec mentah:
 `GET /docs/openapi.yaml` — keduanya hanya terdaftar **di luar produksi**.
 
@@ -2056,6 +2074,15 @@ Bercabanglah pada `code`, **jangan** pada `message`.
 | `payment_not_held` | 422 | Dana tidak lagi ditahan |
 | `invalid_status_transition` | 422 | Perpindahan status tidak diizinkan |
 | `task_not_editable` | 422 | Isi task tidak bisa diubah lagi (bukan `draft`/`open`) |
+| `task_not_cancellable` | 422 | Task sudah selesai/menggantung (`completed`/`expired`/`cancelled`/`refunded`/`disputed`) — tidak bisa dibatalkan lagi |
+| `verification_document_invalid` | 422 | Path dokumen identitas bukan milik pengaju (unggah lewat `POST me/verifications/documents`) |
+| `invalid_current_password` | 422 | Kata sandi saat ini salah (ganti sandi / hapus akun) |
+| `account_has_active_obligations` | 422 | Masih ada pekerjaan berjalan atau permintaan dompet menggantung; `context.reasons` menyebutnya |
+| `dispute_not_allowed` | 422 | Kendala hanya untuk peserta task berstatus `disputed` |
+| `dispute_already_resolved` | 422 | Tiket kendala sudah diputuskan |
+| `cannot_report_self` | 422 | Tidak bisa melaporkan diri sendiri |
+| `cannot_block_self` | 422 | Tidak bisa memblokir diri sendiri |
+| `user_blocked` | 422 | Ada blokir antara penawar dan pemberi kerja |
 | `workers_needed_below_hired` | 422 | Target pekerja diturunkan di bawah yang sudah diterima |
 | `cancel_request_pending` | 422 | Sudah ada permintaan pembatalan yang menunggu jawaban |
 | `no_pending_cancel_request` | 422 | Tidak ada permintaan yang menggantung — sudah dijawab atau ditarik |

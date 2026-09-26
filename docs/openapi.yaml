@@ -2440,45 +2440,6 @@ paths:
                 message: Belum ada hasil pekerjaan yang diserahkan untuk disetujui.
                 code: no_submitted_activities
 
-  /tasks/{task}/contacts:
-    parameters:
-      - $ref: '#/components/parameters/TaskUlid'
-    get:
-      tags: [Task]
-      operationId: showTaskContacts
-      summary: Nomor kontak peserta setelah deal
-      description: |
-        Tombol telepon setelah deal (B17). Nomor HP tidak pernah keluar di
-        profil publik; ia hanya terbuka di sini, hanya untuk PESERTA task, dan
-        hanya setelah deal (`dealt`/`active`/`submitted`).
-      responses:
-        '200':
-          description: Daftar kontak (pemberi kerja + pekerja).
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [data]
-                properties:
-                  data:
-                    type: array
-                    items: { $ref: '#/components/schemas/TaskContact' }
-              example:
-                data:
-                  - { id: '01M…', name: Budi, role: poster, phone: '+628111222333' }
-                  - { id: '01M…', name: Andi, role: worker, phone: '+628444555666' }
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '422':
-          description: Task belum deal.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DomainError'
-              example: { message: 'Tidak bisa berpindah dari open ke active.', code: invalid_status_transition }
-
   # ────────────────────────────── LELANG ──────────────────────────────
   /tasks/{task}/bids:
     parameters:
@@ -4735,6 +4696,186 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      operationId: changePassword
+      summary: Ganti kata sandi saat sudah login (G4)
+      description: |
+        Sandi lama diperiksa; seluruh token dicabut setelah sandi berganti,
+        jadi klien harus masuk ulang.
+      responses:
+        '204': { description: Kata sandi berganti. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /me/verifications/documents:
+    post:
+      tags: [User]
+      operationId: storeVerificationDocument
+      summary: Unggah dokumen identitas KTP/selfie ke disk privat (G2a)
+      description: |
+        Balasan HANYA `path` (tanpa URL) — berkas tidak pernah publik. Path
+        dipakai sebagai `id_card_photo_path`/`selfie_photo_path` di
+        `POST me/verifications`, dan hanya diterima bila milik pengaju.
+      responses:
+        '201':
+          description: Dokumen tersimpan.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      path: { type: string, example: 'verifications/ab12…-ktp.jpg' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /me:
+    delete:
+      tags: [User]
+      operationId: deleteAccount
+      summary: Hapus akun — soft-delete + anonimisasi (G3)
+      description: |
+        Konfirmasi kata sandi wajib. Buku besar & reputasi tetap; data pribadi
+        dianonimkan. Ditolak `account_has_active_obligations` bila masih ada
+        pekerjaan berjalan atau permintaan dompet menggantung.
+      responses:
+        '204': { description: Akun dihapus. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /users/{user}/reports:
+    post:
+      tags: [User]
+      operationId: createUserReport
+      summary: Laporkan pengguna lain (G7)
+      responses:
+        '201': { description: Laporan masuk antrean admin. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /users/{user}/block:
+    put:
+      tags: [User]
+      operationId: storeUserBlock
+      summary: Blokir pengguna (G7) — idempoten
+      responses:
+        '204': { description: Diblokir. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [User]
+      operationId: destroyUserBlock
+      summary: Lepas blokir pengguna (G7) — idempoten
+      responses:
+        '204': { description: Blokir dilepas. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /me/blocks:
+    get:
+      tags: [User]
+      operationId: listBlockedUsers
+      summary: Daftar pengguna yang saya blokir (G7)
+      responses:
+        '200': { description: Cursor. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /tasks/{task}/disputes:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    post:
+      tags: [Task]
+      operationId: raiseTaskDispute
+      summary: Ajukan kendala atas task `disputed` (G5)
+      responses:
+        '201': { description: Tiket kendala dibuat/diperbarui. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /tasks/{task}/dispute:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    get:
+      tags: [Task]
+      operationId: showTaskDispute
+      summary: Tiket kendala task ini (G5)
+      responses:
+        '200': { description: Tiket terbaru. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/verifications/{verification}/documents/{kind}:
+    get:
+      tags: [Admin]
+      operationId: showVerificationDocument
+      summary: Alirkan berkas KTP/selfie ke pengelola (G2b)
+      description: Berkas dibaca dari disk privat; setiap pembacaan dicatat audit.
+      parameters:
+        - name: verification
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: kind
+          in: path
+          required: true
+          schema: { type: string, enum: [id_card, selfie] }
+      responses:
+        '200': { description: Berkas. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/reports:
+    get:
+      tags: [Admin]
+      operationId: listReports
+      summary: Antrean laporan pengguna (G7)
+      responses:
+        '200': { description: Cursor. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /admin/reports/{report}/review:
+    post:
+      tags: [Admin]
+      operationId: reviewReport
+      summary: Tandai laporan sudah ditinjau (G7)
+      parameters:
+        - name: report
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Laporan ditinjau. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /admin/disputes:
+    get:
+      tags: [Admin]
+      operationId: listDisputes
+      summary: Antrean sengketa (G5)
+      responses:
+        '200': { description: Cursor. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /admin/disputes/{dispute}/resolve:
+    post:
+      tags: [Admin]
+      operationId: resolveDispute
+      summary: Putuskan sengketa — release/refund (G5)
+      parameters:
+        - name: dispute
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Sengketa diputuskan. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
 
 components:
 
@@ -6020,16 +6161,6 @@ components:
         worker: { $ref: '#/components/schemas/PublicUser' }
         payment: { $ref: '#/components/schemas/Payment' }
         created_at: { type: [string, 'null'], format: date-time }
-    TaskContact:
-      type: object
-      title: TaskContact
-      description: 'Satu kontak peserta task setelah deal (B17).'
-      required: [id, role]
-      properties:
-        id: { type: string, description: ULID }
-        name: { type: [string, 'null'] }
-        role: { type: string, enum: [poster, worker] }
-        phone: { type: [string, 'null'] }
     ActivityUpdate:
       type: object
       title: ActivityUpdate
@@ -7050,6 +7181,15 @@ components:
             - task_not_found
             - task_not_biddable
             - task_not_editable
+            - task_not_cancellable
+            - verification_document_invalid
+            - invalid_current_password
+            - account_has_active_obligations
+            - dispute_not_allowed
+            - dispute_already_resolved
+            - cannot_report_self
+            - cannot_block_self
+            - user_blocked
             - workers_needed_below_hired
             - cannot_bid_own_task
             - bid_below_minimum

@@ -118,6 +118,21 @@ final class AdminWalletApiTest extends TestCase
         $this->assertSame(250_000, $this->user->fresh()->walletBalance());
     }
 
+    /** Saldo bertambah → pengguna melihatnya di lonceng (G11). */
+    public function test_confirming_a_topup_notifies_the_user(): void
+    {
+        $topup = $this->pendingTopup();
+
+        $this->asAdmin($this->admin)
+            ->postJson(route('v1.admin.wallet.topups.confirm', $topup))
+            ->assertOk();
+
+        $this->assertDatabaseHas('user_notifications', [
+            'user_id' => $this->user->getKey(),
+            'type' => 'topup_confirmed',
+        ]);
+    }
+
     /** Dan meninggalkan satu baris buku besar yang menjelaskan sebabnya. */
     public function test_a_confirmed_topup_leaves_a_ledger_entry(): void
     {

@@ -31,4 +31,15 @@ enum PushType: string
     case TaskCancelled = 'task_cancelled';
     // Tugas baru ke mitra terdekat yang tersedia (B13).
     case TaskPublished = 'task_published';
+    // Batas waktu penawaran terlewat (G12).
+    case TaskExpired = 'task_expired';
+    // Penawaran gugur karena lelang ditutup (G12).
+    case BidExpired = 'bid_expired';
+    // Sengketa diputuskan pengelola (G5).
+    case DisputeResolved = 'dispute_resolved';
+    // Dompet: hasil review permintaan isi saldo / penarikan (G11).
+    case TopupConfirmed = 'topup_confirmed';
+    case TopupRejected = 'topup_rejected';
+    case WithdrawalCompleted = 'withdrawal_completed';
+    case WithdrawalRejected = 'withdrawal_rejected';
 }

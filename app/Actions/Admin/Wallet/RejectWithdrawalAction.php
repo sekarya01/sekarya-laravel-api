@@ -12,6 +12,8 @@ use App\Exceptions\Domain\WalletRequestNotPendingException;
 use App\Models\Admin;
 use App\Models\WalletWithdrawal;
 use App\Support\AdminAuditRecorder;
+use App\Support\Push\PushDispatcher;
+use App\Support\Push\PushMessages;
 use App\Support\WalletLedger;
 use Illuminate\Database\ConnectionInterface;
 
@@ -30,6 +32,7 @@ final class RejectWithdrawalAction
         private readonly ConnectionInterface $db,
         private readonly WalletLedger $ledger,
         private readonly AdminAuditRecorder $audit,
+        private readonly PushDispatcher $push,
     ) {}
 
     public function handle(
@@ -72,6 +75,9 @@ final class RejectWithdrawalAction
                 $data->reason,
                 $data->ip,
             );
+
+            // Tahanan dikembalikan ke saldo → pengguna diberi tahu (G11).
+            $this->push->send((int) $fresh->user_id, PushMessages::withdrawalRejected($fresh));
 
             return $fresh;
         });

@@ -18,10 +18,13 @@ final class StoreUploadRequest extends FormRequest
             // dan task tidak butuh animasi.
             'file' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             // Hanya tujuan yang aman dipublikasikan. Dokumen identitas
-            // (KTP/selfie) TIDAK boleh lewat sini — ia tidak boleh
-            // bisa diakses publik. `proof` = foto bukti hasil kerja (U11),
-            // disimpan di `uploads/proofs` dengan tanda pemilik.
-            'purpose' => ['sometimes', 'string', 'in:task,avatar,proof'],
+            // (KTP/selfie) TIDAK lewat sini — ia punya jalur sendiri yang
+            // tidak publik (`POST me/verifications/documents`). `proof` =
+            // foto bukti hasil kerja (U11), disimpan di `uploads/proofs`
+            // dengan tanda pemilik. `review`/`update` = foto ulasan (B15) dan
+            // foto catatan kemajuan (B9) — keduanya publik, folder terpisah
+            // agar path-nya bisa divalidasi di endpoint pemakainya.
+            'purpose' => ['sometimes', 'string', 'in:task,avatar,proof,review,update'],
         ];
     }
 

@@ -7,9 +7,11 @@ namespace App\Actions\User;
 use App\Data\User\SubmitVerificationData;
 use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
+use App\Exceptions\Domain\VerificationDocumentInvalidException;
 use App\Models\User;
 use App\Models\UserVerification;
 use App\Support\BankAccountNumber;
+use App\Support\VerificationDocuments;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -21,7 +23,10 @@ use Illuminate\Database\ConnectionInterface;
  */
 final class SubmitVerificationAction
 {
-    public function __construct(private readonly ConnectionInterface $db) {}
+    public function __construct(
+        private readonly ConnectionInterface $db,
+        private readonly VerificationDocuments $documents,
+    ) {}
 
     public function handle(SubmitVerificationData $data, User $user): UserVerification
     {
@@ -37,6 +42,16 @@ final class SubmitVerificationAction
             ];
 
             if ($data->type === VerificationType::Identity) {
+                // Dokumen wajib milik pengaju (G2a): path yang bukan hasil
+                // unggahannya ditolak sebagai aturan bisnis, bukan lolos.
+                if (! $this->documents->isOwnedBy((string) $data->idCardPhotoPath, $user)) {
+                    throw VerificationDocumentInvalidException::forField('id_card_photo_path');
+                }
+
+                if (! $this->documents->isOwnedBy((string) $data->selfiePhotoPath, $user)) {
+                    throw VerificationDocumentInvalidException::forField('selfie_photo_path');
+                }
+
                 $attributes += [
                     'id_card_photo_path' => $data->idCardPhotoPath,
                     'selfie_photo_path' => $data->selfiePhotoPath,

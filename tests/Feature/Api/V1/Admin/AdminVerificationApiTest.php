@@ -11,7 +11,9 @@ use App\Models\Admin;
 use App\Models\AdminAuditLog;
 use App\Models\User;
 use App\Models\UserVerification;
+use App\Support\VerificationDocuments;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 final class AdminVerificationApiTest extends TestCase
@@ -76,6 +78,38 @@ final class AdminVerificationApiTest extends TestCase
         ] as $needle) {
             $this->assertStringNotContainsString($needle, $body, $needle);
         }
+    }
+
+    // ── berkas KTP/selfie (G2b) ─────────────────────────────────────────────
+
+    public function test_the_admin_can_open_the_stored_id_card_and_it_is_audited(): void
+    {
+        Storage::fake(VerificationDocuments::DISK);
+        Storage::disk(VerificationDocuments::DISK)->put($this->verification->id_card_photo_path, 'ktp-bytes');
+
+        $this->asAdmin($this->admin)
+            ->get(route('v1.admin.verifications.documents.show', [
+                'verification' => $this->verification,
+                'kind' => 'id_card',
+            ]))
+            ->assertOk();
+
+        $this->assertDatabaseHas('admin_audit_logs', [
+            'action' => AdminAction::VerificationDocumentViewed->value,
+            'subject_id' => $this->verification->getKey(),
+        ]);
+    }
+
+    public function test_a_document_that_was_never_uploaded_is_not_found(): void
+    {
+        Storage::fake(VerificationDocuments::DISK);
+
+        $this->asAdmin($this->admin)
+            ->get(route('v1.admin.verifications.documents.show', [
+                'verification' => $this->verification,
+                'kind' => 'selfie',
+            ]))
+            ->assertNotFound();
     }
 
     public function test_the_queue_can_be_filtered_by_status_and_type(): void
