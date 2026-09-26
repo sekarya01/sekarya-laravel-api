@@ -11,6 +11,7 @@ use App\Enums\BidStatus;
 use App\Enums\TaskStatus;
 use App\Models\Bid;
 use App\Models\Category;
+use App\Models\CategoryCityPrice;
 use App\Models\Skill;
 use App\Models\Task;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -123,6 +124,43 @@ final class CategoryAndSkillActionsTest extends TestCase
         $this->assertSame(3, $category->ref_sample_size);
         $this->assertNotNull($category->ref_computed_at);
         $this->assertTrue($category->hasRealPriceData());
+    }
+
+    /** Acuan per kota ditulis bila sampelnya cukup (U17). */
+    public function test_it_computes_per_city_reference_prices(): void
+    {
+        $category = Category::factory()->create();
+        $poster = $this->activeUser();
+
+        foreach ([100_000, 100_000, 100_000, 200_000, 300_000] as $amount) {
+            $task = Task::factory()->create([
+                'poster_id' => $poster->getKey(),
+                'category_id' => $category->getKey(),
+                'status' => TaskStatus::Completed,
+                'agreed_amount' => $amount,
+                'budget_min' => 1,
+                'city' => 'Kota Bandung',
+            ]);
+
+            Bid::factory()->create([
+                'task_id' => $task->getKey(),
+                'bidder_id' => $this->activeUser()->getKey(),
+                'amount' => $amount,
+                'status' => BidStatus::Accepted,
+            ]);
+        }
+
+        app(RecomputeReferencePricesAction::class)->handle();
+
+        $row = CategoryCityPrice::query()
+            ->where('category_id', $category->getKey())
+            ->where('city', 'Kota Bandung')
+            ->sole();
+
+        $this->assertSame(100_000, $row->ref_price_min);
+        $this->assertSame(300_000, $row->ref_price_max);
+        $this->assertSame(100_000, $row->ref_price_median);
+        $this->assertSame(5, $row->ref_sample_size);
     }
 
     /** Median, bukan rata-rata: satu task mahal tidak boleh merusak angkanya. */

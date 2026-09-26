@@ -147,6 +147,17 @@ CREATE TABLE IF NOT EXISTS `categories` (
   KEY `categories_is_active_sort_order_index` (`is_active`,`sort_order`)
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `cities` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `province` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `type` varchar(12) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `sort_order` int unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  KEY `cities_name_index` (`name`),
+  KEY `cities_province_index` (`province`)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `failed_jobs` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `uuid` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -256,6 +267,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `postal_code` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `poster_rating_avg` decimal(3,2) NOT NULL DEFAULT '0.00',
   `poster_rating_count` int unsigned NOT NULL DEFAULT '0',
+  `poster_tasks_completed` int unsigned NOT NULL DEFAULT '0',
   `tasks_posted` int unsigned NOT NULL DEFAULT '0',
   `cancellations` int unsigned NOT NULL DEFAULT '0',
   `theme` varchar(12) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'system',
@@ -286,6 +298,20 @@ CREATE TABLE IF NOT EXISTS `admin_audit_logs` (
   KEY `admin_audit_logs_action_created_at_index` (`action`,`created_at`),
   KEY `admin_audit_logs_created_at_index` (`created_at`),
   CONSTRAINT `admin_audit_logs_admin_id_foreign` FOREIGN KEY (`admin_id`) REFERENCES `admins` (`id`) ON DELETE RESTRICT
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `category_city_prices` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `category_id` bigint unsigned NOT NULL,
+  `city` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ref_price_min` bigint unsigned DEFAULT NULL,
+  `ref_price_max` bigint unsigned DEFAULT NULL,
+  `ref_price_median` bigint unsigned DEFAULT NULL,
+  `ref_sample_size` int unsigned NOT NULL DEFAULT '0',
+  `ref_computed_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `category_city_prices_category_city_unique` (`category_id`,`city`),
+  CONSTRAINT `category_city_prices_category_id_foreign` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `device_tokens` (
@@ -344,11 +370,13 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   `title` varchar(180) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `options` json DEFAULT NULL,
+  `checklist` json DEFAULT NULL,
   `photos` json DEFAULT NULL,
   `budget_min` bigint unsigned NOT NULL,
   `budget_max` bigint unsigned DEFAULT NULL,
   `ref_price_median` bigint unsigned DEFAULT NULL,
   `location_text` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `area` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `city` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `latitude` decimal(10,7) DEFAULT NULL,
   `longitude` decimal(10,7) DEFAULT NULL,
@@ -380,8 +408,53 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   KEY `tasks_status_bidding_closes_at_index` (`status`,`bidding_closes_at`),
   KEY `tasks_created_at_index` (`created_at`),
   KEY `tasks_status_workers_needed_index` (`status`,`workers_needed`),
+  KEY `tasks_status_needed_at_index` (`status`,`needed_at`),
   CONSTRAINT `tasks_category_id_foreign` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`),
   CONSTRAINT `tasks_poster_id_foreign` FOREIGN KEY (`poster_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `user_addresses` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint unsigned NOT NULL,
+  `label` varchar(40) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `address_line` varchar(250) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `city` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `province` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `latitude` decimal(10,7) DEFAULT NULL,
+  `longitude` decimal(10,7) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_addresses_user_id_unique` (`user_id`),
+  CONSTRAINT `user_addresses_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `user_blocks` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `blocker_id` bigint unsigned NOT NULL,
+  `blocked_id` bigint unsigned NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_blocks_blocker_id_blocked_id_unique` (`blocker_id`,`blocked_id`),
+  KEY `user_blocks_blocked_id_index` (`blocked_id`),
+  CONSTRAINT `user_blocks_blocked_id_foreign` FOREIGN KEY (`blocked_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `user_blocks_blocker_id_foreign` FOREIGN KEY (`blocker_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `user_notifications` (
+  `id` char(26) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `type` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `body` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `data` json DEFAULT NULL,
+  `read_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `user_notifications_user_id_created_at_id_index` (`user_id`,`created_at`,`id`),
+  KEY `user_notifications_user_id_read_at_created_at_index` (`user_id`,`read_at`,`created_at`),
+  CONSTRAINT `user_notifications_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `user_worker_verifications` (
@@ -398,6 +471,7 @@ CREATE TABLE IF NOT EXISTS `user_worker_verifications` (
   `birth_date_on_document` date DEFAULT NULL,
   `bank_code` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `account_number_enc` blob,
+  `account_number_last4` char(4) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `account_holder_name` varchar(120) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `submitted_at` timestamp NOT NULL,
   `reviewed_at` timestamp NULL DEFAULT NULL,
@@ -421,6 +495,7 @@ CREATE TABLE IF NOT EXISTS `user_workers` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `user_id` bigint unsigned NOT NULL,
   `display_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `headline` varchar(60) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `contact_phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `avatar_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `address_line` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -430,6 +505,7 @@ CREATE TABLE IF NOT EXISTS `user_workers` (
   `latitude` decimal(10,7) DEFAULT NULL,
   `longitude` decimal(10,7) DEFAULT NULL,
   `radius_km` smallint unsigned DEFAULT NULL,
+  `is_available` tinyint(1) NOT NULL DEFAULT '1',
   `worker_rating_avg` decimal(3,2) NOT NULL DEFAULT '0.00',
   `worker_rating_count` int unsigned NOT NULL DEFAULT '0',
   `tasks_completed` int unsigned NOT NULL DEFAULT '0',
@@ -441,6 +517,7 @@ CREATE TABLE IF NOT EXISTS `user_workers` (
   KEY `user_workers_worker_rating_avg_tasks_completed_index` (`worker_rating_avg`,`tasks_completed`),
   KEY `user_workers_latitude_longitude_index` (`latitude`,`longitude`),
   KEY `user_workers_city_province_index` (`city`,`province`),
+  KEY `user_workers_available_latest_index` (`is_available`,`created_at`,`id`),
   CONSTRAINT `user_workers_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -449,6 +526,8 @@ CREATE TABLE IF NOT EXISTS `wallet_topups` (
   `ulid` varchar(26) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` bigint unsigned NOT NULL,
   `amount` bigint unsigned NOT NULL,
+  `unique_code` smallint unsigned NOT NULL DEFAULT '0',
+  `transfer_amount` bigint unsigned NOT NULL DEFAULT '0',
   `status` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'awaiting_confirmation',
   `sender_note` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `rejection_reason` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -566,6 +645,8 @@ CREATE TABLE IF NOT EXISTS `reviews` (
   `reviewer_role` varchar(12) COLLATE utf8mb4_unicode_ci NOT NULL,
   `rating` tinyint unsigned NOT NULL,
   `comment` text COLLATE utf8mb4_unicode_ci,
+  `tags` json DEFAULT NULL,
+  `photos` json DEFAULT NULL,
   `is_visible` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
@@ -597,6 +678,19 @@ CREATE TABLE IF NOT EXISTS `skill_user` (
   CONSTRAINT `skill_user_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `task_bookmarks` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint unsigned NOT NULL,
+  `task_id` bigint unsigned NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `task_bookmarks_user_task_unique` (`user_id`,`task_id`),
+  KEY `task_bookmarks_task_id_foreign` (`task_id`),
+  KEY `task_bookmarks_user_latest_index` (`user_id`,`created_at`,`id`),
+  CONSTRAINT `task_bookmarks_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `task_bookmarks_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `task_cancel_requests` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `ulid` varchar(26) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -617,6 +711,31 @@ CREATE TABLE IF NOT EXISTS `task_cancel_requests` (
   CONSTRAINT `task_cancel_requests_decided_by_foreign` FOREIGN KEY (`decided_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `task_cancel_requests_requested_by_foreign` FOREIGN KEY (`requested_by`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `task_cancel_requests_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `task_disputes` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `ulid` char(26) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `task_id` bigint unsigned NOT NULL,
+  `raised_by` bigint unsigned NOT NULL,
+  `reason` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `evidence_photos` json DEFAULT NULL,
+  `status` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
+  `resolution` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `resolved_by` bigint unsigned DEFAULT NULL,
+  `resolved_at` timestamp NULL DEFAULT NULL,
+  `admin_note` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `task_disputes_ulid_unique` (`ulid`),
+  KEY `task_disputes_raised_by_foreign` (`raised_by`),
+  KEY `task_disputes_resolved_by_foreign` (`resolved_by`),
+  KEY `task_disputes_status_created_at_index` (`status`,`created_at`),
+  KEY `task_disputes_task_id_status_index` (`task_id`,`status`),
+  CONSTRAINT `task_disputes_raised_by_foreign` FOREIGN KEY (`raised_by`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `task_disputes_resolved_by_foreign` FOREIGN KEY (`resolved_by`) REFERENCES `admins` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `task_disputes_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `task_search` (
@@ -641,6 +760,32 @@ CREATE TABLE IF NOT EXISTS `task_status_logs` (
   KEY `task_status_logs_task_id_created_at_index` (`task_id`,`created_at`),
   KEY `task_status_logs_to_status_created_at_index` (`to_status`,`created_at`),
   CONSTRAINT `task_status_logs_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `user_reports` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `ulid` char(26) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reporter_id` bigint unsigned NOT NULL,
+  `reported_id` bigint unsigned NOT NULL,
+  `task_id` bigint unsigned DEFAULT NULL,
+  `reason` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `note` text COLLATE utf8mb4_unicode_ci,
+  `status` varchar(16) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'open',
+  `reviewed_by` bigint unsigned DEFAULT NULL,
+  `reviewed_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_reports_ulid_unique` (`ulid`),
+  KEY `user_reports_reporter_id_foreign` (`reporter_id`),
+  KEY `user_reports_task_id_foreign` (`task_id`),
+  KEY `user_reports_reviewed_by_foreign` (`reviewed_by`),
+  KEY `user_reports_status_created_at_index` (`status`,`created_at`),
+  KEY `user_reports_reported_id_created_at_index` (`reported_id`,`created_at`),
+  CONSTRAINT `user_reports_reported_id_foreign` FOREIGN KEY (`reported_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `user_reports_reporter_id_foreign` FOREIGN KEY (`reporter_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `user_reports_reviewed_by_foreign` FOREIGN KEY (`reviewed_by`) REFERENCES `admins` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `user_reports_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `wallet_entries` (
@@ -718,6 +863,10 @@ CREATE TABLE IF NOT EXISTS `activities` (
   `submitted_at` timestamp NULL DEFAULT NULL,
   `approved_at` timestamp NULL DEFAULT NULL,
   `rejected_at` timestamp NULL DEFAULT NULL,
+  `live_latitude` decimal(10,7) DEFAULT NULL,
+  `live_longitude` decimal(10,7) DEFAULT NULL,
+  `live_updated_at` timestamp NULL DEFAULT NULL,
+  `checklist_state` json DEFAULT NULL,
   `worker_note` text COLLATE utf8mb4_unicode_ci,
   `proof_photos` json DEFAULT NULL,
   `poster_note` text COLLATE utf8mb4_unicode_ci,
@@ -733,6 +882,14 @@ CREATE TABLE IF NOT EXISTS `activities` (
   CONSTRAINT `activities_payment_id_foreign` FOREIGN KEY (`payment_id`) REFERENCES `payments` (`id`) ON DELETE CASCADE,
   CONSTRAINT `activities_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE,
   CONSTRAINT `activities_worker_id_foreign` FOREIGN KEY (`worker_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `review_search` (
+  `review_id` bigint unsigned NOT NULL,
+  `terms` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  PRIMARY KEY (`review_id`),
+  FULLTEXT KEY `review_search_terms_fulltext` (`terms`),
+  CONSTRAINT `review_search_review_id_foreign` FOREIGN KEY (`review_id`) REFERENCES `reviews` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `task_cancel_approvals` (
@@ -766,66 +923,244 @@ CREATE TABLE IF NOT EXISTS `task_fund_movements` (
   CONSTRAINT `task_fund_movements_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS `activity_updates` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `activity_id` bigint unsigned NOT NULL,
+  `note` varchar(200) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `photo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `activity_updates_activity_id_created_at_id_index` (`activity_id`,`created_at`,`id`),
+  CONSTRAINT `activity_updates_activity_id_foreign` FOREIGN KEY (`activity_id`) REFERENCES `activities` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `platform_fee_entries` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `ulid` char(26) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `activity_id` bigint unsigned NOT NULL,
+  `worker_id` bigint unsigned NOT NULL,
+  `gross_amount` bigint unsigned NOT NULL,
+  `fee_amount` bigint unsigned NOT NULL,
+  `percent_bp` int unsigned NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `platform_fee_entries_activity_id_unique` (`activity_id`),
+  UNIQUE KEY `platform_fee_entries_ulid_unique` (`ulid`),
+  KEY `platform_fee_entries_worker_id_foreign` (`worker_id`),
+  KEY `platform_fee_entries_created_at_index` (`created_at`),
+  CONSTRAINT `platform_fee_entries_activity_id_foreign` FOREIGN KEY (`activity_id`) REFERENCES `activities` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `platform_fee_entries_worker_id_foreign` FOREIGN KEY (`worker_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ---------- DATA ACUAN ----------
 -- Kategori dan keahlian: aplikasi tidak berjalan tanpanya.
 -- Riwayat migrasi: supaya `php artisan migrate` tahu semuanya sudah jalan.
 
 -- categories: 9 baris
-INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (1, 'mencuci', 'Mencuci', 'Cuci pakaian, setrika, cuci kering', 'washing-machine', 50000, 150000, 80000, 0, NULL, 1, 0, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (2, 'bersih-rumah', 'Membersihkan Rumah', 'Bersih-bersih rumah, kamar, dapur, kamar mandi', 'broom', 75000, 300000, 150000, 0, NULL, 1, 1, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (3, 'jaga-hewan', 'Menjaga Hewan', 'Titip hewan, jalan-jalan, beri makan', 'paw', 50000, 200000, 100000, 0, NULL, 1, 2, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (4, 'antar-barang', 'Mengantarkan Barang', 'Antar dokumen, paket, barang dalam kota', 'package', 15000, 100000, 35000, 0, NULL, 1, 3, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (5, 'tukang', 'Tukang & Perbaikan', 'Perbaikan kecil, pasang, servis rumah', 'wrench', 100000, 1000000, 250000, 0, NULL, 1, 4, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (6, 'jaga-anak', 'Menjaga Anak', 'Menemani dan menjaga anak', 'baby', 75000, 300000, 150000, 0, NULL, 1, 5, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (7, 'berkebun', 'Berkebun', 'Rawat tanaman, potong rumput, bersihkan halaman', 'sprout', 75000, 250000, 125000, 0, NULL, 1, 6, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (8, 'pindahan', 'Bantu Pindahan', 'Angkat, kemas, bantu pindah barang', 'truck', 150000, 1000000, 350000, 0, NULL, 1, 7, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (9, 'lainnya', 'Lainnya', 'Pekerjaan yang belum masuk kategori di atas', 'ellipsis', NULL, NULL, NULL, 0, NULL, 1, 8, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (1, 'mencuci', 'Mencuci', 'Cuci pakaian, setrika, cuci kering', 'washing-machine', 50000, 150000, 80000, 0, NULL, 1, 0, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (2, 'bersih-rumah', 'Membersihkan Rumah', 'Bersih-bersih rumah, kamar, dapur, kamar mandi', 'broom', 75000, 300000, 150000, 0, NULL, 1, 1, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (3, 'jaga-hewan', 'Menjaga Hewan', 'Titip hewan, jalan-jalan, beri makan', 'paw', 50000, 200000, 100000, 0, NULL, 1, 2, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (4, 'antar-barang', 'Mengantarkan Barang', 'Antar dokumen, paket, barang dalam kota', 'package', 15000, 100000, 35000, 0, NULL, 1, 3, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (5, 'tukang', 'Tukang & Perbaikan', 'Perbaikan kecil, pasang, servis rumah', 'wrench', 100000, 1000000, 250000, 0, NULL, 1, 4, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (6, 'jaga-anak', 'Menjaga Anak', 'Menemani dan menjaga anak', 'baby', 75000, 300000, 150000, 0, NULL, 1, 5, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (7, 'berkebun', 'Berkebun', 'Rawat tanaman, potong rumput, bersihkan halaman', 'sprout', 75000, 250000, 125000, 0, NULL, 1, 6, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (8, 'pindahan', 'Bantu Pindahan', 'Angkat, kemas, bantu pindah barang', 'truck', 150000, 1000000, 350000, 0, NULL, 1, 7, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `categories` (`id`, `slug`, `name`, `description`, `icon`, `ref_price_min`, `ref_price_max`, `ref_price_median`, `ref_sample_size`, `ref_computed_at`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (9, 'lainnya', 'Lainnya', 'Pekerjaan yang belum masuk kategori di atas', 'ellipsis', NULL, NULL, NULL, 0, NULL, 1, 8, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
 
 -- skills: 42 baris
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (1, 'setrika', 'Setrika', 1, 1, 0, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (2, 'cuci-tangan', 'Cuci tangan', 1, 1, 1, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (3, 'cuci-mesin', 'Cuci mesin', 1, 1, 2, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (4, 'lipat-pakaian', 'Lipat pakaian', 1, 1, 3, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (5, 'cuci-sepatu', 'Cuci sepatu', 1, 1, 4, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (6, 'bersih-umum', 'Bersih umum', 2, 1, 5, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (7, 'cuci-ac', 'Cuci ac', 2, 1, 6, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (8, 'bersih-kamar-mandi', 'Bersih kamar mandi', 2, 1, 7, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (9, 'poles-lantai', 'Poles lantai', 2, 1, 8, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (10, 'bersih-dapur', 'Bersih dapur', 2, 1, 9, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (11, 'cuci-jendela', 'Cuci jendela', 2, 1, 10, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (12, 'jaga-kucing', 'Jaga kucing', 3, 1, 11, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (13, 'jaga-anjing', 'Jaga anjing', 3, 1, 12, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (14, 'grooming', 'Grooming', 3, 1, 13, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (15, 'jalan-anjing', 'Jalan anjing', 3, 1, 14, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (16, 'beri-makan-hewan', 'Beri makan hewan', 3, 1, 15, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (17, 'antar-dokumen', 'Antar dokumen', 4, 1, 16, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (18, 'antar-paket', 'Antar paket', 4, 1, 17, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (19, 'antar-makanan', 'Antar makanan', 4, 1, 18, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (20, 'kurir-motor', 'Kurir motor', 4, 1, 19, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (21, 'kurir-mobil', 'Kurir mobil', 4, 1, 20, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (22, 'listrik', 'Listrik', 5, 1, 21, '2026-09-22 09:48:51', '2026-09-22 09:48:51');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (23, 'pipa-air', 'Pipa air', 5, 1, 22, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (24, 'kayu', 'Kayu', 5, 1, 23, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (25, 'cat-dinding', 'Cat dinding', 5, 1, 24, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (26, 'pasang-keramik', 'Pasang keramik', 5, 1, 25, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (27, 'servis-atap', 'Servis atap', 5, 1, 26, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (28, 'jaga-bayi', 'Jaga bayi', 6, 1, 27, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (29, 'jaga-anak-balita', 'Jaga anak balita', 6, 1, 28, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (30, 'antar-jemput-sekolah', 'Antar jemput sekolah', 6, 1, 29, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (31, 'temani-belajar', 'Temani belajar', 6, 1, 30, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (32, 'potong-rumput', 'Potong rumput', 7, 1, 31, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (33, 'rawat-tanaman', 'Rawat tanaman', 7, 1, 32, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (34, 'tebang-dahan', 'Tebang dahan', 7, 1, 33, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (35, 'bersih-halaman', 'Bersih halaman', 7, 1, 34, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (36, 'angkat-barang', 'Angkat barang', 8, 1, 35, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (37, 'kemas-barang', 'Kemas barang', 8, 1, 36, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (38, 'bongkar-pasang-mebel', 'Bongkar pasang mebel', 8, 1, 37, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (39, 'antre', 'Antre', 9, 1, 38, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (40, 'belanja-titipan', 'Belanja titipan', 9, 1, 39, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (41, 'input-data', 'Input data', 9, 1, 40, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
-INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (42, 'fotografi', 'Fotografi', 9, 1, 41, '2026-09-22 09:48:52', '2026-09-22 09:48:52');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (1, 'setrika', 'Setrika', 1, 1, 0, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (2, 'cuci-tangan', 'Cuci tangan', 1, 1, 1, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (3, 'cuci-mesin', 'Cuci mesin', 1, 1, 2, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (4, 'lipat-pakaian', 'Lipat pakaian', 1, 1, 3, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (5, 'cuci-sepatu', 'Cuci sepatu', 1, 1, 4, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (6, 'bersih-umum', 'Bersih umum', 2, 1, 5, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (7, 'cuci-ac', 'Cuci ac', 2, 1, 6, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (8, 'bersih-kamar-mandi', 'Bersih kamar mandi', 2, 1, 7, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (9, 'poles-lantai', 'Poles lantai', 2, 1, 8, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (10, 'bersih-dapur', 'Bersih dapur', 2, 1, 9, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (11, 'cuci-jendela', 'Cuci jendela', 2, 1, 10, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (12, 'jaga-kucing', 'Jaga kucing', 3, 1, 11, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (13, 'jaga-anjing', 'Jaga anjing', 3, 1, 12, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (14, 'grooming', 'Grooming', 3, 1, 13, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (15, 'jalan-anjing', 'Jalan anjing', 3, 1, 14, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (16, 'beri-makan-hewan', 'Beri makan hewan', 3, 1, 15, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (17, 'antar-dokumen', 'Antar dokumen', 4, 1, 16, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (18, 'antar-paket', 'Antar paket', 4, 1, 17, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (19, 'antar-makanan', 'Antar makanan', 4, 1, 18, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (20, 'kurir-motor', 'Kurir motor', 4, 1, 19, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (21, 'kurir-mobil', 'Kurir mobil', 4, 1, 20, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (22, 'listrik', 'Listrik', 5, 1, 21, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (23, 'pipa-air', 'Pipa air', 5, 1, 22, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (24, 'kayu', 'Kayu', 5, 1, 23, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (25, 'cat-dinding', 'Cat dinding', 5, 1, 24, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (26, 'pasang-keramik', 'Pasang keramik', 5, 1, 25, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (27, 'servis-atap', 'Servis atap', 5, 1, 26, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (28, 'jaga-bayi', 'Jaga bayi', 6, 1, 27, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (29, 'jaga-anak-balita', 'Jaga anak balita', 6, 1, 28, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (30, 'antar-jemput-sekolah', 'Antar jemput sekolah', 6, 1, 29, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (31, 'temani-belajar', 'Temani belajar', 6, 1, 30, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (32, 'potong-rumput', 'Potong rumput', 7, 1, 31, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (33, 'rawat-tanaman', 'Rawat tanaman', 7, 1, 32, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (34, 'tebang-dahan', 'Tebang dahan', 7, 1, 33, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (35, 'bersih-halaman', 'Bersih halaman', 7, 1, 34, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (36, 'angkat-barang', 'Angkat barang', 8, 1, 35, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (37, 'kemas-barang', 'Kemas barang', 8, 1, 36, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (38, 'bongkar-pasang-mebel', 'Bongkar pasang mebel', 8, 1, 37, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (39, 'antre', 'Antre', 9, 1, 38, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (40, 'belanja-titipan', 'Belanja titipan', 9, 1, 39, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (41, 'input-data', 'Input data', 9, 1, 40, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
+INSERT IGNORE INTO `skills` (`id`, `slug`, `name`, `category_id`, `is_active`, `sort_order`, `created_at`, `updated_at`) VALUES (42, 'fotografi', 'Fotografi', 9, 1, 41, '2026-09-26 01:54:55', '2026-09-26 01:54:55');
 
--- migrations: 41 baris
+-- cities: 146 baris
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (1, 'Banda Aceh', 'Aceh', 'kota', 0);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (2, 'Lhokseumawe', 'Aceh', 'kota', 1);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (3, 'Langsa', 'Aceh', 'kota', 2);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (4, 'Sabang', 'Aceh', 'kota', 3);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (5, 'Meulaboh', 'Aceh', 'kabupaten', 4);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (6, 'Medan', 'Sumatera Utara', 'kota', 5);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (7, 'Binjai', 'Sumatera Utara', 'kota', 6);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (8, 'Pematangsiantar', 'Sumatera Utara', 'kota', 7);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (9, 'Tebing Tinggi', 'Sumatera Utara', 'kota', 8);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (10, 'Sibolga', 'Sumatera Utara', 'kota', 9);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (11, 'Padangsidimpuan', 'Sumatera Utara', 'kota', 10);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (12, 'Deli Serdang', 'Sumatera Utara', 'kabupaten', 11);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (13, 'Padang', 'Sumatera Barat', 'kota', 12);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (14, 'Bukittinggi', 'Sumatera Barat', 'kota', 13);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (15, 'Payakumbuh', 'Sumatera Barat', 'kota', 14);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (16, 'Solok', 'Sumatera Barat', 'kota', 15);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (17, 'Pariaman', 'Sumatera Barat', 'kota', 16);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (18, 'Padang Panjang', 'Sumatera Barat', 'kota', 17);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (19, 'Pekanbaru', 'Riau', 'kota', 18);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (20, 'Dumai', 'Riau', 'kota', 19);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (21, 'Kampar', 'Riau', 'kabupaten', 20);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (22, 'Batam', 'Kepulauan Riau', 'kota', 21);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (23, 'Tanjungpinang', 'Kepulauan Riau', 'kota', 22);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (24, 'Bintan', 'Kepulauan Riau', 'kabupaten', 23);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (25, 'Jambi', 'Jambi', 'kota', 24);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (26, 'Sungai Penuh', 'Jambi', 'kota', 25);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (27, 'Bengkulu', 'Bengkulu', 'kota', 26);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (28, 'Curup', 'Bengkulu', 'kabupaten', 27);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (29, 'Palembang', 'Sumatera Selatan', 'kota', 28);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (30, 'Prabumulih', 'Sumatera Selatan', 'kota', 29);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (31, 'Pagar Alam', 'Sumatera Selatan', 'kota', 30);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (32, 'Lubuklinggau', 'Sumatera Selatan', 'kota', 31);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (33, 'Pangkalpinang', 'Kepulauan Bangka Belitung', 'kota', 32);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (34, 'Sungailiat', 'Kepulauan Bangka Belitung', 'kabupaten', 33);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (35, 'Bandar Lampung', 'Lampung', 'kota', 34);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (36, 'Metro', 'Lampung', 'kota', 35);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (37, 'Lampung Selatan', 'Lampung', 'kabupaten', 36);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (38, 'Serang', 'Banten', 'kota', 37);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (39, 'Tangerang', 'Banten', 'kota', 38);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (40, 'Tangerang Selatan', 'Banten', 'kota', 39);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (41, 'Cilegon', 'Banten', 'kota', 40);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (42, 'Pandeglang', 'Banten', 'kabupaten', 41);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (43, 'Jakarta Pusat', 'DKI Jakarta', 'kota', 42);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (44, 'Jakarta Selatan', 'DKI Jakarta', 'kota', 43);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (45, 'Jakarta Timur', 'DKI Jakarta', 'kota', 44);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (46, 'Jakarta Barat', 'DKI Jakarta', 'kota', 45);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (47, 'Jakarta Utara', 'DKI Jakarta', 'kota', 46);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (48, 'Bandung', 'Jawa Barat', 'kota', 47);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (49, 'Bekasi', 'Jawa Barat', 'kota', 48);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (50, 'Bogor', 'Jawa Barat', 'kota', 49);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (51, 'Depok', 'Jawa Barat', 'kota', 50);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (52, 'Cimahi', 'Jawa Barat', 'kota', 51);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (53, 'Sukabumi', 'Jawa Barat', 'kota', 52);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (54, 'Cirebon', 'Jawa Barat', 'kota', 53);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (55, 'Tasikmalaya', 'Jawa Barat', 'kota', 54);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (56, 'Banjar', 'Jawa Barat', 'kota', 55);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (57, 'Garut', 'Jawa Barat', 'kabupaten', 56);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (58, 'Karawang', 'Jawa Barat', 'kabupaten', 57);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (59, 'Semarang', 'Jawa Tengah', 'kota', 58);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (60, 'Surakarta', 'Jawa Tengah', 'kota', 59);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (61, 'Magelang', 'Jawa Tengah', 'kota', 60);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (62, 'Pekalongan', 'Jawa Tengah', 'kota', 61);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (63, 'Salatiga', 'Jawa Tengah', 'kota', 62);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (64, 'Tegal', 'Jawa Tengah', 'kota', 63);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (65, 'Banyumas', 'Jawa Tengah', 'kabupaten', 64);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (66, 'Kudus', 'Jawa Tengah', 'kabupaten', 65);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (67, 'Jepara', 'Jawa Tengah', 'kabupaten', 66);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (68, 'Yogyakarta', 'DI Yogyakarta', 'kota', 67);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (69, 'Sleman', 'DI Yogyakarta', 'kabupaten', 68);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (70, 'Bantul', 'DI Yogyakarta', 'kabupaten', 69);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (71, 'Kulon Progo', 'DI Yogyakarta', 'kabupaten', 70);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (72, 'Gunungkidul', 'DI Yogyakarta', 'kabupaten', 71);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (73, 'Surabaya', 'Jawa Timur', 'kota', 72);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (74, 'Malang', 'Jawa Timur', 'kota', 73);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (75, 'Kediri', 'Jawa Timur', 'kota', 74);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (76, 'Blitar', 'Jawa Timur', 'kota', 75);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (77, 'Madiun', 'Jawa Timur', 'kota', 76);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (78, 'Mojokerto', 'Jawa Timur', 'kota', 77);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (79, 'Pasuruan', 'Jawa Timur', 'kota', 78);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (80, 'Probolinggo', 'Jawa Timur', 'kota', 79);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (81, 'Batu', 'Jawa Timur', 'kota', 80);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (82, 'Sidoarjo', 'Jawa Timur', 'kabupaten', 81);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (83, 'Gresik', 'Jawa Timur', 'kabupaten', 82);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (84, 'Jember', 'Jawa Timur', 'kabupaten', 83);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (85, 'Banyuwangi', 'Jawa Timur', 'kabupaten', 84);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (86, 'Denpasar', 'Bali', 'kota', 85);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (87, 'Badung', 'Bali', 'kabupaten', 86);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (88, 'Gianyar', 'Bali', 'kabupaten', 87);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (89, 'Tabanan', 'Bali', 'kabupaten', 88);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (90, 'Buleleng', 'Bali', 'kabupaten', 89);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (91, 'Mataram', 'Nusa Tenggara Barat', 'kota', 90);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (92, 'Bima', 'Nusa Tenggara Barat', 'kota', 91);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (93, 'Lombok Timur', 'Nusa Tenggara Barat', 'kabupaten', 92);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (94, 'Sumbawa', 'Nusa Tenggara Barat', 'kabupaten', 93);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (95, 'Kupang', 'Nusa Tenggara Timur', 'kota', 94);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (96, 'Ende', 'Nusa Tenggara Timur', 'kabupaten', 95);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (97, 'Sikka', 'Nusa Tenggara Timur', 'kabupaten', 96);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (98, 'Manggarai', 'Nusa Tenggara Timur', 'kabupaten', 97);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (99, 'Pontianak', 'Kalimantan Barat', 'kota', 98);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (100, 'Singkawang', 'Kalimantan Barat', 'kota', 99);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (101, 'Mempawah', 'Kalimantan Barat', 'kabupaten', 100);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (102, 'Palangka Raya', 'Kalimantan Tengah', 'kota', 101);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (103, 'Kotawaringin Timur', 'Kalimantan Tengah', 'kabupaten', 102);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (104, 'Kotawaringin Barat', 'Kalimantan Tengah', 'kabupaten', 103);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (105, 'Banjarmasin', 'Kalimantan Selatan', 'kota', 104);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (106, 'Banjarbaru', 'Kalimantan Selatan', 'kota', 105);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (107, 'Banjar', 'Kalimantan Selatan', 'kabupaten', 106);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (108, 'Samarinda', 'Kalimantan Timur', 'kota', 107);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (109, 'Balikpapan', 'Kalimantan Timur', 'kota', 108);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (110, 'Bontang', 'Kalimantan Timur', 'kota', 109);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (111, 'Kutai Kartanegara', 'Kalimantan Timur', 'kabupaten', 110);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (112, 'Tarakan', 'Kalimantan Utara', 'kota', 111);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (113, 'Bulungan', 'Kalimantan Utara', 'kabupaten', 112);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (114, 'Manado', 'Sulawesi Utara', 'kota', 113);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (115, 'Bitung', 'Sulawesi Utara', 'kota', 114);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (116, 'Tomohon', 'Sulawesi Utara', 'kota', 115);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (117, 'Kotamobagu', 'Sulawesi Utara', 'kota', 116);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (118, 'Gorontalo', 'Gorontalo', 'kota', 117);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (119, 'Kabupaten Gorontalo', 'Gorontalo', 'kabupaten', 118);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (120, 'Palu', 'Sulawesi Tengah', 'kota', 119);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (121, 'Banggai', 'Sulawesi Tengah', 'kabupaten', 120);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (122, 'Poso', 'Sulawesi Tengah', 'kabupaten', 121);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (123, 'Mamuju', 'Sulawesi Barat', 'kabupaten', 122);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (124, 'Polewali Mandar', 'Sulawesi Barat', 'kabupaten', 123);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (125, 'Makassar', 'Sulawesi Selatan', 'kota', 124);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (126, 'Parepare', 'Sulawesi Selatan', 'kota', 125);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (127, 'Palopo', 'Sulawesi Selatan', 'kota', 126);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (128, 'Gowa', 'Sulawesi Selatan', 'kabupaten', 127);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (129, 'Bone', 'Sulawesi Selatan', 'kabupaten', 128);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (130, 'Kendari', 'Sulawesi Tenggara', 'kota', 129);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (131, 'Baubau', 'Sulawesi Tenggara', 'kota', 130);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (132, 'Kolaka', 'Sulawesi Tenggara', 'kabupaten', 131);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (133, 'Ambon', 'Maluku', 'kota', 132);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (134, 'Tual', 'Maluku', 'kota', 133);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (135, 'Ternate', 'Maluku Utara', 'kota', 134);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (136, 'Tidore Kepulauan', 'Maluku Utara', 'kota', 135);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (137, 'Jayapura', 'Papua', 'kota', 136);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (138, 'Merauke', 'Papua', 'kabupaten', 137);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (139, 'Mimika', 'Papua', 'kabupaten', 138);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (140, 'Manokwari', 'Papua Barat', 'kabupaten', 139);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (141, 'Fakfak', 'Papua Barat', 'kabupaten', 140);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (142, 'Sorong', 'Papua Barat Daya', 'kota', 141);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (143, 'Raja Ampat', 'Papua Barat Daya', 'kabupaten', 142);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (144, 'Nabire', 'Papua Tengah', 'kabupaten', 143);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (145, 'Jayawijaya', 'Papua Pegunungan', 'kabupaten', 144);
+INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (146, 'Boven Digoel', 'Papua Selatan', 'kabupaten', 145);
+
+-- migrations: 63 baris
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (1, '0001_01_01_000000_create_users_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (2, '0001_01_01_000001_create_cache_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (3, '0001_01_01_000002_create_jobs_table', 1);
@@ -867,5 +1202,27 @@ INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (38, '2026_0
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (39, '2026_09_22_000001_create_task_cancel_requests_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (40, '2026_09_23_000001_create_task_cancel_approvals_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (41, '2026_09_24_000001_create_device_tokens_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (42, '2026_09_25_000001_add_area_to_tasks_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (43, '2026_09_25_000002_add_account_number_last4_to_user_worker_verifications', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (44, '2026_09_25_000003_add_tags_to_reviews_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (45, '2026_09_25_000004_create_review_search_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (46, '2026_09_26_000001_add_is_available_to_user_workers_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (47, '2026_09_26_000002_create_user_notifications_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (48, '2026_09_26_000003_create_user_addresses_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (49, '2026_09_26_000004_add_headline_to_user_workers_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (50, '2026_09_26_000005_add_poster_tasks_completed_to_users_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (51, '2026_09_26_000006_add_needed_at_index_to_tasks_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (52, '2026_09_26_000007_add_unique_code_to_wallet_topups_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (53, '2026_09_26_000008_add_photos_to_reviews_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (54, '2026_09_26_000009_create_task_bookmarks_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (55, '2026_09_26_000010_add_live_location_and_checklist_to_activities_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (56, '2026_09_26_000011_add_checklist_to_tasks_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (57, '2026_09_26_000012_create_activity_updates_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (58, '2026_09_26_000013_create_cities_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (59, '2026_09_26_000014_create_category_city_prices_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (60, '2026_09_26_000015_create_user_reports_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (61, '2026_09_26_000016_create_user_blocks_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (62, '2026_09_26_000017_create_task_disputes_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (63, '2026_09_26_000018_create_platform_fee_entries_table', 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

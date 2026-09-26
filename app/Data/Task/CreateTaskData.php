@@ -23,8 +23,12 @@ final readonly class CreateTaskData
         public ?string $endAt = null,
         public ?int $budgetMax = null,
         public array $options = [],
+        /** @var list<string> langkah checklist pekerjaan (B10) */
+        public array $checklist = [],
         public array $photos = [],
         public ?string $locationText = null,
+        /** Wilayah kasar yang selalu tampil — lihat Task::revealsLocationTo. */
+        public ?string $area = null,
         public ?float $latitude = null,
         public ?float $longitude = null,
         public bool $isRemote = false,
@@ -52,10 +56,15 @@ final readonly class CreateTaskData
             // Sengaja tetap null kalau tidak dikirim — max itu opsional.
             budgetMax: $request->filled('budget_max') ? $request->integer('budget_max') : null,
             options: $request->array('options'),
+            checklist: array_values(array_filter(array_map(
+                static fn (mixed $step): string => trim((string) $step),
+                $request->array('checklist'),
+            ))),
             photos: $request->array('photos'),
             locationText: $request->filled('location_text')
                 ? trim($request->string('location_text')->value())
                 : null,
+            area: $request->filled('area') ? trim($request->string('area')->value()) : null,
             latitude: $request->filled('latitude') ? $request->float('latitude') : null,
             longitude: $request->filled('longitude') ? $request->float('longitude') : null,
             isRemote: $request->boolean('is_remote'),

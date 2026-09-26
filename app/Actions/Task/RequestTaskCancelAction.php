@@ -11,6 +11,8 @@ use App\Exceptions\Domain\NoWorkersHiredException;
 use App\Models\Task;
 use App\Models\TaskCancelRequest;
 use App\Models\User;
+use App\Support\Push\PushDispatcher;
+use App\Support\Push\PushMessages;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -28,7 +30,10 @@ use Illuminate\Database\ConnectionInterface;
  */
 final class RequestTaskCancelAction
 {
-    public function __construct(private readonly ConnectionInterface $db) {}
+    public function __construct(
+        private readonly ConnectionInterface $db,
+        private readonly PushDispatcher $push,
+    ) {}
 
     public function handle(Task $task, User $requester, ?string $reason = null): TaskCancelRequest
     {
@@ -74,6 +79,14 @@ final class RequestTaskCancelAction
                     'status' => CancelApprovalStatus::Pending,
                 ])->all(),
             );
+
+            // Setiap penjawab ditanya LANGSUNG (U12) — tanpa ini popup di
+            // Detail Kerjaan baru muncul kalau pekerjanya kebetulan membuka
+            // layar itu. Di dalam transaksi: baris kotak masuk ikut batal bila
+            // permintaannya batal; push-nya sendiri berangkat sesudah commit.
+            foreach ($workerIds as $workerId) {
+                $this->push->send($workerId, PushMessages::cancelRequested($task, $created));
+            }
 
             return $created;
         });

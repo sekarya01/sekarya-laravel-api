@@ -12,7 +12,8 @@ use Illuminate\Http\Request;
  * Batas pengungkapan paling ketat di seluruh API.
  *
  * TIDAK pernah keluar dari sini: path foto KTP, path foto selfie, NIK
- * (hash maupun terenkripsi), dan nomor rekening. Yang keluar hanya STATUS.
+ * (hash maupun terenkripsi), dan nomor rekening UTUH. Yang keluar hanya
+ * STATUS — plus empat digit terakhir rekening (`account_number_masked`).
  *
  * Foto hanya boleh diakses lewat signed URL terpisah yang memverifikasi
  * pemiliknya — bukan dengan menaruh path di response ini.
@@ -43,6 +44,12 @@ final class VerificationResource extends BaseResource
             'account_holder_name' => $this->when(
                 $this->type === VerificationType::BankAccount,
                 fn (): ?string => $this->account_holder_name,
+            ),
+            // Empat digit terakhir saja, dari kolomnya sendiri — nomor utuh
+            // tidak didekripsi di sini.
+            'account_number_masked' => $this->when(
+                $this->type === VerificationType::BankAccount,
+                fn (): ?string => $this->resource->accountNumberMasked(),
             ),
             'rejection_reason' => $this->rejection_reason,
             'submitted_at' => $this->iso($this->submitted_at),

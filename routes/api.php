@@ -5,12 +5,15 @@ declare(strict_types=1);
 use App\Enums\TokenAbility;
 use App\Http\Controllers\Api\V1\Activity\ApproveActivityController;
 use App\Http\Controllers\Api\V1\Activity\ConfirmArrivalController;
+use App\Http\Controllers\Api\V1\Activity\CreateActivityUpdateController;
 use App\Http\Controllers\Api\V1\Activity\DepartActivityController;
 use App\Http\Controllers\Api\V1\Activity\ListMyActivitiesController;
 use App\Http\Controllers\Api\V1\Activity\RejectActivityController;
 use App\Http\Controllers\Api\V1\Activity\ShowActivityController;
 use App\Http\Controllers\Api\V1\Activity\StartActivityController;
 use App\Http\Controllers\Api\V1\Activity\SubmitActivityController;
+use App\Http\Controllers\Api\V1\Activity\UpdateActivityChecklistController;
+use App\Http\Controllers\Api\V1\Activity\UpdateActivityLocationController;
 use App\Http\Controllers\Api\V1\Admin\Access\CreateAdminController;
 use App\Http\Controllers\Api\V1\Admin\Access\DeleteAdminController;
 use App\Http\Controllers\Api\V1\Admin\Access\ListAdminsController;
@@ -19,10 +22,14 @@ use App\Http\Controllers\Api\V1\Admin\Auth\AdminLoginController;
 use App\Http\Controllers\Api\V1\Admin\Auth\AdminLogoutController;
 use App\Http\Controllers\Api\V1\Admin\Auth\AdminRefreshTokenController;
 use App\Http\Controllers\Api\V1\Admin\Auth\ShowAdminMeController;
+use App\Http\Controllers\Api\V1\Admin\Dispute\ListDisputesController;
+use App\Http\Controllers\Api\V1\Admin\Dispute\ResolveDisputeController;
 use App\Http\Controllers\Api\V1\Admin\Payment\ConfirmPaymentController;
 use App\Http\Controllers\Api\V1\Admin\Payment\ListPaymentQueueController;
 use App\Http\Controllers\Api\V1\Admin\Payment\RejectPaymentController;
 use App\Http\Controllers\Api\V1\Admin\Payment\ShowPaymentController;
+use App\Http\Controllers\Api\V1\Admin\Report\ListReportsController;
+use App\Http\Controllers\Api\V1\Admin\Report\ReviewReportController;
 use App\Http\Controllers\Api\V1\Admin\User\BanUserController;
 use App\Http\Controllers\Api\V1\Admin\User\ListUsersController;
 use App\Http\Controllers\Api\V1\Admin\User\ReinstateUserController;
@@ -33,6 +40,7 @@ use App\Http\Controllers\Api\V1\Admin\Verification\ListVerificationQueueControll
 use App\Http\Controllers\Api\V1\Admin\Verification\RejectVerificationController;
 use App\Http\Controllers\Api\V1\Admin\Verification\RevokeVerificationController;
 use App\Http\Controllers\Api\V1\Admin\Verification\ShowVerificationController;
+use App\Http\Controllers\Api\V1\Admin\Verification\ShowVerificationDocumentController;
 use App\Http\Controllers\Api\V1\Admin\Wallet\CompleteWithdrawalController;
 use App\Http\Controllers\Api\V1\Admin\Wallet\ConfirmTopupController;
 use App\Http\Controllers\Api\V1\Admin\Wallet\ListTopupQueueController;
@@ -44,6 +52,7 @@ use App\Http\Controllers\Api\V1\Admin\WorkerInvite\DeactivateWorkerInviteCodeCon
 use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ListWorkerInviteCodesController;
 use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ListWorkerInviteRedemptionsController;
 use App\Http\Controllers\Api\V1\Admin\WorkerInvite\ShowWorkerInviteCodeController;
+use App\Http\Controllers\Api\V1\Auth\ChangePasswordController;
 use App\Http\Controllers\Api\V1\Auth\CheckAvailabilityController;
 use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
@@ -58,36 +67,60 @@ use App\Http\Controllers\Api\V1\Bid\ListTaskBidsController;
 use App\Http\Controllers\Api\V1\Bid\PlaceBidController;
 use App\Http\Controllers\Api\V1\Bid\WithdrawBidController;
 use App\Http\Controllers\Api\V1\Category\ListCategoriesController;
+use App\Http\Controllers\Api\V1\City\ListCitiesController;
+use App\Http\Controllers\Api\V1\Notification\ListNotificationsController;
+use App\Http\Controllers\Api\V1\Notification\MarkAllNotificationsReadController;
+use App\Http\Controllers\Api\V1\Notification\MarkNotificationReadController;
+use App\Http\Controllers\Api\V1\Notification\ShowUnreadNotificationCountController;
 use App\Http\Controllers\Api\V1\Payment\HoldPaymentController;
 use App\Http\Controllers\Api\V1\Payment\ShowTaskPaymentController;
 use App\Http\Controllers\Api\V1\Review\CreateReviewController;
 use App\Http\Controllers\Api\V1\Review\ListUserReviewsController;
+use App\Http\Controllers\Api\V1\Review\ShowUserReviewSummaryController;
 use App\Http\Controllers\Api\V1\Skill\ListSkillsController;
+use App\Http\Controllers\Api\V1\Task\ApproveAllActivitiesController;
 use App\Http\Controllers\Api\V1\Task\ApproveTaskCancelController;
 use App\Http\Controllers\Api\V1\Task\CancelTaskController;
 use App\Http\Controllers\Api\V1\Task\CreateTaskController;
+use App\Http\Controllers\Api\V1\Task\DestroyBookmarkController;
+use App\Http\Controllers\Api\V1\Task\ListBookmarkedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListMyPostedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListMyWorkedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListOpenTasksController;
 use App\Http\Controllers\Api\V1\Task\PublishTaskController;
+use App\Http\Controllers\Api\V1\Task\RaiseDisputeController;
 use App\Http\Controllers\Api\V1\Task\RejectTaskCancelController;
 use App\Http\Controllers\Api\V1\Task\RequestTaskCancelController;
+use App\Http\Controllers\Api\V1\Task\ShowPostedTaskCountsController;
 use App\Http\Controllers\Api\V1\Task\ShowTaskCancelRequestController;
 use App\Http\Controllers\Api\V1\Task\ShowTaskController;
+use App\Http\Controllers\Api\V1\Task\ShowTaskDisputeController;
+use App\Http\Controllers\Api\V1\Task\ShowWorkedTaskCountsController;
 use App\Http\Controllers\Api\V1\Task\StartTaskController;
+use App\Http\Controllers\Api\V1\Task\StoreBookmarkController;
 use App\Http\Controllers\Api\V1\Task\UpdateTaskController;
 use App\Http\Controllers\Api\V1\Task\WithdrawTaskCancelController;
 use App\Http\Controllers\Api\V1\Upload\StoreUploadController;
 use App\Http\Controllers\Api\V1\User\CheckWorkerInviteAvailabilityController;
+use App\Http\Controllers\Api\V1\User\CreateUserReportController;
+use App\Http\Controllers\Api\V1\User\DeleteAccountController;
+use App\Http\Controllers\Api\V1\User\DeleteAddressController;
+use App\Http\Controllers\Api\V1\User\DestroyUserBlockController;
 use App\Http\Controllers\Api\V1\User\ForgetDeviceController;
+use App\Http\Controllers\Api\V1\User\ListBlockedUsersController;
 use App\Http\Controllers\Api\V1\User\ListVerificationsController;
 use App\Http\Controllers\Api\V1\User\ListWorkersController;
 use App\Http\Controllers\Api\V1\User\RedeemWorkerInviteCodeController;
 use App\Http\Controllers\Api\V1\User\RegisterDeviceController;
+use App\Http\Controllers\Api\V1\User\ShowAddressController;
 use App\Http\Controllers\Api\V1\User\ShowMeController;
+use App\Http\Controllers\Api\V1\User\ShowPublicUserController;
 use App\Http\Controllers\Api\V1\User\ShowWorkerProfileController;
+use App\Http\Controllers\Api\V1\User\StoreUserBlockController;
+use App\Http\Controllers\Api\V1\User\StoreVerificationDocumentController;
 use App\Http\Controllers\Api\V1\User\SubmitVerificationController;
 use App\Http\Controllers\Api\V1\User\UpdateProfileController;
+use App\Http\Controllers\Api\V1\User\UpsertAddressController;
 use App\Http\Controllers\Api\V1\User\UpsertWorkerProfileController;
 use App\Http\Controllers\Api\V1\Wallet\CancelTopupController;
 use App\Http\Controllers\Api\V1\Wallet\CancelWithdrawalController;
@@ -96,7 +129,9 @@ use App\Http\Controllers\Api\V1\Wallet\CreateWithdrawalController;
 use App\Http\Controllers\Api\V1\Wallet\ListTopupsController;
 use App\Http\Controllers\Api\V1\Wallet\ListWalletEntriesController;
 use App\Http\Controllers\Api\V1\Wallet\ListWithdrawalsController;
+use App\Http\Controllers\Api\V1\Wallet\ShowWalletConfigController;
 use App\Http\Controllers\Api\V1\Wallet\ShowWalletController;
+use App\Http\Controllers\Api\V1\Wallet\ShowWalletSummaryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -150,7 +185,21 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // walau access token-nya sudah kedaluwarsa.
         Route::post('logout', LogoutController::class)
             ->middleware(['auth:sanctum', 'throttle:api'])->name('logout');
+
+        // Ganti kata sandi (G4) — butuh access token; sandi lama diperiksa,
+        // lalu seluruh token dicabut (klien masuk ulang).
+        Route::post('change-password', ChangePasswordController::class)
+            ->middleware([
+                'auth:sanctum',
+                'abilities:'.TokenAbility::Access->value,
+                'throttle:write',
+            ])->name('change-password');
     });
+
+    // Data acuan PUBLIK: pemilih kota dipakai juga di layar daftar, sebelum
+    // pengguna punya token (B12).
+    Route::get('cities', ListCitiesController::class)
+        ->middleware('throttle:api')->name('cities.index');
 
     // ── Seluruh API aplikasi: wajib access token ────────────────────────────
     Route::middleware([
@@ -166,6 +215,9 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // Akun
         Route::get('me', ShowMeController::class)->name('me.show');
         Route::patch('me', UpdateProfileController::class)->name('me.update');
+        // Hapus akun (G3): soft-delete + anonimisasi. Konfirmasi kata sandi.
+        Route::delete('me', DeleteAccountController::class)
+            ->middleware('throttle:write')->name('me.destroy');
         // Profil PEKERJA — tabel sendiri, sisi lain dari akun yang sama.
         // Identitas (nama, jenis kelamin, tanggal lahir) tetap diubah lewat
         // PATCH /me; yang di sini hanya yang khas pekerja.
@@ -189,6 +241,11 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
 
         Route::get('me/verifications', ListVerificationsController::class)->name('me.verifications.index');
         Route::post('me/verifications', SubmitVerificationController::class)->name('me.verifications.store');
+        // Unggah dokumen identitas (KTP/selfie) — G2a. Disk privat, balasan
+        // HANYA `path`; dipakai sebagai `id_card_photo_path`/`selfie_photo_path`
+        // di `POST me/verifications`.
+        Route::post('me/verifications/documents', StoreVerificationDocumentController::class)
+            ->middleware('throttle:write')->name('me.verifications.documents.store');
 
         // Perangkat untuk push notification. Klien mendaftarkan tokennya tiap
         // aplikasi dibuka (bukan hanya sekali saat login) supaya perpindahan
@@ -197,6 +254,31 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
             ->middleware('throttle:write')->name('me.devices.store');
         Route::delete('me/devices/{token}', ForgetDeviceController::class)
             ->name('me.devices.destroy');
+
+        // ── Kotak masuk notifikasi ─────────────────────────────────────────
+        //
+        // Riwayat yang SAMA dengan push FCM: `PushDispatcher` menulis barisnya
+        // lebih dulu, lalu mengantrekan job — jadi lonceng tetap terisi
+        // walaupun FCM mati. Membaca hanya kotak masuk sendiri; notifikasi
+        // orang lain dijawab 404 yang sama dengan id yang tidak ada.
+        Route::get('me/notifications', ListNotificationsController::class)
+            ->name('me.notifications.index');
+        Route::get('me/notifications/unread-count', ShowUnreadNotificationCountController::class)
+            ->name('me.notifications.unread-count');
+        Route::post('me/notifications/read-all', MarkAllNotificationsReadController::class)
+            ->name('me.notifications.read-all');
+        Route::post('me/notifications/{notification}/read', MarkNotificationReadController::class)
+            ->name('me.notifications.read');
+
+        // ── Alamat tersimpan ───────────────────────────────────────────────
+        //
+        // Satu alamat per orang (dasar jarak feed & "Pakai alamat tersimpan").
+        // HANYA milik pemiliknya; tidak pernah disematkan di Resource lain.
+        // Belum pernah diisi = `{"data": null}` 200, bukan 404 — "belum ada
+        // alamat" adalah keadaan sah yang ditanyakan tiap layar pengisian.
+        Route::get('me/address', ShowAddressController::class)->name('me.address.show');
+        Route::put('me/address', UpsertAddressController::class)->name('me.address.update');
+        Route::delete('me/address', DeleteAddressController::class)->name('me.address.destroy');
 
         // ── Saldo ──────────────────────────────────────────────────────────
         //
@@ -214,6 +296,15 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         //     berkali-kali selama antrean pengelola belum tersentuh.
         Route::get('me/wallet', ShowWalletController::class)->name('me.wallet.show');
         Route::get('me/wallet/entries', ListWalletEntriesController::class)->name('me.wallet.entries.index');
+        // Total masuk/keluar + pendapatan minggu ini/lalu, DIJUMLAHKAN SERVER.
+        // Daftar entries bercursor tanpa `total`; menjumlahkan halaman yang
+        // sudah dimuat di klien pasti salah begitu ada halaman kedua.
+        Route::get('me/wallet/summary', ShowWalletSummaryController::class)->name('me.wallet.summary');
+
+        // Rekening tujuan isi saldo + batas nominal, dibaca layar Isi Saldo &
+        // Tarik Saldo. Rekeningnya dari env (lihat config/sekarya.php), jadi
+        // bukan data pengguna.
+        Route::get('me/wallet/config', ShowWalletConfigController::class)->name('me.wallet.config');
 
         Route::get('me/wallet/topups', ListTopupsController::class)->name('me.wallet.topups.index');
         Route::post('me/wallet/topups', CreateTopupController::class)
@@ -241,7 +332,17 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // Task
         Route::get('tasks', ListOpenTasksController::class)->name('tasks.index');
         Route::get('tasks/posted', ListMyPostedTasksController::class)->name('tasks.posted');
+        // Hitungan per status untuk judul tab (B7) — dihitung server.
+        Route::get('tasks/posted/counts', ShowPostedTaskCountsController::class)->name('tasks.posted.counts');
         Route::get('tasks/worked', ListMyWorkedTasksController::class)->name('tasks.worked');
+        Route::get('tasks/worked/counts', ShowWorkedTaskCountsController::class)->name('tasks.worked.counts');
+        // Tugas yang disimpan (B11). Didaftarkan SEBELUM `tasks/{task}`
+        // supaya `tasks/bookmarked` bukan ditangkap sebagai ULID.
+        Route::get('tasks/bookmarked', ListBookmarkedTasksController::class)->name('tasks.bookmarked');
+        Route::put('tasks/{task}/bookmark', StoreBookmarkController::class)
+            ->can('view', 'task')->name('tasks.bookmark.store');
+        Route::delete('tasks/{task}/bookmark', DestroyBookmarkController::class)
+            ->can('view', 'task')->name('tasks.bookmark.destroy');
         Route::post('tasks', CreateTaskController::class)
             ->middleware('throttle:write')->name('tasks.store');
         Route::get('tasks/{task}', ShowTaskController::class)
@@ -275,6 +376,18 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // diterima, lelang ditutup, task masuk deal.
         Route::post('tasks/{task}/start', StartTaskController::class)
             ->can('update', 'task')->name('tasks.start');
+
+        // "Konfirmasi Selesai & Rilis Dana" (B16) — setujui semua hasil yang
+        // sudah diserahkan sekaligus. Klien boleh juga mengulang
+        // `activities/{a}/approve`, tapi tombolnya satu dan tidak boleh
+        // meninggalkan persetujuan sebagian.
+        Route::post('tasks/{task}/approve-all', ApproveAllActivitiesController::class)
+            ->can('approveAll', 'task')->name('tasks.approve-all');
+
+        // Tiket kendala (G5) — peserta task `disputed` mengajukan, admin memutuskan.
+        Route::post('tasks/{task}/disputes', RaiseDisputeController::class)
+            ->middleware('throttle:write')->name('tasks.disputes.store');
+        Route::get('tasks/{task}/dispute', ShowTaskDisputeController::class)->name('tasks.dispute.show');
 
         // Lelang
         Route::post('tasks/{task}/bids', PlaceBidController::class)
@@ -314,6 +427,15 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
             ->can('work', 'activity')->name('activities.start');
         Route::post('activities/{activity}/submit', SubmitActivityController::class)
             ->can('work', 'activity')->name('activities.submit');
+        // Lokasi langsung selama perjalanan (B8).
+        Route::post('activities/{activity}/location', UpdateActivityLocationController::class)
+            ->middleware('throttle:write')->can('work', 'activity')->name('activities.location');
+        // Catatan kemajuan per pekerja (B9).
+        Route::post('activities/{activity}/updates', CreateActivityUpdateController::class)
+            ->middleware('throttle:write')->can('work', 'activity')->name('activities.updates.store');
+        // Centang checklist pekerjaan (B10).
+        Route::put('activities/{activity}/checklist', UpdateActivityChecklistController::class)
+            ->can('work', 'activity')->name('activities.checklist');
         Route::post('activities/{activity}/approve', ApproveActivityController::class)
             ->can('judge', 'activity')->name('activities.approve');
         Route::post('activities/{activity}/reject', RejectActivityController::class)
@@ -323,6 +445,23 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         Route::post('tasks/{task}/reviews', CreateReviewController::class)
             ->can('review', 'task')->name('tasks.reviews.store');
         Route::get('users/{user}/reviews', ListUserReviewsController::class)->name('users.reviews.index');
+        // Rata-rata + sebaran bintang untuk layar "Semua Ulasan". Penyaring
+        // `role` sama dengan daftar di atas, jadi angkanya cocok dengan barisnya.
+        Route::get('users/{user}/reviews/summary', ShowUserReviewSummaryController::class)
+            ->name('users.reviews.summary');
+
+        // Profil publik satu orang (dari notifikasi / tautan). Akun yang tidak
+        // `active` dijawab 404 yang sama dengan ULID yang tidak ada.
+        Route::get('users/{user}', ShowPublicUserController::class)->name('users.show');
+
+        // ── Report & blokir pengguna (G7) ─────────────────────────────────
+        Route::post('users/{user}/reports', CreateUserReportController::class)
+            ->middleware('throttle:write')->name('users.reports.store');
+        Route::put('users/{user}/block', StoreUserBlockController::class)
+            ->middleware('throttle:write')->name('users.block.store');
+        Route::delete('users/{user}/block', DestroyUserBlockController::class)
+            ->name('users.block.destroy');
+        Route::get('me/blocks', ListBlockedUsersController::class)->name('me.blocks.index');
     });
     /*
     |--------------------------------------------------------------------------
@@ -391,6 +530,11 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
             // Detail MENULIS jejak baca — di sinilah NIK keluar terbaca.
             Route::get('verifications/{verification}', ShowVerificationController::class)
                 ->name('verifications.show');
+            // Berkas KTP/selfie (G2b) — dialirkan dari disk privat, pembacaan
+            // dicatat sebagai `verification.document_viewed`.
+            Route::get('verifications/{verification}/documents/{kind}', ShowVerificationDocumentController::class)
+                ->whereIn('kind', ['id_card', 'selfie'])
+                ->name('verifications.documents.show');
             Route::post('verifications/{verification}/approve', ApproveVerificationController::class)
                 ->name('verifications.approve');
             Route::post('verifications/{verification}/reject', RejectVerificationController::class)
@@ -452,6 +596,11 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
                 ->name('worker-invites.redemptions.index');
 
             // ── Moderasi pengguna ─────────────────────────────────────────
+            Route::get('reports', ListReportsController::class)->name('reports.index');
+            Route::post('reports/{report}/review', ReviewReportController::class)->name('reports.review');
+            // Sengketa (G5): jalan keluar dari status `disputed`.
+            Route::get('disputes', ListDisputesController::class)->name('disputes.index');
+            Route::post('disputes/{dispute}/resolve', ResolveDisputeController::class)->name('disputes.resolve');
             Route::get('users', ListUsersController::class)->name('users.index');
             Route::get('users/{user}', ShowUserController::class)->name('users.show');
             Route::post('users/{user}/suspend', SuspendUserController::class)->name('users.suspend');

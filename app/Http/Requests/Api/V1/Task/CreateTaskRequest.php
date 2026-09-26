@@ -23,10 +23,17 @@ final class CreateTaskRequest extends FormRequest
             'options' => ['sometimes', 'array', 'max:20'],
             'options.*.label' => ['required_with:options', 'string', 'max:80'],
             'options.*.value' => ['present'],
+            // Checklist pekerjaan (B10) — langkah yang dicentang pekerja.
+            'checklist' => ['sometimes', 'array', 'max:30'],
+            'checklist.*' => ['string', 'max:120'],
             'photos' => ['sometimes', 'array', 'max:10'],
             'photos.*' => ['string', 'max:255'],
 
             'location_text' => ['nullable', 'string', 'max:255'],
+            // Wilayah kasar (kecamatan/kelurahan) untuk kartu feed — SELALU
+            // tampil, beda dengan `location_text` yang ditahan sampai deal.
+            // Jangan isi alamat lengkap di sini.
+            'area' => ['nullable', 'string', 'max:80'],
             'city' => ['required', 'string', 'max:80'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],

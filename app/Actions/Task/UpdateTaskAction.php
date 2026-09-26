@@ -65,6 +65,7 @@ final class UpdateTaskAction
                 'budget_min' => $data->budgetMin,
                 'budget_max' => $data->budgetMax,
                 'location_text' => $data->locationText,
+                'area' => $data->area,
                 'city' => $data->city,
                 'latitude' => $data->latitude,
                 'longitude' => $data->longitude,
@@ -82,6 +83,10 @@ final class UpdateTaskAction
             // Daftar kosong berarti "kosongkan", persis seperti saat dibuat:
             // kolomnya nullable, dan `[]` di JSON tidak boleh tersimpan sebagai
             // sesuatu yang berbeda dari "tidak ada".
+            if ($data->has('checklist')) {
+                $attributes['checklist'] = $data->checklist === [] ? null : $data->checklist;
+            }
+
             if ($data->has('options')) {
                 $attributes['options'] = $data->options === [] ? null : $data->options;
             }

@@ -27,6 +27,9 @@ final class ShowTaskController
                 // cancel_request pending: popup persetujuan di Detail Kerjaan.
                 'pendingCancelRequest.approvals',
                 'myBid' => fn (Relation $q) => $q->where('bidder_id', $request->user()?->getKey()),
+            ])->loadExists([
+                // Apakah saya menyimpan tugas ini (B11).
+                'bookmarks as bookmarked' => fn ($q) => $q->where('user_id', $request->user()?->getKey()),
             ]),
         );
     }

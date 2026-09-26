@@ -38,6 +38,10 @@ final class ListWorkersRequest extends FormRequest
             // Penyaring, bukan gerbang. Tanpa parameter ini daftarnya memuat
             // semua pekerja — yang terverifikasi maupun belum.
             'ready_to_work' => ['sometimes', 'boolean'],
+            // Sakelar "Siap menerima kerja" (U13). Penyaring opsional, sama
+            // seperti `ready_to_work`: tanpa parameter ini daftar memuat
+            // semua, dan `available=0` sah (yang sedang libur).
+            'available' => ['sometimes', 'boolean'],
         ];
     }
 }

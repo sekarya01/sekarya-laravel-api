@@ -5,7 +5,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 | | |
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
-| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 94 operation cocok dengan 94 rute nyata |
+| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 129 operation cocok dengan 129 rute nyata |
 | **Uji otomatis** | `bash docs/smoke.sh` — 194 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
@@ -480,6 +480,22 @@ Rp  180,000  Agus Penawar       rating 0    selesai   0  KTP False
 `sort=amount` (default) termurah dulu, `sort=rating` reputasi tertinggi dulu, `sort=newest`
 terbaru dulu.
 
+**Jarak pelamar — `distance_km`.** Setiap penawaran di daftar ini membawa jarak (km, 1
+desimal) dari lokasi task ke **lokasi kerja** pelamar (`PUT /me/worker` →
+`latitude`/`longitude`), dihitung server. `null` bila salah satu titik belum diisi (task
+remote, atau pelamar belum menyetel lokasi kerjanya). Hal yang sama ada di
+`workers[].distance_km` pada `GET /tasks/{task}`.
+
+- **Hanya pemberi kerja task itu** yang mendapat angkanya. Di jalur lain — `bids/mine`,
+  `my_bid`, respons menawar, dan `workers[]` bila yang membuka bukan pemberi kerja —
+  kuncinya tetap ada dengan nilai `null`, supaya bentuk respons sama untuk semua orang.
+  Jarak pesaing bukan urusan pelamar lain, dan setiap angka jarak adalah satu persamaan
+  menuju lokasi kerja seseorang.
+- **Koordinat pekerja tidak pernah keluar**, dan dibulatkan ke 3 desimal (±110 m)
+  **sebelum** dihitung. Jarak presisi dari beberapa task cukup untuk trilaterasi rumah
+  orang; dengan pembulatan ini yang bisa ditemukan paling banter kotak ±110 m — tingkat
+  kekaburan yang sama dengan lokasi task sebelum deal.
+
 Perhatikan rating dipisah **dua peran** (`as_worker` dan `as_poster`). Seseorang bisa jago
 mengerjakan tapi buruk sebagai pemberi kerja — satu angka gabungan menyembunyikan itu dari
 kedua pihak.
@@ -716,9 +732,64 @@ review_not_allowed`.
 Kedua aturan itulah yang membuat rating tidak bisa dipalsukan: hanya orang yang benar-benar
 bertransaksi, sekali saja.
 
+**Tag pujian** — opsional, maks 5, tanpa duplikat, dan himpunannya **per arah**:
+
+| Penilai | Tag yang sah |
+|---|---|
+| pemberi kerja → pekerja | `on_time`, `tidy`, `friendly`, `skilled` |
+| pekerja → pemberi kerja | `clear_brief`, `friendly`, `on_time_payment` |
+
 ```bash
-curl -s "$BASE/users/<ulid>/reviews?role=worker" -H "Authorization: Bearer $AT" -H 'Accept: application/json'
+curl -s -X POST "$BASE/tasks/$TASK/reviews" -H "Authorization: Bearer $AT" \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"rating":5,"tags":["on_time","tidy"],"comment":"Rapi dan tepat waktu"}'
 ```
+
+Tag milik arah lain, tag tak dikenal, atau duplikat → `422 errors.tags.N`. Nilainya kode
+mesin, bukan label: teks "Tepat Waktu" urusan aplikasi. `tags` di respons **selalu larik**
+(`[]` untuk ulasan tanpa tag dan ulasan lama).
+
+**Daftar ulasan** — penyaring bintang, pencarian komentar, dan pekerjaan yang dinilai:
+
+```bash
+curl -s "$BASE/users/<ulid>/reviews?role=worker&rating=5&q=rapi" -H "Authorization: Bearer $AT" -H 'Accept: application/json'
+curl -s "$BASE/users/<ulid>/reviews?role=worker&rating_max=2"   -H "Authorization: Bearer $AT" -H 'Accept: application/json'
+```
+
+- `rating` (1–5) tepat bintang itu; `rating_max` (1–5) bintang itu ke bawah ("1-2★").
+  Keduanya tidak boleh dikirim bersamaan.
+- `q` (maks 100 huruf) mencari di **komentar** lewat indeks FULLTEXT `review_search` —
+  bukan `LIKE`, dengan normalisasi `SearchTerms` yang sama dengan pencarian nama task
+  ("bersih" menemukan "membersihkan"). Tanda baca saja → daftar kosong, bukan semua.
+- Setiap ulasan membawa `task: {id, title, category: {slug, name}}` — **tanpa lokasi**:
+  daftar ini bisa dibaca siapa pun yang login.
+
+**Ringkasan ulasan** — "★4.9 dari 41", "92% 5 Bintang", angka di setiap chip:
+
+```bash
+curl -s "$BASE/users/<ulid>/reviews/summary?role=worker" -H "Authorization: Bearer $AT" -H 'Accept: application/json'
+```
+
+```json
+{"data": {"rating_avg": 4.9, "rating_count": 41,
+          "distribution": {"5": 38, "4": 2, "3": 1, "2": 0, "1": 0}}}
+```
+
+`distribution` **selalu objek berkunci "5".."1"** (nol bila kosong). Dihitung dari tabel
+`reviews` dengan penyaring yang sama dengan daftarnya, jadi angka di atas layar cocok dengan
+baris yang bisa digulir. Tanpa `role` = gabungan dua arah. Persentase ("92% 5 Bintang")
+**dihitung klien** dari `distribution`.
+
+**Profil publik satu orang** — dari notifikasi atau tautan:
+
+```bash
+curl -s "$BASE/users/<ulid>" -H "Authorization: Bearer $AT" -H 'Accept: application/json'
+```
+
+Bentuknya `PublicUser` (sama dengan `poster`, `workers[]`, `bid.bidder`) **plus `skills`**.
+Tidak pernah email, nomor HP, alamat, atau koordinat. Akun yang belum verifikasi email,
+ditangguhkan, di-ban, atau dihapus dijawab **404 yang sama persis** dengan ULID yang tidak
+ada — membedakannya berarti mengonfirmasi orang itu ada dan sedang dimoderasi.
 
 ---
 
@@ -749,6 +820,32 @@ Tiga hal dikecualikan supaya feed ini tidak berbohong:
 2. **Bukan task milik sendiri.** Di aplikasi ini satu orang normalnya ada di kedua sisi.
 3. Penawaran sendiri disertakan sebagai `my_bid`, jadi UI bisa menandai "sudah dilamar"
    tanpa panggilan kedua.
+
+### Lokasi tersamar sampai deal
+
+UI menjanjikan *"Detail alamat hanya dibagikan setelah Mitra disetujui"*, jadi server
+yang menahannya — klien bisa membaca JSON mentah. Aturannya satu (`Task::revealsLocationTo`)
+dan berlaku di **setiap** endpoint yang memuat task: feed, detail, `tasks/worked`,
+`bids/mine`, `activities/*`.
+
+| Penonton | `location.text` | Koordinat | `is_precise` |
+|---|---|---|---|
+| Pemberi kerja task itu | alamat lengkap | penuh | `true` |
+| Pekerja yang penawarannya `accepted` di task itu | alamat lengkap | penuh | `true` |
+| Siapa pun selainnya — termasuk pelamar `pending`/`rejected` | `null` | dibulatkan 3 desimal (±110 m) | `false` |
+
+```json
+"location": {
+  "text": null, "area": "Coblong", "city": "Kota Bandung",
+  "latitude": -6.892, "longitude": 107.617,
+  "is_precise": false, "is_remote": false
+}
+```
+
+`area` (kecamatan/kelurahan, maks 80 karakter) **selalu** tampil — itu label kartu
+"Coblong, Kota Bandung". Diisi pemberi kerja lewat `POST /tasks` / `PUT /tasks/{task}`;
+server tidak melakukan geocoding. `distance_km` tetap dihitung dari koordinat asli.
+Deal di task **lain** tidak membuka lokasi task ini.
 
 ### Waktu — hanya yang baru diposting
 
@@ -1171,6 +1268,20 @@ Yang keluar hanya **status**:
              "has_id_card_photo": true, "has_selfie_photo": true }] }
 ```
 
+Rekening bank tampil **tersamar** — empat digit terakhir, untuk layar "BCA · Ratna Dewi ·
+•••• 4910":
+
+```json
+{ "type": "bank_account", "bank_code": "BCA", "account_holder_name": "Ratna Dewi",
+  "account_number_masked": "•••• 4910" }
+```
+
+Empat digit itu disimpan di kolomnya sendiri (`account_number_last4`) saat pengajuan,
+jadi daftar ini tidak pernah mendekripsi nomor utuh. Bentuk yang sama ada di
+`destination` penarikan (`GET/POST /me/wallet/withdrawals`) dan antrean pencairan
+pengelola. Nomor utuh tetap hanya di `GET /admin/verifications/{verification}`, yang
+pembacaannya dicatat.
+
 > [!important] Foto verifikasi ≠ avatar
 > `avatar_path` adalah foto **publik**, tampil di kartu penawaran. Foto verifikasi hanya
 > boleh dilihat pemiliknya dan admin, lewat signed URL terpisah. Selfie memegang KTP
@@ -1577,6 +1688,61 @@ angka lepas yang harus dijumlahkan klien. Id internal kejadian penyebabnya tidak
 keluar — id berurutan membocorkan volume bisnis, alasan yang sama membuat seluruh rute
 memakai ULID.
 
+Yang ikut keluar adalah **task-nya**, supaya baris bisa berjudul "Pindahan Lemari · Dana
+ditahan" dan dibuka:
+
+```json
+{ "type": "task_hold", "reference_type": "task_fund_movements",
+  "task": { "id": "01M20DM1…", "task_number": "TK-260924-AB12CD", "title": "Pindahan Lemari Lantai 2",
+            "category": { "slug": "pindahan", "name": "Pindahan & Angkut" } } }
+```
+
+`task` terisi untuk `task_hold`/`task_release`, `refund`, dan `earning`; `null` untuk
+`topup`, `withdrawal`, `withdrawal_reversal`, dan `adjustment_*`. Task yang sudah dihapus
+tetap disebut. Kuerinya tetap per halaman (satu per jenis rujukan + satu untuk task),
+bukan per baris.
+
+### Ringkasan — total dijumlahkan server
+
+"Total Masuk / Total Keluar" di Riwayat dan "Pendapatan minggu ini" di Beranda Mitra
+**tidak boleh** dijumlahkan dari halaman `entries` di klien: daftarnya bercursor tanpa
+`total`, jadi angkanya berubah setiap kali pengguna menggulir.
+
+```bash
+curl -s "$BASE/me/wallet/summary?from=2026-09-01T00:00:00%2B07:00&to=2026-10-01T00:00:00%2B07:00&compare_previous=1&group=month" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' | jq .data
+```
+
+```json
+{
+  "from": "2026-09-01T00:00:00+07:00", "to": "2026-10-01T00:00:00+07:00",
+  "credit_total": 550000, "debit_total": 230000, "entries_count": 4,
+  "by_type": { "topup": 250000, "refund": 300000, "earning": 0, "task_hold": 230000,
+               "task_release": 0, "withdrawal": 0, "withdrawal_reversal": 0,
+               "adjustment_credit": 0, "adjustment_debit": 0 },
+  "earning_total": 0,
+  "previous": { "credit_total": 480000, "earning_total": 120000 },
+  "by_month": [
+    { "month": "2026-09", "credit_total": 550000, "debit_total": 230000,
+      "entries_count": 4, "earning_total": 0 }
+  ]
+}
+```
+
+- `from` inklusif, `to` eksklusif — persis penyaring `entries`, jadi totalnya
+  menjumlahkan baris yang sama. Keduanya **berpasangan**; tanpa keduanya rentangnya bulan
+  kalender berjalan (zona aplikasi). Paling panjang 366 hari.
+- `by_type` selalu memuat setiap jenis (nol bila kosong), selalu objek.
+- `earning_total` = jumlah mutasi `earning` dalam rentang — angka "pendapatan".
+  "Pendapatan minggu ini vs pekan lalu": dua panggilan dengan rentang minggu berbeda,
+  atau `compare_previous=1` → `previous` (periode sepanjang sama, tepat sebelum `from`).
+  "+18% dari pekan lalu" dihitung klien dari dua angka ini.
+- `types[]`/`direction` menyaring agar total mengikuti tab yang dibuka. `group=month`
+  menambahkan deret `by_month` (bucket memakai offset `from`).
+- Selalu milik yang login — tidak ada parameter pemilik. Tidak membuat dompet.
+- `SUM … GROUP BY type` pada indeks `(wallet_id, created_at, id)`; `EXPLAIN` diperiksa
+  di test pada 3.000 baris.
+
 ### Pengembalian dana — task yang batal
 
 Task yang dibatalkan setelah dananya ditahan mengembalikan uang itu **ke saldo
@@ -1685,7 +1851,7 @@ Keempat tindakan itu tercatat di `admin_audit_logs` sebagai `wallet_topup.confir
 
 ## Ringkasan endpoint
 
-**94 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**129 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1694,7 +1860,7 @@ Semua di bawah `/api/v1`. Kolom **Token**: `access` = token pendek 8 jam, `long_
 token 30 hari yang HANYA bisa refresh, `admin` = token pengelola, `—` = tanpa token.
 Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya.php`.
 
-> [!important] 56 endpoint pertama untuk PENGGUNA, 33 terakhir untuk PENGELOLA, dan
+> [!important] 57 endpoint pertama untuk PENGGUNA, 33 terakhir untuk PENGELOLA, dan
 > tokennya **tidak bisa ditukar**. Akun pengelola ada di tabelnya sendiri dengan
 > guard-nya sendiri: token pengguna di `/admin` menghasilkan `401`, dan token pengelola
 > di endpoint pengguna juga `401`. Lihat bagian **Pengelola** di bawah.
@@ -1703,7 +1869,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
-| `POST` | `/auth/login` | — | `login` | Masuk via email atau username. Balasan sama untuk kata sandi salah maupun identitas tak dikenal. |
+| `POST` | `/auth/login` | — | `login` | Masuk via **tepat satu** dari email, username, atau nomor HP (`08…`/`+62…`). Balasan sama untuk kata sandi salah maupun identitas tak dikenal. |
 | `POST` | `/auth/logout` | kedua token | `api` | Keluar. Mencabut **kedua** token, termasuk yang berumur panjang. |
 | `POST` | `/auth/refresh` | long_lived | `refresh` | Tukar `long_lived` jadi `access` baru. Access token lama langsung mati. |
 | `POST` | `/auth/register` | — | `register` | Daftar akun. `202`, **tanpa token** — akun belum aktif. |
@@ -1716,30 +1882,38 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
-| `GET` | `/categories` | access | `api` | Katalog kategori + harga referensi. |
+| `GET` | `/cities` | — | `api` | Master kabupaten/kota (B12). **Publik**; `q` awalan nama, `limit` ≤100. |
+| `GET` | `/categories` | access | `api` | Katalog kategori + harga referensi. `?city=` memakai acuan per kota bila sampel cukup, kalau tidak nasional. |
 | `GET` | `/me` | access | `api` | Profil sendiri, lengkap dengan data kontak. |
-| `PATCH` | `/me` | access | `api` | Ubah profil. `extras` divalidasi per peran. |
+| `PATCH` | `/me` | access | `api` | Ubah profil. `extras` divalidasi per peran. `phone`: aturan sama dengan pendaftaran, unik kecuali milik sendiri; nomor yang berubah membuat `phone_verified` kembali `false`. |
 | `GET` | `/me/worker` | access | `api` | Profil pekerja sendiri. Membacanya tidak membuat baris. |
-| `PUT` | `/me/worker` | access | `api` | Isi/ubah profil pekerja. `null` = kembali ikut akun. |
+| `PUT` | `/me/worker` | access | `api` | Isi/ubah profil pekerja. `null` = kembali ikut akun. `is_available` (ketersediaan) dan `headline` (profesi mitra) ikut di sini. |
 | `POST` | `/me/worker/redeem` | access | `write` | Tukar kode undangan mitra menjadi baris `user_workers` + `active_mode = working`. |
 | `GET` | `/me/worker/invite-availability` | access | `api` | Sinyal ketersediaan kode undangan di kota/provinsi (boolean saja). |
-| `GET` | `/me/verifications` | access | `api` | Status verifikasi identitas. Hanya status, bukan artefaknya. |
+| `GET` | `/me/verifications` | access | `api` | Status verifikasi identitas. Hanya status, bukan artefaknya. Rekening: `account_number_masked` ("•••• 4910"), tidak pernah nomor utuh. |
 | `POST` | `/me/verifications` | access | `api` | Ajukan verifikasi identitas (KTP, selfie, rekening). |
 | `POST` | `/me/devices` | access | `write` | Daftarkan token perangkat FCM untuk push. Token sama = berpindah pemilik. |
 | `DELETE` | `/me/devices/{token}` | access | `api` | Lepaskan token perangkat saat logout. Idempoten. |
+| `GET` | `/me/notifications` | access | `api` | Kotak masuk notifikasi sendiri — riwayat yang sama dengan push FCM. `unread=1` menyaring yang belum dibaca. Cursor, terbaru dulu. |
+| `GET` | `/me/notifications/unread-count` | access | `api` | Jumlah belum dibaca untuk badge lonceng, dihitung server. Balasan `{count}`. |
+| `POST` | `/me/notifications/read-all` | access | `api` | Tandai seluruh kotak masuk sudah dibaca. Balasan `{count}` (sisa belum dibaca = 0). Idempoten. |
+| `POST` | `/me/notifications/{notification}/read` | access | `api` | Tandai satu notifikasi sudah dibaca. Milik orang lain dijawab 404 yang sama dengan id yang tidak ada. |
+| `GET` | `/me/address` | access | `api` | Alamat tersimpan sendiri. `{"data": null}` (200) bila belum pernah diisi. Hanya pemiliknya. |
+| `PUT` | `/me/address` | access | `api` | Simpan/ganti alamat tersimpan (ganti utuh). Koordinat wajib berpasangan. |
+| `DELETE` | `/me/address` | access | `api` | Hapus alamat tersimpan. Idempoten (204). |
 | `GET` | `/skills` | access | `api` | Katalog keahlian. |
-| `GET` | `/workers` | access | `api` | Daftar pekerja. Filter: `city`, `province`, `gender`, `ready_to_work`. Cursor. |
-| `POST` | `/uploads` | access | `write` | Unggah gambar (foto task, avatar). Maks 10 MB; balasannya `path` untuk `photos[]`. |
+| `GET` | `/workers` | access | `api` | Daftar pekerja. Filter: `city`, `province`, `gender`, `ready_to_work`, `available`. Cursor. |
+| `POST` | `/uploads` | access | `write` | Unggah gambar (foto task, avatar, bukti kerja). `purpose=proof` menyimpan ke `uploads/proofs` dan menandai pemiliknya. Maks 10 MB; balasannya `path`. |
 
 **Task**
 
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
-| `GET` | `/tasks` | access | `api` | Feed siap dilamar. Filter: `q`, `lat`/`lng`/`radius_km`, `posted_within_hours`, `category_id`, `city`, `budget_from`/`budget_to`, `skills`, `match_my_skills`, `exclude_my_bids`. |
-| `POST` | `/tasks` | access | `write` | Buat task. `workers_needed` menentukan berapa orang direkrut. |
+| `GET` | `/tasks` | access | `api` | Feed siap dilamar. Filter: `q`, `lat`/`lng`/`radius_km`, `posted_within_hours`, `needed_from`/`needed_to` (jadwal, `from` inklusif `to` eksklusif), `category_id`/`category_ids[]`, `city`, `budget_from`/`budget_to`, `skills`, `match_my_skills`, `exclude_my_bids`. |
+| `POST` | `/tasks` | access | `write` | Buat task. `workers_needed` menentukan berapa orang direkrut. `publish_now` mengabari mitra sekitar → `meta.notified_workers` (B13). |
 | `GET` | `/tasks/posted` | access | `api` | Task yang saya posting. |
 | `GET` | `/tasks/worked` | access | `api` | Task yang saya kerjakan. |
-| `GET` | `/tasks/{task}` | access | `api` | Detail satu task, termasuk `hiring`, `workers`, `payment`, `activities`, `cancel_request`. |
+| `GET` | `/tasks/{task}` | access | `api` | Detail satu task, termasuk `hiring`, `workers`, `payment`, `activities`, `cancel_request`. Alamat & koordinat penuh hanya untuk pemberi kerja dan pekerja yang sudah deal (`location.is_precise`). |
 | `PUT` | `/tasks/{task}` | access | `write` | Sunting isi task. Parsial; hanya `draft`/`open`. |
 | `POST` | `/tasks/{task}/cancel` | access | `api` | Batalkan LANGSUNG — hanya bila belum ada pekerja yang deal. |
 | `POST` | `/tasks/{task}/cancel-requests` | access | `write` | Minta persetujuan pembatalan ke pekerja (sudah deal). |
@@ -1749,6 +1923,12 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/tasks/{task}/cancel-requests/{cancelRequest}/withdraw` | access | `api` | Pemberi kerja menarik permintaannya yang masih menunggu. |
 | `POST` | `/tasks/{task}/publish` | access | `api` | `draft` -> `open`. Lelang dibuka. |
 | `POST` | `/tasks/{task}/start` | access | `api` | Berhenti merekrut lebih awal: target turun ke jumlah yang sudah diterima. |
+| `POST` | `/tasks/{task}/approve-all` | access | `api` | Konfirmasi selesai & rilis dana untuk semua pekerja sekali tekan. Belum ada hasil diserahkan → `422 no_submitted_activities`. |
+| `GET` | `/tasks/posted/counts` | access | `api` | Hitungan task saya per status (judul tab). Setiap status selalu ada. |
+| `GET` | `/tasks/worked/counts` | access | `api` | Hitungan task yang saya kerjakan per status. |
+| `GET` | `/tasks/bookmarked` | access | `api` | Tugas yang saya simpan. Cursor. Tiap baris membawa `is_bookmarked`. |
+| `PUT` | `/tasks/{task}/bookmark` | access | `api` | Simpan tugas. Idempoten (204). |
+| `DELETE` | `/tasks/{task}/bookmark` | access | `api` | Lepas simpanan. Idempoten (204). |
 
 **Lelang**
 
@@ -1772,9 +1952,11 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
 | `GET` | `/me/wallet` | access | `api` | Saldo sendiri. Membacanya tidak membuat baris dompet. |
-| `GET` | `/me/wallet/entries` | access | `api` | Riwayat mutasi. Filter: `type`, `direction`. Cursor. |
+| `GET` | `/me/wallet/entries` | access | `api` | Riwayat mutasi. Filter: `type`, `types[]` (beberapa jenis), `direction`, `q` (kata di `description`), `from`/`to` (ISO-8601 beroffset; `from` inklusif, `to` eksklusif), `min_amount`/`max_amount`. Tiap baris membawa `task: {id, task_number, title, category}` atau `null`. Cursor. |
+| `GET` | `/me/wallet/summary` | access | `api` | Ringkasan dijumlahkan server: `credit_total`, `debit_total`, `entries_count`, `by_type`, `earning_total`. `types[]`/`direction` menyaring; `compare_previous=1` menambah `previous`; `group=month` menambah `by_month`. `from`/`to` berpasangan (bawaan: bulan berjalan), maks 366 hari. |
+| `GET` | `/me/wallet/config` | access | `api` | Rekening tujuan isi saldo (dari env; kosong = tak ditampilkan) + `limits` (`min_topup`, `max_topup`, `min_withdrawal`, `max_withdrawal`, `max_pending_requests`). |
 | `GET` | `/me/wallet/topups` | access | `api` | Permintaan isi saldo saya. Filter: `status`. |
-| `POST` | `/me/wallet/topups` | access | `write` | **Lapor** sudah transfer untuk isi saldo. **Tidak** menambah saldo. |
+| `POST` | `/me/wallet/topups` | access | `write` | **Lapor** sudah transfer untuk isi saldo. **Tidak** menambah saldo. Balasan membawa `unique_code` (3 digit) + `transfer_amount` (= jumlah + kode) untuk pencocokan mutasi. |
 | `POST` | `/me/wallet/topups/{topup}/cancel` | access | `api` | Batalkan permintaan yang belum diputuskan. Saldo tidak tersentuh. |
 | `GET` | `/me/wallet/withdrawals` | access | `api` | Permintaan penarikan saya. Filter: `status`. |
 | `POST` | `/me/wallet/withdrawals` | access | `write` | Tarik saldo ke rekening terverifikasi. **Saldo langsung berkurang.** |
@@ -1791,14 +1973,19 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/activities/{activity}/depart` | access | `api` | Pekerja berangkat ke lokasi. |
 | `POST` | `/activities/{activity}/reject` | access | `api` | Tolak hasil. Task jadi `disputed`, dana tetap ditahan. |
 | `POST` | `/activities/{activity}/start` | access | `api` | Pekerja mulai bekerja. Hanya dari `arrived`. |
-| `POST` | `/activities/{activity}/submit` | access | `api` | Serahkan hasil + bukti foto. |
+| `POST` | `/activities/{activity}/submit` | access | `api` | Serahkan hasil + bukti foto. Foto **wajib** (jumlah minimum dari `config/sekarya.php`), dan path harus diunggah sendiri lewat `POST /uploads` (`purpose=proof`). |
+| `POST` | `/activities/{activity}/location` | access | `write` | Bagikan lokasi langsung selama `on_the_way` (B8). Balasan + `live: {distance_km, eta_minutes, updated_at}`. |
+| `POST` | `/activities/{activity}/updates` | access | `write` | Tulis catatan kemajuan pekerja (B9). Tampil sebagai `latest_update`. |
+| `PUT` | `/activities/{activity}/checklist` | access | `api` | Centang checklist pekerjaan (B10). `state` harus sepanjang `tasks.checklist`; beda → `422 checklist_state_mismatch`. |
 
 **Penilaian**
 
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
-| `POST` | `/tasks/{task}/reviews` | access | `api` | Beri penilaian. Pemberi kerja menyebut `worker_id` bila pekerjanya banyak. |
-| `GET` | `/users/{user}/reviews` | access | `api` | Penilaian yang diterima seseorang. `role=worker` atau `role=poster`. |
+| `POST` | `/tasks/{task}/reviews` | access | `api` | Beri penilaian (+ `tags` opsional, per arah). Pemberi kerja menyebut `worker_id` bila pekerjanya banyak. |
+| `GET` | `/users/{user}/reviews` | access | `api` | Penilaian yang diterima seseorang. `role`, `rating`/`rating_max`, `q` (komentar), `has_photos` (chip "Dengan Foto"). Tiap baris membawa `tags` + `photos[]`/`has_photos` + `task`. |
+| `GET` | `/users/{user}/reviews/summary` | access | `api` | Rata-rata, jumlah, sebaran bintang "5".."1". Persentase dihitung klien. `role` opsional. |
+| `GET` | `/users/{user}` | access | `api` | Profil publik satu orang (+`skills`). Akun tidak aktif → 404. |
 
 **Pengelola — token `admin`, populasi terpisah**
 
@@ -1842,6 +2029,25 @@ Tidak ada `POST /admin/auth/register`, dan itu disengaja: akun pengelola hanya l
 `php artisan sekarya:admin create` (super_admin, sekali seumur pemasangan) dan
 `POST /admin/admins`.
 
+### Tambahan (G1–G13)
+
+| | Endpoint | Token | Limit | Keterangan |
+|---|---|---|---|---|
+| `POST` | `/auth/change-password` | access | `write` | Ganti kata sandi saat login (G4). Sandi lama diperiksa; token dicabut. |
+| `POST` | `/me/verifications/documents` | access | `write` | Unggah KTP/selfie ke disk privat (G2a). Balasan hanya `path`. |
+| `GET` | `/admin/verifications/{verification}/documents/{kind}` | admin | `admin` | Alirkan berkas KTP/selfie ke pengelola (G2b); pembacaan dicatat. |
+| `DELETE` | `/me` | access | `write` | Hapus akun — soft-delete + anonimisasi (G3). Konfirmasi sandi. |
+| `POST` | `/users/{user}/reports` | access | `write` | Laporkan pengguna lain (G7). |
+| `PUT` | `/users/{user}/block` | access | `write` | Blokir pengguna (G7), idempoten. |
+| `DELETE` | `/users/{user}/block` | access | `api` | Lepas blokir pengguna (G7), idempoten. |
+| `GET` | `/me/blocks` | access | `api` | Daftar pengguna yang saya blokir (G7). Cursor. |
+| `GET` | `/admin/reports` | admin | `admin` | Antrean laporan pengguna (G7). |
+| `POST` | `/admin/reports/{report}/review` | admin | `admin` | Tandai laporan ditinjau (G7). |
+| `POST` | `/tasks/{task}/disputes` | access | `write` | Ajukan kendala atas task `disputed` (G5). |
+| `GET` | `/tasks/{task}/dispute` | access | `api` | Tiket kendala task ini (G5). |
+| `GET` | `/admin/disputes` | admin | `admin` | Antrean sengketa (G5). |
+| `POST` | `/admin/disputes/{dispute}/resolve` | admin | `admin` | Putuskan sengketa — `release`/`refund` (G5). |
+
 Health check tanpa prefix: `GET /up`. Referensi ter-render: `GET /docs`, spec mentah:
 `GET /docs/openapi.yaml` — keduanya hanya terdaftar **di luar produksi**.
 
@@ -1868,11 +2074,21 @@ Bercabanglah pada `code`, **jangan** pada `message`.
 | `payment_not_held` | 422 | Dana tidak lagi ditahan |
 | `invalid_status_transition` | 422 | Perpindahan status tidak diizinkan |
 | `task_not_editable` | 422 | Isi task tidak bisa diubah lagi (bukan `draft`/`open`) |
+| `task_not_cancellable` | 422 | Task sudah selesai/menggantung (`completed`/`expired`/`cancelled`/`refunded`/`disputed`) — tidak bisa dibatalkan lagi |
+| `verification_document_invalid` | 422 | Path dokumen identitas bukan milik pengaju (unggah lewat `POST me/verifications/documents`) |
+| `invalid_current_password` | 422 | Kata sandi saat ini salah (ganti sandi / hapus akun) |
+| `account_has_active_obligations` | 422 | Masih ada pekerjaan berjalan atau permintaan dompet menggantung; `context.reasons` menyebutnya |
+| `dispute_not_allowed` | 422 | Kendala hanya untuk peserta task berstatus `disputed` |
+| `dispute_already_resolved` | 422 | Tiket kendala sudah diputuskan |
+| `cannot_report_self` | 422 | Tidak bisa melaporkan diri sendiri |
+| `cannot_block_self` | 422 | Tidak bisa memblokir diri sendiri |
+| `user_blocked` | 422 | Ada blokir antara penawar dan pemberi kerja |
 | `workers_needed_below_hired` | 422 | Target pekerja diturunkan di bawah yang sudah diterima |
 | `cancel_request_pending` | 422 | Sudah ada permintaan pembatalan yang menunggu jawaban |
 | `no_pending_cancel_request` | 422 | Tidak ada permintaan yang menggantung — sudah dijawab atau ditarik |
 | `not_cancel_responder` | 403 | Bukan pekerja yang dimintai persetujuan pada permintaan ini |
 | `review_not_allowed` | 422 | Belum selesai, atau sudah menilai |
+| `review_tag_not_allowed` | 422 | Tag milik arah penilaian lain (hanya dari luar HTTP; lewat HTTP ditolak lebih dulu sebagai `errors.tags.N`) |
 | `admin_access_denied` | 403 | Pengelola dinonaktifkan, atau perannya tidak mencakup tindakan itu (`context.reason`) |
 | `super_admin_protected` | 403 | `super_admin` tidak bisa dihapus maupun dinonaktifkan |
 | `insufficient_balance` | 422 | Saldo kurang. `context` menyebut `balance`, `requested`, `shortfall` |

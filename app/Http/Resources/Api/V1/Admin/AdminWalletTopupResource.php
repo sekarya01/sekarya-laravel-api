@@ -25,6 +25,8 @@ final class AdminWalletTopupResource extends BaseResource
         return [
             'id' => $this->ulid,
             'amount' => (int) $this->amount,
+            'unique_code' => (int) $this->unique_code,
+            'transfer_amount' => (int) $this->transfer_amount,
             'status' => $this->status->value,
             'awaits_confirmation' => $this->status->awaitsConfirmation(),
             'sender_note' => $this->sender_note,

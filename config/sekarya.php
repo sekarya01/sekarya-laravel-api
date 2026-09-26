@@ -175,6 +175,78 @@ return [
         // bisa mengisi seluruh antrean pengelola dengan permintaan yang tidak
         // pernah dibayar — dan yang menunggu di belakangnya pekerja sungguhan.
         'max_pending_requests' => (int) env('SEKARYA_WALLET_MAX_PENDING', 3),
+
+        /*
+        | Rekening tujuan isi saldo (transfer manual), dibaca `GET me/wallet/config`.
+        |
+        | DIISI DARI ENV, bukan hard-code di repo: nomor rekening NYATA tidak
+        | boleh ikut ke git, dan menggantinya harus cukup lewat satu variabel
+        | lingkungan. Bentuknya JSON larik objek:
+        |
+        |   SEKARYA_TOPUP_ACCOUNTS='[{"bank_code":"BCA",
+        |     "bank_name":"Bank Central Asia","account_number":"1234567890",
+        |     "account_holder":"PT Sekarya Digital"}]'
+        |
+        | Kosong = layar isi saldo tidak menampilkan rekening tujuan (hanya
+        | limit). Nilai asli WAJIB dicek manusia sebelum diisi.
+        */
+        'topup_accounts' => array_values(array_filter(
+            json_decode((string) env('SEKARYA_TOPUP_ACCOUNTS', ''), true) ?: [],
+            static fn (mixed $row): bool => is_array($row),
+        )),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Penyerahan hasil kerja
+    |--------------------------------------------------------------------------
+    |
+    | Bukti berfoto adalah dasar penyelesaian sengketa: tanpa foto, "sudah
+    | selesai" hanya kata pekerja melawan kata pemberi kerja.
+    |
+    */
+
+    'activities' => [
+        // Jumlah minimum `proof_photos` pada `POST activities/{a}/submit`.
+        // 0 = foto bukti opsional (perilaku sebelum U11). Batas atasnya tetap
+        // 10, di SubmitActivityRequest.
+        'min_proof_photos' => (int) env('SEKARYA_MIN_PROOF_PHOTOS', 1),
+
+        // Kecepatan rata-rata (km/jam) untuk mengubah jarak menjadi ETA
+        // "Tiba 15 menit lagi" (B8). Perkiraan kasar dengan sengaja: rute
+        // sebenarnya tidak diketahui, dan angka yang mengaku presisi lebih
+        // menyesatkan daripada yang jelas perkiraan.
+        'eta_speed_kmh' => (float) env('SEKARYA_ETA_SPEED_KMH', 20),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Penerbitan tugas
+    |--------------------------------------------------------------------------
+    |
+    | Penyebaran tugas baru ke mitra sekitar (B13).
+    |
+    */
+
+    'tasks' => [
+        // Radius kabar dari lokasi tugas.
+        'notify_radius_km' => (float) env('SEKARYA_NOTIFY_RADIUS_KM', 5),
+        // Batas penerima agar satu tugas tidak membanjiri ribuan notifikasi.
+        'notify_max_workers' => (int) env('SEKARYA_NOTIFY_MAX_WORKERS', 50),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Harga referensi
+    |--------------------------------------------------------------------------
+    |
+    | Acuan harga per kota (U17) hanya dipakai bila sampelnya cukup; di bawah
+    | ambang ini kota itu jatuh ke angka nasional.
+    |
+    */
+
+    'category_prices' => [
+        'city_min_sample' => (int) env('SEKARYA_CITY_PRICE_MIN_SAMPLE', 5),
     ],
 
     /*
@@ -276,6 +348,22 @@ return [
             env('SEKARYA_PAYMENT_GATE', false),
             FILTER_VALIDATE_BOOLEAN,
         ),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Biaya layanan (G6)
+    |--------------------------------------------------------------------------
+    |
+    | Dipotong DARI UPAH PEKERJA saat dana task dilepas (bukan ditambahkan ke
+    | pemberi kerja). 0 = tidak ada potongan sama sekali; nilai sebenarnya
+    | diisi lewat env, bukan dihardcode di repo. Persen dihitung dari
+    | `activities.agreed_amount` masing-masing pekerja.
+    |
+    */
+
+    'fees' => [
+        'service_percent' => (float) env('SEKARYA_SERVICE_FEE_PERCENT', 0),
     ],
 
 ];

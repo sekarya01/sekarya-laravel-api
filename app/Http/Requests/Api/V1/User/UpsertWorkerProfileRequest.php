@@ -30,6 +30,8 @@ final class UpsertWorkerProfileRequest extends FormRequest
             // Itulah kenapa profil ini bisa dikosongkan sebagian tanpa
             // kehilangan datanya — nama dan nomor tetap ada di `users`.
             'display_name' => ['sometimes', 'nullable', 'string', 'max:120'],
+            // Judul/profesi mitra (U16) — "Teknisi AC". Null = tidak diisi.
+            'headline' => ['sometimes', 'nullable', 'string', 'max:60'],
             'contact_phone' => [
                 'sometimes', 'nullable', 'string', 'max:20',
                 'regex:/^\+?[0-9]{9,19}$/',
@@ -47,6 +49,11 @@ final class UpsertWorkerProfileRequest extends FormRequest
             // yang secara efektif berarti "seluruh Indonesia" — itu bukan
             // penyaring, dan feed jadi tidak berarti untuk yang memakainya.
             'radius_km' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:500'],
+
+            // "Siap menerima kerja" (U13). Bukan nullable: tidak ada arti
+            // "kembali ikut akun" untuk ketersediaan. Hanya untuk yang SUDAH
+            // punya profil pekerja — dijaga Action (`not_a_worker`).
+            'is_available' => ['sometimes', 'boolean'],
         ];
     }
 

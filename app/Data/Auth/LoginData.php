@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Data\Auth;
 
 use App\Http\Requests\Api\V1\Auth\LoginRequest;
+use App\Support\PhoneNumber;
 
 final readonly class LoginData
 {
@@ -12,6 +13,13 @@ final readonly class LoginData
         public string $password,
         public ?string $email = null,
         public ?string $username = null,
+        /**
+         * Ejaan-ejaan nomor HP yang mungkin tersimpan (`+62…` dan `0…`).
+         * Kosong bila login memakai email/username.
+         *
+         * @var list<string>
+         */
+        public array $phoneCandidates = [],
     ) {}
 
     public static function fromRequest(LoginRequest $request): self
@@ -24,6 +32,9 @@ final readonly class LoginData
             username: $request->filled('username')
                 ? mb_strtolower(trim($request->string('username')->value()))
                 : null,
+            phoneCandidates: $request->filled('phone')
+                ? PhoneNumber::candidates($request->string('phone')->value())
+                : [],
         );
     }
 }

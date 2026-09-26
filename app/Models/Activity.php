@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Eksekusi pekerjaan. Keberadaan barisnya sendiri menegakkan aturan:
@@ -24,6 +26,7 @@ final class Activity extends Model
     protected $fillable = [
         'task_id', 'worker_id', 'payment_id', 'status',
         'agreed_amount', 'opened_at', 'worker_note', 'proof_photos', 'poster_note',
+        'live_latitude', 'live_longitude', 'live_updated_at', 'checklist_state',
     ];
 
     /** @return array<string, string> */
@@ -53,7 +56,30 @@ final class Activity extends Model
             'submitted_at' => 'datetime',
             'approved_at' => 'datetime',
             'rejected_at' => 'datetime',
+            // Lokasi langsung (B8) — hanya saat `on_the_way`.
+            'live_latitude' => 'decimal:7',
+            'live_longitude' => 'decimal:7',
+            'live_updated_at' => 'datetime',
+            // Checklist (B10): larik boolean sejajar `tasks.checklist`.
+            'checklist_state' => 'array',
         ];
+    }
+
+    /**
+     * Update kemajuan terbaru (B9). Satu baris terakhir, bukan seluruh riwayat —
+     * yang ditampilkan kartu adalah kalimat terakhir ("09.52 · tiba di lokasi").
+     *
+     * @return HasOne<ActivityUpdate, $this>
+     */
+    public function latestUpdate(): HasOne
+    {
+        return $this->hasOne(ActivityUpdate::class)->latestOfMany();
+    }
+
+    /** @return HasMany<ActivityUpdate, $this> */
+    public function updates(): HasMany
+    {
+        return $this->hasMany(ActivityUpdate::class);
     }
 
     /** @return BelongsTo<Task, $this> */

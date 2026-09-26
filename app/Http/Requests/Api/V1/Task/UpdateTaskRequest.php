@@ -42,10 +42,13 @@ final class UpdateTaskRequest extends FormRequest
             'options' => ['sometimes', 'array', 'max:20'],
             'options.*.label' => ['required_with:options', 'string', 'max:80'],
             'options.*.value' => ['present'],
+            'checklist' => ['sometimes', 'array', 'max:30'],
+            'checklist.*' => ['string', 'max:120'],
             'photos' => ['sometimes', 'array', 'max:10'],
             'photos.*' => ['string', 'max:255'],
 
             'location_text' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'area' => ['sometimes', 'nullable', 'string', 'max:80'],
             'city' => ['sometimes', 'string', 'max:80'],
             'latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],

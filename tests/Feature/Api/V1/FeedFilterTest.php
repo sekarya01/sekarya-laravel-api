@@ -322,12 +322,71 @@ final class FeedFilterTest extends TestCase
         $this->assertSame(['Jakarta mencuci'], $this->feed(['category_id' => $mencuci->getKey()]));
     }
 
+    /**
+     * Chip kategori di bottom sheet boleh dipilih lebih dari satu. Menyaring
+     * satu kategori per permintaan memaksa klien menggabungkan beberapa
+     * halaman cursor — dan setiap halaman bisa terpotong.
+     */
+    public function test_multiple_categories_in_one_request(): void
+    {
+        $mencuci = Category::query()->where('slug', 'mencuci')->firstOrFail();
+        $jagaHewan = Category::query()->where('slug', 'jaga-hewan')->firstOrFail();
+        $lain = Category::query()
+            ->whereNotIn('slug', ['mencuci', 'jaga-hewan'])
+            ->firstOrFail();
+
+        $this->task(['title' => 'Jakarta mencuci', 'category_id' => $mencuci->getKey()]);
+        $this->task(['title' => 'Bandung jaga', 'category_id' => $jagaHewan->getKey()]);
+        $this->task(['title' => 'Lain', 'category_id' => $lain->getKey()]);
+
+        $judul = $this->feed(['category_ids' => [$mencuci->getKey(), $jagaHewan->getKey()]]);
+        sort($judul);
+
+        $this->assertSame(['Bandung jaga', 'Jakarta mencuci'], $judul);
+    }
+
+    public function test_category_id_and_category_ids_are_mutually_exclusive(): void
+    {
+        $this->asUser($this->seeker)
+            ->getJson(route('v1.tasks.index', [
+                'category_id' => $this->anyCategory()->getKey(),
+                'category_ids' => [$this->anyCategory()->getKey()],
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['category_ids']);
+    }
+
     public function test_budget_range_filter(): void
     {
         $this->task(['title' => 'Murah', 'budget_min' => 50_000]);
         $this->task(['title' => 'Mahal', 'budget_min' => 900_000]);
 
         $this->assertSame(['Murah'], $this->feed(['budget_from' => 10_000, 'budget_to' => 100_000]));
+    }
+
+    /** Filter jadwal "Hari ini / Besok / Minggu ini" (U14). */
+    public function test_the_schedule_filter_narrows_by_needed_at(): void
+    {
+        $this->task(['title' => 'Hari ini', 'needed_at' => '2026-09-25T09:00:00+07:00']);
+        $this->task(['title' => 'Minggu depan', 'needed_at' => '2026-10-02T09:00:00+07:00']);
+
+        $judul = $this->feed([
+            'needed_from' => '2026-09-25T00:00:00+07:00',
+            'needed_to' => '2026-09-26T00:00:00+07:00',
+        ]);
+
+        $this->assertSame(['Hari ini'], $judul);
+    }
+
+    public function test_needed_to_before_needed_from_is_rejected(): void
+    {
+        $this->asUser($this->seeker)
+            ->getJson(route('v1.tasks.index', [
+                'needed_from' => '2026-09-26T00:00:00+07:00',
+                'needed_to' => '2026-09-25T00:00:00+07:00',
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['needed_to']);
     }
 
     public function test_budget_to_below_from_is_rejected(): void

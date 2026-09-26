@@ -8,14 +8,14 @@ use App\Enums\ActivityStatus;
 use App\Enums\ActorType;
 use App\Enums\PaymentStatus;
 use App\Enums\TaskStatus;
-use App\Enums\WalletEntryType;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
-use App\Jobs\SendPushNotification;
 use App\Models\Activity;
 use App\Models\User;
+use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
 use App\Support\TaskStatusRecorder;
 use App\Support\WalletLedger;
+use App\Support\WorkerPayout;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -48,6 +48,8 @@ final class ApproveActivityAction
         private readonly ConnectionInterface $db,
         private readonly TaskStatusRecorder $recorder,
         private readonly WalletLedger $ledger,
+        private readonly WorkerPayout $payout,
+        private readonly PushDispatcher $push,
     ) {}
 
     public function handle(Activity $activity, User $poster, ?string $note = null): Activity
@@ -124,13 +126,9 @@ final class ApproveActivityAction
                 // `activities`, bukan dari `bids`: `agreed_amount` di activity
                 // adalah angka yang menjadi dasar pekerjaan ini dibuka.
                 foreach ($task->activities()->with('worker')->get() as $paid) {
-                    $this->ledger->credit(
-                        $this->ledger->walletFor($paid->worker),
-                        WalletEntryType::Earning,
-                        (int) $paid->agreed_amount,
-                        $paid,
-                        'Upah task #'.$task->task_number,
-                    );
+                    // Bruto + potongan biaya layanan dicatat lewat satu pintu
+                    // (G6) — lihat WorkerPayout.
+                    $this->payout->pay($paid, 'Upah task #'.$task->task_number);
                 }
             }
 
@@ -146,12 +144,17 @@ final class ApproveActivityAction
                     : 'seluruh hasil disetujui; tugas tanpa dana ditahan, tidak ada yang dilepas',
             );
 
+            // "Layanan Selesai" pemberi kerja (U15): naik SEKALI per task yang
+            // benar-benar selesai — bukan per pekerja yang disetujui, karena
+            // angka ini menjawab "berapa pekerjaan yang sudah saya tutup".
+            $poster->increment('poster_tasks_completed');
+
             return $activity;
         });
 
         // Di LUAR transaksi: pekerja diberi tahu hasilnya disetujui.
         $task = $activity->task;
-        SendPushNotification::dispatch(
+        $this->push->send(
             $activity->worker_id,
             PushMessages::activityApproved($task, $activity),
         );

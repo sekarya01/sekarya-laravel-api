@@ -8,7 +8,10 @@ use App\Enums\PushType;
 use App\Models\Activity;
 use App\Models\Bid;
 use App\Models\Task;
+use App\Models\TaskCancelRequest;
 use App\Models\User;
+use App\Models\WalletTopup;
+use App\Models\WalletWithdrawal;
 
 /**
  * Satu-satunya tempat copy notifikasi push dan bentuk `data` disusun.
@@ -116,6 +119,137 @@ final class PushMessages
     }
 
     /**
+     * Pemberi kerja meminta pembatalan → setiap pekerja yang harus menjawab.
+     *
+     * `cancel_request_id` ikut supaya popup di Detail Kerjaan bisa langsung
+     * memanggil approve/reject tanpa membaca `GET tasks/{task}` lebih dulu.
+     */
+    public static function cancelRequested(Task $task, TaskCancelRequest $request): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: 'Pemberi kerja meminta pembatalan. Setujui atau tolak.',
+            data: self::data(PushType::CancelRequested, $task, extra: [
+                'cancel_request_id' => (string) $request->ulid,
+            ]),
+        );
+    }
+
+    /**
+     * Permintaan pembatalan selesai dijawab → pemberi kerja.
+     *
+     * `result` = `approved` (semua pekerja setuju, task dibatalkan) atau
+     * `rejected` (satu pekerja menolak, task berjalan terus).
+     */
+    public static function cancelRequestResolved(Task $task, TaskCancelRequest $request, bool $approved): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: $approved
+                ? 'Permintaan pembatalan disetujui. Tugas dibatalkan.'
+                : 'Permintaan pembatalan ditolak. Tugas tetap berjalan.',
+            data: self::data(PushType::CancelRequestResolved, $task, extra: [
+                'cancel_request_id' => (string) $request->ulid,
+                'result' => $approved ? 'approved' : 'rejected',
+            ]),
+        );
+    }
+
+    /** Task dibatalkan → pekerja yang sudah diterima. */
+    public static function taskCancelled(Task $task): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: 'Tugas ini dibatalkan.',
+            data: self::data(PushType::TaskCancelled, $task),
+        );
+    }
+
+    /** Tugas baru tayang → mitra tersedia di sekitar lokasi (B13). */
+    public static function taskPublished(Task $task): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: 'Tugas baru di sekitar Anda.',
+            data: self::data(PushType::TaskPublished, $task),
+        );
+    }
+
+    /** Batas waktu penawaran lewat → pemberi kerja (G12). */
+    public static function taskExpired(Task $task): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: 'Batas waktu penawaran terlewat. Tugas kedaluwarsa.',
+            data: self::data(PushType::TaskExpired, $task),
+        );
+    }
+
+    /** Penawaran gugur karena lelang ditutup → penawar (G12). */
+    public static function bidExpired(Task $task): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: 'Batas waktu penawaran terlewat. Penawaran Anda tidak lagi diproses.',
+            data: self::data(PushType::BidExpired, $task),
+        );
+    }
+
+    /** Sengketa diputuskan → kedua pihak (G5). */
+    public static function disputeResolved(Task $task, bool $released): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: $released
+                ? 'Sengketa diputuskan: dana dilepas ke pekerja.'
+                : 'Sengketa diputuskan: dana dikembalikan ke pemberi kerja.',
+            data: self::data(PushType::DisputeResolved, $task, extra: [
+                'resolution' => $released ? 'release' : 'refund',
+            ]),
+        );
+    }
+
+    /** Pengelola melihat dananya → saldo bertambah (G11). */
+    public static function topupConfirmed(WalletTopup $topup): PushMessage
+    {
+        return new PushMessage(
+            title: 'Isi saldo dikonfirmasi',
+            body: 'Saldo Rp'.self::rupiah((int) $topup->amount).' sudah masuk.',
+            data: self::walletData(PushType::TopupConfirmed, (int) $topup->getKey(), (int) $topup->amount),
+        );
+    }
+
+    /** Dana tidak ditemukan di mutasi → permintaan isi saldo ditolak (G11). */
+    public static function topupRejected(WalletTopup $topup): PushMessage
+    {
+        return new PushMessage(
+            title: 'Isi saldo ditolak',
+            body: 'Permintaan isi saldo Rp'.self::rupiah((int) $topup->amount).' ditolak. Periksa alasannya.',
+            data: self::walletData(PushType::TopupRejected, (int) $topup->getKey(), (int) $topup->amount),
+        );
+    }
+
+    /** Pengelola sudah mentransfer ke rekening → penarikan selesai (G11). */
+    public static function withdrawalCompleted(WalletWithdrawal $withdrawal): PushMessage
+    {
+        return new PushMessage(
+            title: 'Penarikan selesai',
+            body: 'Rp'.self::rupiah((int) $withdrawal->amount).' sudah dikirim ke rekening Anda.',
+            data: self::walletData(PushType::WithdrawalCompleted, (int) $withdrawal->getKey(), (int) $withdrawal->amount),
+        );
+    }
+
+    /** Penarikan ditolak → tahanannya dikembalikan ke saldo (G11). */
+    public static function withdrawalRejected(WalletWithdrawal $withdrawal): PushMessage
+    {
+        return new PushMessage(
+            title: 'Penarikan ditolak',
+            body: 'Rp'.self::rupiah((int) $withdrawal->amount).' dikembalikan ke saldo. Periksa alasannya.',
+            data: self::walletData(PushType::WithdrawalRejected, (int) $withdrawal->getKey(), (int) $withdrawal->amount),
+        );
+    }
+
+    /**
      * SATU-SATUNYA pembentuk `data` FCM: `type` + `task_id` selalu ada,
      * `activity_id` + `activity_status` hanya ada bila activity diberikan,
      * `bids_count` hanya ada bila jumlah penawar diberikan (event lelang ke
@@ -127,10 +261,19 @@ final class PushMessages
      * (Detail Tugas untuk pemberi kerja, Detail Kerjaan untuk mitra), jadi
      * tidak perlu rute berbeda per peran di sisi notifikasi.
      *
+     * `extra` untuk kunci khas satu jenis peristiwa (mis. `cancel_request_id`,
+     * `result`); nilainya wajib string, sama seperti kunci lain.
+     *
+     * @param  array<string, string>  $extra
      * @return array<string, string>
      */
-    private static function data(PushType $type, Task $task, ?Activity $activity = null, ?int $bidsCount = null): array
-    {
+    private static function data(
+        PushType $type,
+        Task $task,
+        ?Activity $activity = null,
+        ?int $bidsCount = null,
+        array $extra = [],
+    ): array {
         $data = [
             'type' => $type->value,
             'task_id' => (string) $task->ulid,
@@ -145,12 +288,31 @@ final class PushMessages
             $data['bids_count'] = (string) $bidsCount;
         }
 
-        return $data;
+        return [...$data, ...$extra];
     }
 
     /** Rupiah tanpa desimal, titik sebagai pemisah ribuan — gaya aplikasi. */
     private static function rupiah(int $amount): string
     {
         return number_format((float) $amount, 0, ',', '.');
+    }
+
+    /**
+     * Bentuk `data` untuk peristiwa DOMPET (G11).
+     *
+     * Berbeda dari `data()` yang selalu membawa `task_id`: permintaan isi
+     * saldo/penarikan tidak melekat pada task mana pun, jadi yang dikirim
+     * adalah id permintaannya dan nominalnya. Aplikasi memakainya untuk
+     * membuka layar Saldo dan menyorot baris yang berubah.
+     *
+     * @return array<string, string>
+     */
+    private static function walletData(PushType $type, int $requestId, int $amount): array
+    {
+        return [
+            'type' => $type->value,
+            'wallet_request_id' => (string) $requestId,
+            'amount' => (string) $amount,
+        ];
     }
 }

@@ -84,6 +84,8 @@ final class InstallSchemaTest extends TestCase
 
         $this->assertStringContainsString('INSERT IGNORE INTO `categories`', $sql);
         $this->assertStringContainsString('INSERT IGNORE INTO `skills`', $sql);
+        // Master kota ikut: pemilih kota (B12) butuh datanya di produksi.
+        $this->assertStringContainsString('INSERT IGNORE INTO `cities`', $sql);
     }
 
     /**
@@ -100,7 +102,7 @@ final class InstallSchemaTest extends TestCase
 
         $unexpected = array_values(array_diff(
             array_unique($m[1]),
-            ['categories', 'skills', 'migrations'],
+            ['categories', 'skills', 'cities', 'migrations'],
         ));
 
         $this->assertSame([], $unexpected, sprintf(

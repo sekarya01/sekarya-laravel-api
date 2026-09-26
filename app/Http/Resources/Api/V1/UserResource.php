@@ -57,11 +57,14 @@ final class UserResource extends BaseResource
                 'rating_count' => $worker->worker_rating_count,
                 'tasks_completed' => $worker->tasks_completed,
                 'bids_won' => $worker->bids_won,
+                'is_available' => (bool) $worker->is_available,
             ],
             'as_poster' => [
                 'rating_avg' => (float) $this->poster_rating_avg,
                 'rating_count' => $this->poster_rating_count,
                 'tasks_posted' => $this->tasks_posted,
+                // "Layanan Selesai" (U15): task yang benar-benar ditutup.
+                'tasks_completed' => (int) $this->poster_tasks_completed,
             ],
             // Saldo ikut di profil sendiri: hampir setiap layar yang
             // membuka akun juga menampilkannya, dan memaksa klien memanggil

@@ -118,6 +118,21 @@ final class AdminWalletApiTest extends TestCase
         $this->assertSame(250_000, $this->user->fresh()->walletBalance());
     }
 
+    /** Saldo bertambah → pengguna melihatnya di lonceng (G11). */
+    public function test_confirming_a_topup_notifies_the_user(): void
+    {
+        $topup = $this->pendingTopup();
+
+        $this->asAdmin($this->admin)
+            ->postJson(route('v1.admin.wallet.topups.confirm', $topup))
+            ->assertOk();
+
+        $this->assertDatabaseHas('user_notifications', [
+            'user_id' => $this->user->getKey(),
+            'type' => 'topup_confirmed',
+        ]);
+    }
+
     /** Dan meninggalkan satu baris buku besar yang menjelaskan sebabnya. */
     public function test_a_confirmed_topup_leaves_a_ledger_entry(): void
     {
@@ -273,7 +288,15 @@ final class AdminWalletApiTest extends TestCase
             ->getContent();
 
         $this->assertStringNotContainsString('1234567890', $body);
-        $this->assertStringNotContainsString('account_number', $body);
+        // Kunci nomor UTUH (maupun kolom terenkripsinya) tidak ada. Yang boleh
+        // hanya empat digit terakhir di `account_number_masked`.
+        $this->assertStringNotContainsString('"account_number"', $body);
+        $this->assertStringNotContainsString('account_number_enc', $body);
+        $this->assertStringNotContainsString('account_number_last4', $body);
+        $this->assertSame(
+            ['verification_id', 'bank_code', 'account_holder_name', 'account_number_masked'],
+            array_keys((array) json_decode($body, true)['data'][0]['destination']),
+        );
     }
 
     /** Menyelesaikan TIDAK memotong saldo lagi — sudah ditahan sejak diminta. */

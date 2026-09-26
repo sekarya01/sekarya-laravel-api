@@ -21,6 +21,7 @@ final readonly class UpsertWorkerProfileData
     /** @param list<string> $present Kunci yang benar-benar ada di payload. */
     public function __construct(
         public ?string $displayName = null,
+        public ?string $headline = null,
         public ?string $contactPhone = null,
         public ?string $avatarPath = null,
         public ?string $addressLine = null,
@@ -30,12 +31,14 @@ final readonly class UpsertWorkerProfileData
         public ?float $latitude = null,
         public ?float $longitude = null,
         public ?int $radiusKm = null,
+        public ?bool $isAvailable = null,
         public array $present = [],
     ) {}
 
     /** Nama field di payload -> nama kolom. Satu tempat, dipakai dua arah. */
     private const array COLUMN_MAP = [
         'display_name' => 'display_name',
+        'headline' => 'headline',
         'contact_phone' => 'contact_phone',
         'avatar_path' => 'avatar_path',
         'address_line' => 'address_line',
@@ -45,6 +48,7 @@ final readonly class UpsertWorkerProfileData
         'latitude' => 'latitude',
         'longitude' => 'longitude',
         'radius_km' => 'radius_km',
+        'is_available' => 'is_available',
     ];
 
     public static function fromRequest(UpsertWorkerProfileRequest $request): self
@@ -55,6 +59,7 @@ final readonly class UpsertWorkerProfileData
 
         return new self(
             displayName: $str('display_name'),
+            headline: $str('headline'),
             contactPhone: $request->filled('contact_phone')
                 // Spasi dibuang seperti pada pendaftaran: "+62 812 ..." dan
                 // "+62812..." adalah nomor yang sama, dan hanya satu bentuk
@@ -69,6 +74,7 @@ final readonly class UpsertWorkerProfileData
             latitude: $request->filled('latitude') ? (float) $request->input('latitude') : null,
             longitude: $request->filled('longitude') ? (float) $request->input('longitude') : null,
             radiusKm: $request->filled('radius_km') ? (int) $request->input('radius_km') : null,
+            isAvailable: $request->has('is_available') ? $request->boolean('is_available') : null,
             present: array_values(array_intersect(
                 array_keys(self::COLUMN_MAP),
                 array_keys($request->all()),
@@ -86,6 +92,7 @@ final readonly class UpsertWorkerProfileData
     {
         $values = [
             'display_name' => $this->displayName,
+            'headline' => $this->headline,
             'contact_phone' => $this->contactPhone,
             'avatar_path' => $this->avatarPath,
             'address_line' => $this->addressLine,
@@ -95,7 +102,13 @@ final readonly class UpsertWorkerProfileData
             'latitude' => $this->latitude,
             'longitude' => $this->longitude,
             'radius_km' => $this->radiusKm,
+            'is_available' => $this->isAvailable,
         ];
+
+        // Tidak nullable (lihat request): dikirim atau tidak sama sekali.
+        if ($this->isAvailable === null) {
+            unset($values['is_available']);
+        }
 
         if ($this->present === []) {
             return array_filter($values, fn (mixed $v): bool => $v !== null);
@@ -107,5 +120,11 @@ final readonly class UpsertWorkerProfileData
         );
 
         return array_intersect_key($values, array_flip($columns));
+    }
+
+    /** Klien meminta mengubah ketersediaan. */
+    public function changesAvailability(): bool
+    {
+        return $this->isAvailable !== null;
     }
 }

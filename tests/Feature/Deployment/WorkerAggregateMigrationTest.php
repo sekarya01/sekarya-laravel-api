@@ -37,7 +37,7 @@ final class WorkerAggregateMigrationTest extends TestCase
      * rollback berhenti DI ATAS titik perpindahan dan kolom lama seperti
      * `bids_won` sudah terlanjur hilang saat data lama ditulis.
      */
-    private const int STEPS = 16;
+    private const int STEPS = 38;
 
     /**
      * Awalan WAJIB untuk basis data sekali-pakai milik kelas ini.

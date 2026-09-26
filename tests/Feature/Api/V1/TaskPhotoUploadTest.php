@@ -115,6 +115,51 @@ final class TaskPhotoUploadTest extends TestCase
             ->assertJsonPath('data.photos.0', $path);
     }
 
+    /**
+     * Bukti kerja masuk folder sendiri (`uploads/proofs`) supaya
+     * penyajiannya bisa dibatasi dan kepemilikannya diperiksa saat
+     * penyerahan hasil (U11).
+     */
+    public function test_proof_upload_lands_in_the_proof_folder(): void
+    {
+        Storage::fake('public');
+
+        $path = $this->asUser($this->poster)
+            ->postJson(route('v1.uploads.store'), [
+                'file' => UploadedFile::fake()->image('bukti.jpg', 800, 600)->size(300),
+                'purpose' => 'proof',
+            ])
+            ->assertCreated()
+            ->json('data.path');
+
+        $this->assertStringStartsWith('uploads/proofs/', $path);
+        Storage::disk('public')->assertExists($path);
+    }
+
+    /** Foto ulasan & catatan kemajuan masuk folder sendiri (G1). */
+    public function test_review_and_update_uploads_land_in_their_folders(): void
+    {
+        Storage::fake('public');
+
+        $review = $this->asUser($this->poster)
+            ->postJson(route('v1.uploads.store'), [
+                'file' => UploadedFile::fake()->image('ulasan.jpg')->size(300),
+                'purpose' => 'review',
+            ])
+            ->assertCreated()
+            ->json('data.path');
+        $this->assertStringStartsWith('uploads/reviews/', $review);
+
+        $update = $this->asUser($this->poster)
+            ->postJson(route('v1.uploads.store'), [
+                'file' => UploadedFile::fake()->image('catatan.jpg')->size(300),
+                'purpose' => 'update',
+            ])
+            ->assertCreated()
+            ->json('data.path');
+        $this->assertStringStartsWith('uploads/updates/', $update);
+    }
+
     public function test_non_image_is_rejected(): void
     {
         Storage::fake('public');

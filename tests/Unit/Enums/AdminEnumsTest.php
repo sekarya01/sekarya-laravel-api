@@ -92,6 +92,7 @@ final class AdminEnumsTest extends TestCase
     {
         $this->assertSame([
             'verification.viewed',
+            'verification.document_viewed',
             'verification.approved',
             'verification.rejected',
             'verification.revoked',

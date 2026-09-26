@@ -8,9 +8,9 @@ use App\Enums\ActivityStatus;
 use App\Enums\ActorType;
 use App\Enums\TaskStatus;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
-use App\Jobs\SendPushNotification;
 use App\Models\Activity;
 use App\Models\User;
+use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
 use App\Support\TaskStatusRecorder;
 use Illuminate\Database\ConnectionInterface;
@@ -23,7 +23,8 @@ final class RejectActivityAction
 {
     public function __construct(
         private readonly ConnectionInterface $db,
-        private readonly TaskStatusRecorder $recorder
+        private readonly TaskStatusRecorder $recorder,
+        private readonly PushDispatcher $push,
     ) {}
 
     public function handle(Activity $activity, User $poster, ?string $note = null): Activity
@@ -64,7 +65,7 @@ final class RejectActivityAction
 
         // Di LUAR transaksi: pekerja diberi tahu hasilnya ditolak.
         $task = $activity->task;
-        SendPushNotification::dispatch(
+        $this->push->send(
             $activity->worker_id,
             PushMessages::activityRejected($task, $activity),
         );

@@ -7,14 +7,17 @@ namespace App\Actions\Activity;
 use App\Enums\ActivityStatus;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
 use App\Exceptions\Domain\PaymentNotHeldException;
-use App\Jobs\SendPushNotification;
 use App\Models\Activity;
+use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
 use Illuminate\Database\ConnectionInterface;
 
 final class StartActivityAction
 {
-    public function __construct(private readonly ConnectionInterface $db) {}
+    public function __construct(
+        private readonly ConnectionInterface $db,
+        private readonly PushDispatcher $push,
+    ) {}
 
     public function handle(Activity $activity): Activity
     {
@@ -56,7 +59,7 @@ final class StartActivityAction
 
         // Di LUAR transaksi: pemberi kerja diberi tahu pekerjaan dimulai.
         $task = $activity->task;
-        SendPushNotification::dispatch(
+        $this->push->send(
             $task->poster_id,
             PushMessages::activityInProgress($task, $activity),
         );

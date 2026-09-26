@@ -11,6 +11,8 @@ use App\Exceptions\Domain\WalletRequestNotPendingException;
 use App\Models\Admin;
 use App\Models\WalletTopup;
 use App\Support\AdminAuditRecorder;
+use App\Support\Push\PushDispatcher;
+use App\Support\Push\PushMessages;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -28,6 +30,7 @@ final class RejectTopupAction
     public function __construct(
         private readonly ConnectionInterface $db,
         private readonly AdminAuditRecorder $audit,
+        private readonly PushDispatcher $push,
     ) {}
 
     public function handle(WalletTopup $topup, Admin $admin, RejectWalletRequestData $data): WalletTopup
@@ -59,6 +62,9 @@ final class RejectTopupAction
                 $data->reason,
                 $data->ip,
             );
+
+            // Permintaan ditolak → pengguna diberi tahu (G11).
+            $this->push->send((int) $fresh->user_id, PushMessages::topupRejected($fresh));
 
             return $fresh;
         });

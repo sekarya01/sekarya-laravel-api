@@ -6,6 +6,7 @@ namespace Tests\Feature\Api\V1;
 
 use App\Enums\PaymentStatus;
 use App\Enums\TaskStatus;
+use App\Enums\WalletEntryDirection;
 use App\Enums\WalletEntryType;
 use App\Enums\WalletTopupStatus;
 use App\Enums\WalletWithdrawalStatus;
@@ -13,8 +14,10 @@ use App\Models\Payment;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Models\WalletEntry;
 use App\Models\WalletTopup;
 use App\Models\WalletWithdrawal;
+use App\Support\WalletLedger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -142,6 +145,130 @@ final class WalletApiTest extends TestCase
             ->assertJsonPath('data.0.amount', 10_000);
     }
 
+    // ── Pencarian & penyaring riwayat ───────────────────────────────────────
+
+    /**
+     * Satu baris buku besar dengan jenis, nominal, deskripsi, dan waktu yang
+     * ditentukan test. `created_at` disetel langsung: buku besar append-only
+     * tidak punya jalur sah untuk memundurkan waktu.
+     */
+    private function entry(WalletEntryType $type, int $amount, string $description, string $createdAtUtc): void
+    {
+        $ledger = app(WalletLedger::class);
+        $wallet = $ledger->walletFor($this->user);
+        $row = $type->direction() === WalletEntryDirection::Credit
+            ? $ledger->credit($wallet, $type, $amount, null, $description)
+            : $ledger->debit($wallet, $type, $amount, null, $description);
+
+        WalletEntry::query()->whereKey($row->getKey())->update(['created_at' => $createdAtUtc]);
+    }
+
+    /** @param  array<string, mixed>  $query @return list<string> */
+    private function descriptions(array $query): array
+    {
+        return array_column(
+            $this->asUser($this->user)
+                ->getJson(route('v1.me.wallet.entries.index', $query))
+                ->assertOk()
+                ->json('data'),
+            'description',
+        );
+    }
+
+    private function seedHistory(): void
+    {
+        $this->entry(WalletEntryType::Topup, 500_000, 'Isi saldo dikonfirmasi pengelola', '2026-09-01 03:00:00');
+        $this->entry(WalletEntryType::Earning, 150_000, 'Upah task #123', '2026-09-10 03:00:00');
+        $this->entry(WalletEntryType::Refund, 80_000, 'Pengembalian dana task #45', '2026-09-20 03:00:00');
+        $this->entry(WalletEntryType::TaskHold, 60_000, 'Dana tugas #45 ditahan', '2026-09-23 18:30:00');
+    }
+
+    /** Satu kelompok di klien = gabungan jenis, bukan satu jenis. */
+    public function test_the_history_can_be_filtered_by_several_types_at_once(): void
+    {
+        $this->seedHistory();
+
+        $this->assertSame(
+            ['Pengembalian dana task #45', 'Isi saldo dikonfirmasi pengelola'],
+            $this->descriptions(['types' => ['topup', 'refund']]),
+        );
+    }
+
+    public function test_the_history_can_be_searched_by_description(): void
+    {
+        $this->seedHistory();
+
+        $this->assertSame(
+            ['Dana tugas #45 ditahan', 'Pengembalian dana task #45'],
+            $this->descriptions(['q' => '#45']),
+        );
+    }
+
+    /** `%` dari ketikan dibaca harfiah, bukan jadi wildcard yang cocok dengan semua. */
+    public function test_search_wildcards_are_taken_literally(): void
+    {
+        $this->seedHistory();
+
+        $this->assertSame([], $this->descriptions(['q' => '%']));
+    }
+
+    /**
+     * "Hari ini" milik orangnya. 23 Sep 18:30 UTC = 24 Sep 01:30 WIB, jadi
+     * masuk rentang 24 Sep WIB — dan tidak masuk 23 Sep WIB.
+     */
+    public function test_the_date_range_follows_the_client_offset(): void
+    {
+        $this->seedHistory();
+
+        $this->assertSame(
+            ['Dana tugas #45 ditahan'],
+            $this->descriptions(['from' => '2026-09-24T00:00:00+07:00', 'to' => '2026-09-25T00:00:00+07:00']),
+        );
+        $this->assertSame(
+            [],
+            $this->descriptions(['from' => '2026-09-23T00:00:00+07:00', 'to' => '2026-09-24T00:00:00+07:00']),
+        );
+    }
+
+    public function test_the_history_can_be_filtered_by_amount(): void
+    {
+        $this->seedHistory();
+
+        $this->assertSame(
+            ['Pengembalian dana task #45', 'Upah task #123'],
+            $this->descriptions(['min_amount' => 70_000, 'max_amount' => 200_000]),
+        );
+        // Tiap batas boleh dikirim sendirian.
+        $this->assertSame(['Isi saldo dikonfirmasi pengelola'], $this->descriptions(['min_amount' => 200_000]));
+        $this->assertCount(3, $this->descriptions(['max_amount' => 200_000]));
+    }
+
+    public function test_filters_combine(): void
+    {
+        $this->seedHistory();
+
+        $this->assertSame(
+            ['Pengembalian dana task #45'],
+            $this->descriptions(['types' => ['refund', 'earning'], 'q' => 'task', 'min_amount' => 100, 'from' => '2026-09-15T00:00:00+07:00']),
+        );
+    }
+
+    public function test_invalid_filters_are_rejected(): void
+    {
+        $bad = [
+            ['types' => ['bukan_jenis']],
+            ['min_amount' => 500, 'max_amount' => 100],
+            ['from' => '2026-09-10T00:00:00+07:00', 'to' => '2026-09-01T00:00:00+07:00'],
+            ['from' => 'kemarin-sore'],
+            ['q' => str_repeat('a', 101)],
+        ];
+        foreach ($bad as $query) {
+            $this->asUser($this->user)
+                ->getJson(route('v1.me.wallet.entries.index', $query))
+                ->assertUnprocessable();
+        }
+    }
+
     // ── Isi saldo ───────────────────────────────────────────────────────────
 
     /**
@@ -162,6 +289,32 @@ final class WalletApiTest extends TestCase
             ->assertJsonPath('data.amount', 250_000);
 
         $this->assertSame(0, $this->user->fresh()->walletBalance());
+    }
+
+    /** Kode unik 3 digit: nominal transfer = jumlah + kode (B14). */
+    public function test_a_topup_gets_a_unique_code_and_the_exact_transfer_amount(): void
+    {
+        $data = $this->asUser($this->user)
+            ->postJson(route('v1.me.wallet.topups.store'), ['amount' => 250_000])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertGreaterThanOrEqual(1, $data['unique_code']);
+        $this->assertLessThanOrEqual(999, $data['unique_code']);
+        $this->assertSame(250_000 + $data['unique_code'], $data['transfer_amount']);
+    }
+
+    public function test_pending_topups_get_distinct_codes(): void
+    {
+        $codes = [];
+        foreach ([100_000, 200_000] as $amount) {
+            $codes[] = $this->asUser($this->user)
+                ->postJson(route('v1.me.wallet.topups.store'), ['amount' => $amount])
+                ->assertCreated()
+                ->json('data.unique_code');
+        }
+
+        $this->assertSame(2, count(array_unique($codes)), 'kode dua permintaan yang menunggu harus berbeda');
     }
 
     public function test_a_topup_below_the_minimum_is_a_validation_error(): void
@@ -643,7 +796,10 @@ final class WalletApiTest extends TestCase
                 ->postJson(route('v1.activities.start', $activity))
                 ->assertOk();
             $this->asUser($activity->worker)
-                ->postJson(route('v1.activities.submit', $activity), ['worker_note' => 'beres'])
+                ->postJson(route('v1.activities.submit', $activity), [
+                    'worker_note' => 'beres',
+                    'proof_photos' => $this->proofPhotosFor($activity->worker),
+                ])
                 ->assertOk();
         }
     }

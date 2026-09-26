@@ -9,8 +9,8 @@ use App\Enums\ActivityStatus;
 use App\Enums\ActorType;
 use App\Enums\TaskStatus;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
-use App\Jobs\SendPushNotification;
 use App\Models\Activity;
+use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
 use App\Support\TaskStatusRecorder;
 use Illuminate\Database\ConnectionInterface;
@@ -19,7 +19,8 @@ final class SubmitActivityAction
 {
     public function __construct(
         private readonly ConnectionInterface $db,
-        private readonly TaskStatusRecorder $recorder
+        private readonly TaskStatusRecorder $recorder,
+        private readonly PushDispatcher $push,
     ) {}
 
     public function handle(SubmitActivityData $data, Activity $activity): Activity
@@ -59,7 +60,7 @@ final class SubmitActivityAction
 
         // Di LUAR transaksi: pemberi kerja diberi tahu hasil dikirim.
         $task = $activity->task;
-        SendPushNotification::dispatch(
+        $this->push->send(
             $task->poster_id,
             PushMessages::activitySubmitted($task, $activity),
         );

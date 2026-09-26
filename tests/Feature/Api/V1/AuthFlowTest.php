@@ -334,13 +334,14 @@ final class AuthFlowTest extends TestCase
 
     // ── login ───────────────────────────────────────────────────────────────
 
-    private function verifiedUser(): User
+    private function verifiedUser(array $override = []): User
     {
         return $this->activeUser([
             'email' => 'budi@sekarya.test',
             'username' => 'budi.prasetyo',
             'phone' => '+628111222333',
             'password' => Hash::make('RahasiaKuat2026'),
+            ...$override,
         ]);
     }
 
@@ -361,11 +362,47 @@ final class AuthFlowTest extends TestCase
             ->assertOk();
     }
 
-    public function test_login_requires_email_or_username(): void
+    /** Nomor HP boleh diketik dalam ejaan lokal; yang tersimpan `+62…` (U1). */
+    public function test_login_with_phone_normalises_the_local_spelling(): void
+    {
+        $this->verifiedUser(['phone' => '+628111222333']);
+
+        $this->postJson(route('v1.auth.login'), ['phone' => '08111222333', 'password' => 'RahasiaKuat2026'])
+            ->assertOk()
+            ->assertJsonStructure(['data' => ['access_token', 'long_lived_token']]);
+    }
+
+    /** Sebaliknya juga: yang tersimpan `0…` tetap ditemukan dari input `+62…`. */
+    public function test_login_with_phone_matches_the_stored_local_spelling(): void
+    {
+        $this->verifiedUser(['phone' => '08111222333']);
+
+        $this->postJson(route('v1.auth.login'), ['phone' => '+628111222333', 'password' => 'RahasiaKuat2026'])
+            ->assertOk();
+    }
+
+    public function test_login_requires_exactly_one_identity(): void
     {
         $this->postJson(route('v1.auth.login'), ['password' => 'x'])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['email', 'username']);
+            ->assertJsonValidationErrors(['email', 'username', 'phone']);
+
+        // Lebih dari satu ditolak: dua identitas yang berbeda tidak bisa
+        // dua-duanya benar, dan menebaknya berarti memilih akun untuk pemanggil.
+        $this->postJson(route('v1.auth.login'), [
+            'email' => 'budi@sekarya.test', 'phone' => '08111222333', 'password' => 'x',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email', 'phone']);
+    }
+
+    public function test_login_by_unknown_phone_is_invalid_credentials(): void
+    {
+        $this->verifiedUser();
+
+        $this->postJson(route('v1.auth.login'), ['phone' => '08199999999', 'password' => 'RahasiaKuat2026'])
+            ->assertUnauthorized()
+            ->assertJsonPath('code', 'invalid_credentials');
     }
 
     public function test_login_rejects_a_wrong_password(): void

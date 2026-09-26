@@ -68,6 +68,9 @@ final class ListWorkersAction
                     : $r->whereDoesntHave('verifications', fn (Builder $v) => $v
                         ->where('type', VerificationType::Identity)
                         ->where('status', VerificationStatus::Verified))))
+            // Ketersediaan (U13) ada di baris profil sendiri — kesetaraan pada
+            // indeks (is_available, created_at, id), urutannya tetap cursor.
+            ->when($data->available !== null, fn (Builder $q) => $q->where('user_workers.is_available', $data->available))
             ->when($data->city !== null, fn (Builder $q) => $q->whereResolvedAddress('city', $data->city))
             ->when($data->province !== null, fn (Builder $q) => $q->whereResolvedAddress('province', $data->province))
             // Pemiliknya ikut termuat berikut bahan pertimbangannya. Tanpa ini

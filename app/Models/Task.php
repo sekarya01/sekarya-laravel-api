@@ -9,6 +9,7 @@ use App\Enums\BidStatus;
 use App\Enums\CancelRequestStatus;
 use App\Enums\TaskStatus;
 use App\Models\Concerns\HasUlid;
+use App\Support\GeoDistance;
 use App\Support\SearchTerms;
 use Database\Factories\TaskFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,9 +29,9 @@ final class Task extends Model
     use HasFactory, HasUlid, SoftDeletes;
 
     protected $fillable = [
-        'poster_id', 'category_id', 'title', 'description', 'options', 'photos',
+        'poster_id', 'category_id', 'title', 'description', 'options', 'checklist', 'photos',
         'budget_min', 'budget_max', 'ref_price_median',
-        'location_text', 'city', 'latitude', 'longitude', 'is_remote',
+        'location_text', 'area', 'city', 'latitude', 'longitude', 'is_remote',
         'needed_at', 'end_at', 'bidding_closes_at', 'status', 'workers_needed',
     ];
 
@@ -89,6 +90,7 @@ final class Task extends Model
             'poster_id' => 'integer',
             'category_id' => 'integer',
             'options' => 'array',
+            'checklist' => 'array',
             'photos' => 'array',
             'budget_min' => 'integer',
             'budget_max' => 'integer',
@@ -161,6 +163,18 @@ final class Task extends Model
     }
 
     /**
+     * Simpanan (bookmark) orang-orang. Untuk `is_bookmarked` di feed dipakai
+     * dengan `withExists` yang dibatasi `user_id` — satu subquery per halaman,
+     * bukan satu kueri per baris.
+     *
+     * @return HasMany<TaskBookmark, $this>
+     */
+    public function bookmarks(): HasMany
+    {
+        return $this->hasMany(TaskBookmark::class);
+    }
+
+    /**
      * Tawaran milik satu orang pada task ini. Selalu dipakai dengan batasan
      * bidder_id di eager-load — ada supaya feed bisa menandai "sudah dilamar"
      * tanpa panggilan API kedua.
@@ -229,6 +243,82 @@ final class Task extends Model
     public function statusLogs(): HasMany
     {
         return $this->hasMany(TaskStatusLog::class);
+    }
+
+    /**
+     * Boleh melihat JARAK pelamar/pekerja ke lokasi task (`distance_km`, U8)?
+     *
+     * HANYA pemberi kerja task ini — orang yang sedang memilih pelamar.
+     * Pelamar lain tidak: jarak pesaingnya bukan urusannya, dan setiap angka
+     * jarak yang keluar adalah satu persamaan menuju lokasi kerja orang itu.
+     * Pekerja sendiri juga tidak mendapatkannya di sini (`my_bid`,
+     * `bids/mine`): kolomnya tetap ada dengan nilai `null`, supaya bentuk
+     * responsnya sama untuk semua orang.
+     */
+    public function showsWorkerDistanceTo(?User $viewer): bool
+    {
+        return $viewer !== null && $this->poster_id === $viewer->getKey();
+    }
+
+    /**
+     * Jarak lokasi task ke lokasi kerja seorang pekerja — lihat GeoDistance.
+     * Tanpa kueri: `workerProfile` ikut termuat lewat `User::$with`.
+     */
+    public function distanceToWorkerKm(User $worker): ?float
+    {
+        $profile = $worker->workerProfileOrNew();
+
+        return GeoDistance::taskToWorkerKm(
+            $this->latitude,
+            $this->longitude,
+            $profile->latitude,
+            $profile->longitude,
+        );
+    }
+
+    /**
+     * Boleh melihat lokasi PRESISI (alamat lengkap + koordinat penuh)?
+     *
+     * SATU penentu untuk seluruh API — TaskResource membacanya di setiap
+     * endpoint yang menyematkan task (feed, detail, penawaran, activity).
+     * Hanya pemberi kerja dan pekerja yang SUDAH deal (penawaran `accepted`).
+     * Pelamar yang masih menunggu, yang ditolak, dan yang sekadar melihat feed
+     * mendapat lokasi tersamar: UI menjanjikan "detail alamat hanya dibagikan
+     * setelah Mitra disetujui", dan janji itu hanya benar kalau server yang
+     * menahannya — klien bisa membaca JSON mentah.
+     *
+     * Tanpa N+1 di daftar: relasi `myBid` yang sudah dimuat (dibatasi ke
+     * penonton) dipakai lebih dulu. Hanya endpoint satu-task yang jatuh ke
+     * kueri `exists`.
+     */
+    public function revealsLocationTo(?User $viewer): bool
+    {
+        if ($viewer === null) {
+            return false;
+        }
+
+        $viewerId = $viewer->getKey();
+
+        if ($this->poster_id === $viewerId) {
+            return true;
+        }
+
+        if ($this->relationLoaded('myBid')) {
+            $bid = $this->getRelation('myBid');
+
+            // `myBid` hanya bisa dipercaya kalau memang milik penonton ini;
+            // relasinya tidak membawa batasan bidder sendiri, pemanggilnya
+            // yang membatasi. Kalau milik orang lain, jangan menebak.
+            if ($bid === null) {
+                return false;
+            }
+
+            if ($bid instanceof Bid && (int) $bid->bidder_id === (int) $viewerId) {
+                return $bid->status === BidStatus::Accepted;
+            }
+        }
+
+        return $this->acceptedBids()->where('bidder_id', $viewerId)->exists();
     }
 
     /**

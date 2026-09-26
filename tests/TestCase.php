@@ -27,13 +27,16 @@ use App\Models\UserVerification;
 use App\Models\UserWorker;
 use App\Models\Wallet;
 use App\Notifications\VerificationCodeNotification;
+use App\Support\ProofPhotos;
 use App\Support\TokenIssuer;
 use App\Support\WalletLedger;
 use Database\Seeders\CategorySeeder;
 use Database\Seeders\SkillSeeder;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 
 /**
@@ -148,6 +151,9 @@ abstract class TestCase extends BaseTestCase
             'reviewed_at' => now(),
             'bank_code' => $bank,
             'account_number_enc' => '1234567890',
+            // Seperti yang ditulis SubmitVerificationAction — fixture tanpa
+            // kolom ini adalah keadaan yang tidak bisa lahir dari API.
+            'account_number_last4' => '7890',
             'account_holder_name' => $user->name,
             // Kolom khas identitas dikosongkan: baris rekening yang membawa
             // foto KTP adalah keadaan yang tidak bisa lahir dari API.
@@ -223,6 +229,33 @@ abstract class TestCase extends BaseTestCase
         ])->save();
 
         return $bid;
+    }
+
+    /**
+     * Foto bukti hasil kerja (U11) milik seseorang, ditulis lewat jalur yang
+     * sama dengan produksi (`ProofPhotos::store`).
+     *
+     * `POST activities/{a}/submit` menerima PATH dan memverifikasi bahwa
+     * berkasnya benar-benar diunggah oleh orang yang menyerahkan. Fixture yang
+     * mengarang path seperti `p/a.jpg` kini ditolak 422 — dan memang begitu
+     * seharusnya, karena path itu tidak pernah bisa lahir dari `POST uploads`.
+     * Disk `public` di-fake supaya berkasnya tidak menumpuk di storage nyata.
+     *
+     * @return list<string>
+     */
+    protected function proofPhotosFor(User $owner, int $count = 1): array
+    {
+        Storage::fake('public');
+
+        $proofs = app(ProofPhotos::class);
+
+        return array_map(
+            fn (): string => $proofs->store(
+                UploadedFile::fake()->image('bukti.jpg', 800, 600)->size(200),
+                $owner,
+            ),
+            range(1, $count),
+        );
     }
 
     /**

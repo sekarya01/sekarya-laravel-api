@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
+use App\Support\BankAccountNumber;
 use Database\Factories\UserVerificationFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -37,7 +38,7 @@ final class UserVerification extends Model
         'id_card_photo_path', 'selfie_photo_path', 'face_match_score',
         'document_number_hash', 'document_number_enc',
         'name_on_document', 'birth_date_on_document',
-        'bank_code', 'account_number_enc', 'account_holder_name',
+        'bank_code', 'account_number_enc', 'account_number_last4', 'account_holder_name',
         'submitted_at',
     ];
 
@@ -64,6 +65,15 @@ final class UserVerification extends Model
             'document_number_enc' => 'encrypted',
             'account_number_enc' => 'encrypted',
         ];
+    }
+
+    /**
+     * "•••• 4910" — dari kolom empat digit, TANPA mendekripsi nomor utuh.
+     * Jalur baca daftar tidak boleh memegang nomornya sama sekali.
+     */
+    public function accountNumberMasked(): ?string
+    {
+        return BankAccountNumber::mask($this->account_number_last4);
     }
 
     /** @return BelongsTo<User, $this> */

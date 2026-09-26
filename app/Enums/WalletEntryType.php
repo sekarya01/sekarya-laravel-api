@@ -26,6 +26,9 @@ enum WalletEntryType: string
     /** Upah pekerja saat dana task dilepas. */
     case Earning = 'earning';
 
+    /** Biaya layanan yang dipotong dari upah pekerja (G6). */
+    case Fee = 'fee';
+
     /** Dana task ditahan dari saldo pemberi kerja saat task dipasang/diubah. */
     case TaskHold = 'task_hold';
 
@@ -55,6 +58,7 @@ enum WalletEntryType: string
 
             self::Withdrawal,
             self::TaskHold,
+            self::Fee,
             self::AdjustmentDebit => WalletEntryDirection::Debit,
         };
     }

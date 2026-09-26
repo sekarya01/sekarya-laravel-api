@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources\Api\V1;
 
 use App\Models\Task;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 /** @mixin Task */
@@ -13,6 +14,10 @@ final class TaskResource extends BaseResource
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
+        $viewer = $request->user();
+        $precise = $this->resource->revealsLocationTo($viewer instanceof User ? $viewer : null);
+        $showsDistance = $this->resource->showsWorkerDistanceTo($viewer instanceof User ? $viewer : null);
+
         return [
             'id' => $this->ulid,
             'task_number' => $this->task_number,
@@ -20,6 +25,8 @@ final class TaskResource extends BaseResource
             'description' => $this->description,
             'status' => $this->status->value,
             'options' => $this->options ?? [],
+            // Checklist pekerjaan (B10) — larik langkah; `[]` bila tidak ada.
+            'checklist' => array_values($this->checklist ?? []),
             'photos' => array_values($this->photos ?? []),
             'budget' => [
                 'min' => $this->budget_min,
@@ -27,11 +34,17 @@ final class TaskResource extends BaseResource
                 'max' => $this->budget_max,
                 'reference_median' => $this->ref_price_median,
             ],
+            // Batas pengungkapan lokasi (Task::revealsLocationTo). Sebelum
+            // deal: tanpa alamat, koordinat dibulatkan 3 desimal (±110 m) —
+            // cukup untuk "sejauh apa", tidak cukup untuk menemukan pintunya.
+            // `area` + `city` selalu tampil: itu label kartu feed.
             'location' => [
-                'text' => $this->location_text,
+                'text' => $precise ? $this->location_text : null,
+                'area' => $this->area,
                 'city' => $this->city,
-                'latitude' => $this->latitude === null ? null : (float) $this->latitude,
-                'longitude' => $this->longitude === null ? null : (float) $this->longitude,
+                'latitude' => $this->coordinate($this->latitude, $precise),
+                'longitude' => $this->coordinate($this->longitude, $precise),
+                'is_precise' => $precise,
                 'is_remote' => $this->is_remote,
             ],
             'bids_count' => $this->bids_count,
@@ -65,7 +78,19 @@ final class TaskResource extends BaseResource
             'poster' => PublicUserResource::make($this->whenLoaded('poster')),
             // Terisi hanya di feed pencari kerja: null = belum dilamar.
             'my_bid' => BidResource::make($this->whenLoaded('myBid')),
-            'workers' => PublicUserResource::collection($this->whenLoaded('workers')),
+            // Apakah tugas ini disimpan orang yang meminta (B11). Selalu ada
+            // sebagai boolean; `false` bila tidak dimuat.
+            'is_bookmarked' => (bool) ($this->bookmarked ?? false),
+            // Profil publik tiap pekerja + `distance_km` (U8): jarak lokasi
+            // kerjanya ke task ini, HANYA untuk pemberi kerja
+            // (Task::showsWorkerDistanceTo) — `null` untuk penonton lain dan
+            // bila salah satu koordinat kosong. Koordinat pekerja tidak keluar.
+            'workers' => $this->whenLoaded('workers', fn (): array => $this->workers
+                ->map(fn (User $worker): array => [
+                    ...PublicUserResource::make($worker)->resolve($request),
+                    'distance_km' => $showsDistance ? $this->resource->distanceToWorkerKm($worker) : null,
+                ])
+                ->all()),
             'payment' => PaymentResource::make($this->whenLoaded('payment')),
             // Permintaan pembatalan yang menunggu jawaban — hanya yang
             // `pending` (relasi `pendingCancelRequest`), supaya mobile bisa
@@ -75,5 +100,15 @@ final class TaskResource extends BaseResource
             'created_at' => $this->iso($this->created_at),
             'updated_at' => $this->iso($this->updated_at),
         ];
+    }
+
+    /** Koordinat penuh untuk yang berhak, dibulatkan 3 desimal untuk selainnya. */
+    private function coordinate(mixed $value, bool $precise): ?float
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return $precise ? (float) $value : round((float) $value, 3);
     }
 }

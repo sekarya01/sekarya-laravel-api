@@ -371,4 +371,63 @@ final class WorkerProfileApiTest extends TestCase
 
         $this->assertSame(0, UserWorker::query()->where('user_id', $theirs->getKey())->count());
     }
+
+    // ── ketersediaan mitra (U13) ────────────────────────────────────────────
+
+    /**
+     * "Siap menerima kerja" bawaannya MENYALA — pekerja yang belum pernah
+     * memilih tetap muncul di pencarian, dan yang ingin libur harus memilihnya
+     * sendiri.
+     */
+    public function test_availability_defaults_to_true_and_can_be_toggled(): void
+    {
+        $user = $this->worker();
+
+        $this->asUser($user)
+            ->putJson(route('v1.me.worker.update'), ['display_name' => 'Budi Tukang AC'])
+            ->assertCreated()
+            ->assertJsonPath('data.is_available', true);
+
+        $this->asUser($user)
+            ->putJson(route('v1.me.worker.update'), ['is_available' => false])
+            ->assertOk()
+            ->assertJsonPath('data.is_available', false);
+
+        $this->assertFalse(
+            UserWorker::query()->where('user_id', $user->getKey())->sole()->is_available,
+        );
+    }
+
+    /** Judul/profesi mitra (U16): diisi lewat PUT me/worker, keluar di
+     *  `as_worker.headline` profil publik. */
+    public function test_a_headline_can_be_set(): void
+    {
+        $user = $this->worker();
+
+        $this->asUser($user)
+            ->putJson(route('v1.me.worker.update'), ['headline' => 'Teknisi AC'])
+            ->assertCreated();
+
+        $this->asUser($this->activeUser())
+            ->getJson(route('v1.users.show', $user->ulid))
+            ->assertOk()
+            ->assertJsonPath('data.as_worker.headline', 'Teknisi AC');
+    }
+
+    /**
+     * Ketersediaan hanya berarti bagi yang SUDAH pekerja. Tanpa penjaga ini,
+     * akun pemberi kerja yang menekan sakelar "siap menerima kerja" akan
+     * melahirkan baris pekerja dan tiba-tiba muncul di `GET workers`.
+     */
+    public function test_a_non_worker_cannot_flip_availability(): void
+    {
+        $user = $this->worker();
+
+        $this->asUser($user)
+            ->putJson(route('v1.me.worker.update'), ['is_available' => false])
+            ->assertForbidden()
+            ->assertJsonPath('code', 'not_a_worker');
+
+        $this->assertSame(0, UserWorker::query()->where('user_id', $user->getKey())->count());
+    }
 }

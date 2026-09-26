@@ -49,6 +49,8 @@ final class WalletTopup extends Model
             'user_id' => 'integer',
             'status' => WalletTopupStatus::class,
             'amount' => 'integer',
+            'unique_code' => 'integer',
+            'transfer_amount' => 'integer',
             'reviewed_at' => 'datetime',
             'confirmed_at' => 'datetime',
             'rejected_at' => 'datetime',

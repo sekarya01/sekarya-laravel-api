@@ -11,6 +11,8 @@ use App\Exceptions\Domain\WalletRequestNotPendingException;
 use App\Models\Admin;
 use App\Models\WalletTopup;
 use App\Support\AdminAuditRecorder;
+use App\Support\Push\PushDispatcher;
+use App\Support\Push\PushMessages;
 use App\Support\WalletLedger;
 use Illuminate\Database\ConnectionInterface;
 
@@ -34,6 +36,7 @@ final class ConfirmTopupAction
         private readonly ConnectionInterface $db,
         private readonly WalletLedger $ledger,
         private readonly AdminAuditRecorder $audit,
+        private readonly PushDispatcher $push,
     ) {}
 
     public function handle(WalletTopup $topup, Admin $admin, ?string $ip = null): WalletTopup
@@ -76,6 +79,10 @@ final class ConfirmTopupAction
                 'Rp'.number_format((float) $fresh->amount, 0, ',', '.'),
                 $ip,
             );
+
+            // Saldo bertambah → pengguna diberi tahu (G11). Di dalam transaksi
+            // yang sama, jadi batalnya transaksi tak meninggalkan notifikasi.
+            $this->push->send((int) $fresh->user_id, PushMessages::topupConfirmed($fresh));
 
             return $fresh;
         });

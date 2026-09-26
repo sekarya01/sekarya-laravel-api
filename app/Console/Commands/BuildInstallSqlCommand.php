@@ -44,7 +44,7 @@ final class BuildInstallSqlCommand extends Command
     protected $description = 'Bangun berkas pemasangan basis data untuk shared hosting';
 
     /** Tabel yang datanya ikut. Sisanya struktur saja. */
-    private const array SEEDED_TABLES = ['categories', 'skills', 'migrations'];
+    private const array SEEDED_TABLES = ['categories', 'skills', 'cities', 'migrations'];
 
     public function handle(ConnectionInterface $db): int
     {

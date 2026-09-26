@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Api\V1;
 
+use App\Enums\ActivityStatus;
 use App\Models\Activity;
+use App\Support\GeoDistance;
 use Illuminate\Http\Request;
 
 /** @mixin Activity */
@@ -14,6 +16,36 @@ final class ActivityResource extends BaseResource
     public function toArray(Request $request): array
     {
         return [
+            // Checklist (B10): larik boolean sejajar `tasks.checklist`.
+            'checklist_state' => array_values($this->checklist_state ?? []),
+            // Catatan kemajuan terakhir (B9) — kalimat terakhir di kartu.
+            'latest_update' => ActivityUpdateResource::make($this->whenLoaded('latestUpdate')),
+            // Lokasi langsung + ETA (B8). Hanya selama `on_the_way`, dan hanya
+            // bila lokasi task diketahui. Jarak dari koordinat task yang
+            // MEMANG sudah boleh dibaca peserta ini.
+            'live' => $this->when(
+                $this->status === ActivityStatus::OnTheWay
+                    && $this->live_latitude !== null
+                    && $this->relationLoaded('task')
+                    && $this->task?->latitude !== null
+                    && $this->task?->longitude !== null,
+                function (): array {
+                    $distance = GeoDistance::betweenKm(
+                        $this->live_latitude,
+                        $this->live_longitude,
+                        $this->task->latitude,
+                        $this->task->longitude,
+                    );
+
+                    $speed = max(1.0, (float) config('sekarya.activities.eta_speed_kmh', 20));
+
+                    return [
+                        'distance_km' => $distance,
+                        'eta_minutes' => $distance === null ? null : (int) ceil($distance / $speed * 60),
+                        'updated_at' => $this->iso($this->live_updated_at),
+                    ];
+                },
+            ),
             'id' => $this->ulid,
             'status' => $this->status->value,
             'agreed_amount' => $this->agreed_amount,

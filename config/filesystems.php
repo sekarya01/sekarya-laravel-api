@@ -57,6 +57,18 @@ return [
             'report' => false,
         ],
 
+        'private_docs' => [
+            'driver' => 'local',
+            // Di LUAR `public/`, jadi tidak pernah tersaji lewat `/storage`.
+            // Hanya dokumen identitas (KTP/selfie) yang disimpan di sini;
+            // pembacaannya lewat endpoint ber-auth admin, bukan URL publik.
+            'root' => storage_path('app/private-docs'),
+            // WAJIB true, alasan yang sama dengan disk `public`: penulisan
+            // yang gagal tidak boleh berubah jadi 201 dengan path kosong.
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

@@ -12,7 +12,7 @@ final class ShowActivityController
     public function __invoke(Activity $activity): ActivityResource
     {
         return ActivityResource::make(
-            $activity->load(['task.category', 'task.poster', 'worker', 'payment']),
+            $activity->load(['task.category', 'task.poster', 'worker', 'payment', 'latestUpdate']),
         );
     }
 }

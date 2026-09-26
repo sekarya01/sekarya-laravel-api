@@ -56,6 +56,7 @@ final class AdminUserResource extends BaseResource
                 'rating_avg' => (float) $this->poster_rating_avg,
                 'rating_count' => $this->poster_rating_count,
                 'tasks_posted' => $this->tasks_posted,
+                'tasks_completed' => (int) $this->poster_tasks_completed,
             ],
             'cancellations' => $this->cancellations,
             'last_active_at' => $this->iso($this->last_active_at),

@@ -38,9 +38,9 @@ class UserWorker extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'display_name', 'contact_phone', 'avatar_path',
+        'display_name', 'headline', 'contact_phone', 'avatar_path',
         'address_line', 'city', 'province', 'postal_code',
-        'latitude', 'longitude', 'radius_km',
+        'latitude', 'longitude', 'radius_km', 'is_available',
     ];
 
     /**
@@ -59,6 +59,9 @@ class UserWorker extends Model
         'worker_rating_count' => 0,
         'tasks_completed' => 0,
         'bids_won' => 0,
+        // Sama dengan bawaan kolomnya: pekerja yang belum pernah memilih
+        // dianggap tersedia, baik barisnya sudah ada maupun belum.
+        'is_available' => true,
     ];
 
     /** @return array<string, string> */
@@ -72,6 +75,7 @@ class UserWorker extends Model
             'worker_rating_count' => 'integer',
             'tasks_completed' => 'integer',
             'bids_won' => 'integer',
+            'is_available' => 'boolean',
         ];
     }
 
@@ -147,6 +151,15 @@ class UserWorker extends Model
     public function resolvedName(): ?string
     {
         return $this->display_name ?? $this->user?->name;
+    }
+
+    /**
+     * Judul/profesi mitra (U16). Tidak ada padanannya di akun, jadi null
+     * berarti null — bukan warisan.
+     */
+    public function resolvedHeadline(): ?string
+    {
+        return $this->headline;
     }
 
     public function resolvedPhone(): ?string
