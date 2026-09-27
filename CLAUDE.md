@@ -682,3 +682,22 @@ new slice:
 - `app/Actions/Activity/ListActivitiesAction.php` — cursor pagination
 - `app/Http/Resources/Api/V1/UserProfileResource.php` — role-conditional `extras` mapping
 - `tests/Unit/Actions/Activity/` — how Action tests are written (DTO built directly)
+
+## Gaya kerja: ponytail + caveman
+
+Skill global `ponytail` (YAGNI/lazy-code) dan `caveman` (terse-talk) aktif di
+proyek ini. Cara pakainya di arsitektur Action-Based:
+
+- **Tangga ponytail sebelum menulis kode baru:** 1) perlu ada? 2) Action/DTO/
+  Resource/Concern yang sudah ada bisa dipakai ulang? 3) Laravel/PHP bawaan
+  (Collection, `Str`, cast, `enum`, FormRequest) cukup? 4) dependensi
+  terpasang cukup? 5) satu baris? 6) baru tulis minimal. Abstraksi baru
+  (Concern, base class, helper global) HANYA bila dipakai ≥2 kali — bukan
+  untuk satu slice.
+- **Batas yang tidak boleh dipangkas:** validasi trust-boundary, transaksi +
+  lock, shape `{message, errors}` vs `{message, code}`, `extras` selalu objek,
+  aturan satu route per invokable controller, dan tes (unit Action + feature).
+  Kode boleh kecil, kontrak tidak boleh longgar.
+- **caveman:** jawaban ringkas, Bahasa Indonesia tetap (jangan alih bahasa),
+  istilah teknis/kode verbatim. Perintah review: `/ponytail-review` untuk
+  cek over-engineering diff, `/caveman-review` satu temuan per baris.
