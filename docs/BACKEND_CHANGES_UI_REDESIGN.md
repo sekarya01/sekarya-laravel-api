@@ -5,14 +5,14 @@
 > Referensi baris (`file:line`) merujuk ke HEAD `35e9351` + perubahan working tree yang belum di-commit (filter `me/wallet/entries`: `ListWalletEntriesRequest`, `ListWalletEntriesAction`). **Filter riwayat saldo baru jalan di produksi setelah perubahan itu di-commit dan di-deploy.**
 > Dokumen ini hanya analisis, tidak ada kode yang diubah.
 >
-> **Update 2026-09-26 (diverifikasi ulang saat migrasi mobile):** lima item di
+> **Update 2026-09-26 (diverifikasi ulang saat migrasi mobile):** empat item di
 > bawah kini SUDAH diimplementasikan di backend dan terdokumentasi di
 > `docs/API.md` + `openapi.yaml` — **U7** (filter `rating`/`rating_max`/`q` +
-> `task{id,title,category}` di `ReviewResource`), **B10** (`tasks.checklist` +
-> `PUT /activities/{activity}/checklist` + `ActivityResource.checklist_state`),
+> `task{id,title,category}` di `ReviewResource`),
 > **B11** (`task_bookmarks`, `PUT/DELETE /tasks/{task}/bookmark`,
 > `GET /tasks/bookmarked`, `is_bookmarked`), **B15** (`reviews.photos`/`tags`,
-> `has_photos` + filter `has_photos`).
+> `has_photos` + filter `has_photos`). **B10** (checklist) DIBUANG 2026-09-26
+> (keputusan user) — endpoint + kolom + dokumennya dibuang.
 > Sel Status-nya sudah ditandai **Sudah ada**; item lain (B1, B2, U1, U2, dst.)
 > masih berlaku. Catatan: **B17** (kontak/telepon) DIHAPUS dari API
 > (keputusan produk 2026-09-26: aplikasi tanpa fitur telepon) — route,
@@ -119,7 +119,7 @@ Legenda prioritas: **P0** wajib untuk UI inti · **P1** penting, UI bisa tayang 
 | B7 | Hitungan per tab ("Berjalan (2)", "Dikerjakan (1)") dan per kategori feed ("Pindahan (3)") | tugas, beranda-cari-kerja | Perlu baru | Cursor tanpa total (disengaja) | `GET tasks/posted/counts`, `GET tasks/worked/counts` (COUNT per grup status); counts per kategori feed opsional | P2 |
 | B8 | ETA "Tiba 15 mnt lagi", "Sedang dalam perjalanan (2.4 km)", live location | beranda-cari-bantuan, dialog-minta-batalkan-tugas | Perlu baru | Hanya `departed_at` | `POST activities/{a}/location {lat,lng}` (throttle, hanya `on_the_way`), `activity.live: {distance_km, eta_minutes, updated_at}`; retensi pendek. *Alternatif murah: tampilkan "Berangkat 09.40" dari `departed_at`.* | P2 |
 | B9 | Catatan update per pekerja ("09.52 WIB · Tiba di lokasi dan mulai angkut lemari") | detail-tugas-sedang-dikerjakan | Perlu baru | Jam per langkah sudah ada (S11), teks bebas tidak ada | `activity_updates` (activity_id, note ≤200, photo?, created_at); `POST activities/{a}/updates`; `latest_update` di `ActivityResource`. *Tanpa BE: tulis kalimat tetap per status + jam.* | P2 |
-| B10 | Checklist "Persiapan Mitra 3/3" & checklist sebelum "Tandai selesai" | detail-kerjaan-menuju-lokasi, -tandai-selesai | **Sudah ada** | Tidak ada di model | `tasks.checklist` JSON (dibuat poster/template kategori) + `activities.checklist_state`; atau jadikan UI lokal saja | P2 |
+| B10 | Checklist "Persiapan Mitra 3/3" & checklist sebelum "Tandai selesai" | detail-kerjaan-menuju-lokasi, -tandai-selesai | **DIBUANG 2026-09-26** (keputusan user) | Dihapus | Route + controller + action + `tasks.checklist`/`activities.checklist_state` dibuang; migrasi `000019_drop_checklist_columns` | — |
 | B11 | Bookmark/simpan tugas | beranda-cari-kerja (UX Enh. #10) | **Sudah ada** | Tidak ada | `task_bookmarks`; `PUT/DELETE tasks/{task}/bookmark`, `GET tasks/bookmarked`, `is_bookmarked` di feed | P2 |
 | B12 | Pemilih kota (header Beranda, register, edit profil) | beranda-*, daftar-1, edit-profil, alamat-tersimpan | Perlu baru | Kota = teks bebas (`city` max 80) | `GET cities?q=` (master kab/kota + provinsi). *Atau daftar statis di app.* | P2 |
 | B13 | Push tugas baru ke mitra terdekat + "Notifikasi telah dikirim ke ~14 mitra terdekat di area Coblong" | dialog-sukses-tugas-sudah-tayang, dialog-daftar-jadi-mitra ("Radius 5 km") | Perlu baru | Tidak ada `PushType` tugas baru | Job saat publish: cari `user_workers` `is_available` dalam radius; push `task_published`; respons `POST tasks` + `meta.notified_workers` | P2 |

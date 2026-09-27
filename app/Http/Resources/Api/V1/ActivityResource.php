@@ -16,8 +16,6 @@ final class ActivityResource extends BaseResource
     public function toArray(Request $request): array
     {
         return [
-            // Checklist (B10): larik boolean sejajar `tasks.checklist`.
-            'checklist_state' => array_values($this->checklist_state ?? []),
             // Catatan kemajuan terakhir (B9) — kalimat terakhir di kartu.
             'latest_update' => ActivityUpdateResource::make($this->whenLoaded('latestUpdate')),
             // Lokasi langsung + ETA (B8). Hanya selama `on_the_way`, dan hanya

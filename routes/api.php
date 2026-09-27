@@ -12,7 +12,6 @@ use App\Http\Controllers\Api\V1\Activity\RejectActivityController;
 use App\Http\Controllers\Api\V1\Activity\ShowActivityController;
 use App\Http\Controllers\Api\V1\Activity\StartActivityController;
 use App\Http\Controllers\Api\V1\Activity\SubmitActivityController;
-use App\Http\Controllers\Api\V1\Activity\UpdateActivityChecklistController;
 use App\Http\Controllers\Api\V1\Activity\UpdateActivityLocationController;
 use App\Http\Controllers\Api\V1\Admin\Access\CreateAdminController;
 use App\Http\Controllers\Api\V1\Admin\Access\DeleteAdminController;
@@ -433,9 +432,6 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // Catatan kemajuan per pekerja (B9).
         Route::post('activities/{activity}/updates', CreateActivityUpdateController::class)
             ->middleware('throttle:write')->can('work', 'activity')->name('activities.updates.store');
-        // Centang checklist pekerjaan (B10).
-        Route::put('activities/{activity}/checklist', UpdateActivityChecklistController::class)
-            ->can('work', 'activity')->name('activities.checklist');
         Route::post('activities/{activity}/approve', ApproveActivityController::class)
             ->can('judge', 'activity')->name('activities.approve');
         Route::post('activities/{activity}/reject', RejectActivityController::class)

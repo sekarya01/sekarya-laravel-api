@@ -2999,40 +2999,6 @@ paths:
         '422':
           description: Pekerjaan sudah tidak berjalan.
 
-  /activities/{activity}/checklist:
-    parameters:
-      - $ref: '#/components/parameters/ActivityUlid'
-    put:
-      tags: [Activity]
-      operationId: updateActivityChecklist
-      summary: Centang checklist pekerjaan
-      description: |
-        Hanya penerima kerja (B10). `state` harus sepanjang `tasks.checklist`;
-        panjang berbeda dijawab `422 checklist_state_mismatch`.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateActivityChecklistRequest'
-            example: { state: [true, true, false] }
-      responses:
-        '200':
-          $ref: '#/components/responses/SingleActivity'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '422':
-          description: Panjang `state` tidak cocok.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DomainError'
-              example:
-                message: 'Checklist punya 3 langkah, tetapi 2 centang dikirim.'
-                code: checklist_state_mismatch
-
   /activities/{activity}/approve:
     parameters:
       - $ref: '#/components/parameters/ActivityUlid'
@@ -5899,10 +5865,6 @@ components:
             properties:
               label: { type: string }
               value: {}
-        checklist:
-          type: array
-          description: 'Langkah checklist pekerjaan (B10); larik string.'
-          items: { type: string }
         photos:
           type: array
           items: { type: string }
@@ -6135,10 +6097,6 @@ components:
           type: array
           description: Bukti pekerjaan. Dasar penyelesaian sengketa.
           items: { type: string }
-        checklist_state:
-          type: array
-          description: 'Centang checklist pekerjaan (B10); larik boolean sejajar `tasks.checklist`.'
-          items: { type: boolean }
         latest_update:
           description: 'Catatan kemajuan terakhir (B9), atau null.'
           oneOf:
@@ -6186,17 +6144,6 @@ components:
       properties:
         note: { type: string, maxLength: 200 }
         photo: { type: [string, 'null'], maxLength: 255 }
-      additionalProperties: false
-    UpdateActivityChecklistRequest:
-      type: object
-      title: UpdateActivityChecklistRequest
-      required: [state]
-      properties:
-        state:
-          type: array
-          maxItems: 30
-          description: Larik boolean sepanjang `tasks.checklist`.
-          items: { type: boolean }
       additionalProperties: false
     TaskCancelRequest:
       type: object
@@ -7199,7 +7146,6 @@ components:
             - no_pending_cancel_request
             - not_cancel_responder
             - no_submitted_activities
-            - checklist_state_mismatch
             - review_target_required
             - payment_not_held
             - invalid_status_transition

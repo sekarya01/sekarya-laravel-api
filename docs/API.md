@@ -5,7 +5,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 | | |
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
-| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 129 operation cocok dengan 129 rute nyata |
+| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 128 operation cocok dengan 128 rute nyata |
 | **Uji otomatis** | `bash docs/smoke.sh` — 194 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
@@ -1851,7 +1851,7 @@ Keempat tindakan itu tercatat di `admin_audit_logs` sebagai `wallet_topup.confir
 
 ## Ringkasan endpoint
 
-**129 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**128 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -1976,7 +1976,6 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/activities/{activity}/submit` | access | `api` | Serahkan hasil + bukti foto. Foto **wajib** (jumlah minimum dari `config/sekarya.php`), dan path harus diunggah sendiri lewat `POST /uploads` (`purpose=proof`). |
 | `POST` | `/activities/{activity}/location` | access | `write` | Bagikan lokasi langsung selama `on_the_way` (B8). Balasan + `live: {distance_km, eta_minutes, updated_at}`. |
 | `POST` | `/activities/{activity}/updates` | access | `write` | Tulis catatan kemajuan pekerja (B9). Tampil sebagai `latest_update`. |
-| `PUT` | `/activities/{activity}/checklist` | access | `api` | Centang checklist pekerjaan (B10). `state` harus sepanjang `tasks.checklist`; beda → `422 checklist_state_mismatch`. |
 
 **Penilaian**
 

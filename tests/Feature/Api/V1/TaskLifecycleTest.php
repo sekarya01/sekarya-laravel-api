@@ -666,7 +666,7 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonPath('code', 'invalid_status_transition');
     }
 
-    // ── lokasi langsung, catatan kemajuan, checklist (B8/B9/B10) ──────────
+    // ── lokasi langsung & catatan kemajuan (B8/B9; B10 checklist dibuang) ──
 
     /** Task yang sudah deal dan pekerjanya sedang di perjalanan. */
     private function dealtOnTheWay(array $taskOverrides = []): string
@@ -752,21 +752,6 @@ final class TaskLifecycleTest extends TestCase
             ->getJson(route('v1.activities.show', $activity))
             ->assertOk()
             ->assertJsonPath('data.latest_update.note', 'Tiba di lokasi');
-    }
-
-    public function test_checklist_state_must_match_the_task_checklist(): void
-    {
-        $activity = $this->dealtOnTheWay(['checklist' => ['Angkut', 'Susun', 'Bersihkan']]);
-
-        $this->asUser($this->worker)
-            ->putJson(route('v1.activities.checklist', $activity), ['state' => [true, false]])
-            ->assertUnprocessable()
-            ->assertJsonPath('code', 'checklist_state_mismatch');
-
-        $this->asUser($this->worker)
-            ->putJson(route('v1.activities.checklist', $activity), ['state' => [true, true, false]])
-            ->assertOk()
-            ->assertJsonPath('data.checklist_state', [true, true, false]);
     }
 
     /**
