@@ -43,4 +43,18 @@ final class PushDispatcher
 
         return $notification;
     }
+
+    /**
+     * Push TANPA baris kotak masuk — khusus chat.
+     *
+     * Pesan chat dan sinyal sinkronnya bukan notifikasi lonceng: satu
+     * percakapan bisa menghasilkan ratusan, dan riwayatnya sudah ada di
+     * `chat_messages`. Tetap lewat kelas ini supaya tetap hanya ada SATU
+     * tempat yang mengantrekan `SendPushNotification`, dan tetap sesudah
+     * commit.
+     */
+    public function sendTransient(int $userId, PushMessage $message): void
+    {
+        SendPushNotification::dispatch($userId, $message)->afterCommit();
+    }
 }

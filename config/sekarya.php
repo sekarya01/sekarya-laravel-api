@@ -296,6 +296,10 @@ return [
         // Membuat task & penawaran — mencegah spam yang membanjiri feed.
         'write' => (int) env('SEKARYA_RL_WRITE', 30),
 
+        // Kirim pesan & unggah lampiran chat, per pengguna. Lebih longgar
+        // dari `write`: percakapan wajar bisa belasan pesan per menit.
+        'chat' => (int) env('SEKARYA_RL_CHAT', 60),
+
         // Endpoint pengelola, per pengelola. Lebih longgar dari `api`:
         // menilai antrean verifikasi berarti membuka banyak halaman
         // berturut-turut, dan yang memakainya cuma beberapa akun internal.
@@ -364,6 +368,40 @@ return [
 
     'fees' => [
         'service_percent' => (float) env('SEKARYA_SERVICE_FEE_PERCENT', 0),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Chat
+    |--------------------------------------------------------------------------
+    |
+    | Satu room per task, lahir saat DEAL, `expired` (baca saja) begitu task
+    | berakhir. `purge_after_days` = berapa hari room expired disimpan sebelum
+    | dinonaktifkan otomatis (pesan + lampiran DIHAPUS PERMANEN) oleh
+    | `sekarya:chat:purge-expired`. 0 = tidak pernah otomatis.
+    |
+    | Batas lampiran per jenis. `max_kb` juga dibatasi `upload_max_filesize`
+    | PHP di server — naikkan keduanya bersamaan.
+    |
+    */
+
+    'chat' => [
+        'purge_after_days' => (int) env('SEKARYA_CHAT_PURGE_AFTER_DAYS', 90),
+        'caption_max' => 4000,
+        'limits' => [
+            'image' => ['max_kb' => (int) env('SEKARYA_CHAT_IMAGE_MAX_KB', 10240), 'max_seconds' => 0],
+            'video' => ['max_kb' => (int) env('SEKARYA_CHAT_VIDEO_MAX_KB', 51200), 'max_seconds' => 180],
+            'audio' => ['max_kb' => (int) env('SEKARYA_CHAT_AUDIO_MAX_KB', 10240), 'max_seconds' => 300],
+            'file' => ['max_kb' => (int) env('SEKARYA_CHAT_FILE_MAX_KB', 20480), 'max_seconds' => 0],
+        ],
+        // Ekstensi yang diterima. SVG/HTML/skrip sengaja tidak ada: berkas
+        // chat disajikan dari disk publik.
+        'extensions' => [
+            'jpg', 'jpeg', 'png', 'webp', 'heic',
+            'mp4', 'mov', '3gp',
+            'm4a', 'aac', 'mp3', 'ogg', 'opus', 'wav', 'amr',
+            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv',
+        ],
     ],
 
 ];

@@ -14,6 +14,10 @@ namespace App\Support\Push;
  * `data` adalah payload tambahan yang dibaca aplikasi untuk memutuskan
  * perilaku saat notifikasi diketuk (mis. membuka layar tertentu). Nilainya
  * WAJIB string — FCM menolak angka/boolean di `data`.
+ *
+ * `silent` = pesan data-only: tidak menggambar notifikasi, hanya membangunkan
+ * aplikasi untuk menyinkron (dipakai chat: tanda baca, pesan dihapus, room
+ * berubah). Pesan senyap tidak pernah masuk kotak masuk lonceng.
  */
 final readonly class PushMessage
 {
@@ -22,5 +26,6 @@ final readonly class PushMessage
         public string $title,
         public string $body,
         public array $data = [],
+        public bool $silent = false,
     ) {}
 }

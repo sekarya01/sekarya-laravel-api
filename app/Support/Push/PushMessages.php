@@ -7,11 +7,14 @@ namespace App\Support\Push;
 use App\Enums\PushType;
 use App\Models\Activity;
 use App\Models\Bid;
+use App\Models\ChatMessage;
+use App\Models\ChatRoom;
 use App\Models\Task;
 use App\Models\TaskCancelRequest;
 use App\Models\User;
 use App\Models\WalletTopup;
 use App\Models\WalletWithdrawal;
+use App\Support\Chat\ChatPreview;
 
 /**
  * Satu-satunya tempat copy notifikasi push dan bentuk `data` disusun.
@@ -289,6 +292,39 @@ final class PushMessages
         }
 
         return [...$data, ...$extra];
+    }
+
+    /**
+     * Pesan chat baru → peserta lain. Judul = nama room (judul task), isi =
+     * "Nama: pratinjau" (lihat ChatPreview). Isi pesan utuh TIDAK ikut di
+     * `data` — batas payload FCM 4 KB; klien memuat pesannya dari API.
+     */
+    public static function chatMessage(Task $task, ChatRoom $room, ChatMessage $message, string $senderName): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: mb_strimwidth(sprintf('%s: %s', $senderName, ChatPreview::of($message)), 0, 180, '…'),
+            data: self::data(PushType::ChatMessage, $task, extra: [
+                'room_id' => (string) $room->ulid,
+                'message_id' => (string) $message->getKey(),
+            ]),
+        );
+    }
+
+    /**
+     * Sinyal sinkron chat (data-only): pesan dihapus, tanda baca/terima,
+     * room berubah/dinonaktifkan. Tidak menggambar notifikasi.
+     *
+     * @param  array<string, string>  $extra
+     */
+    public static function chatSync(PushType $type, Task $task, ChatRoom $room, array $extra = []): PushMessage
+    {
+        return new PushMessage(
+            title: '',
+            body: '',
+            data: self::data($type, $task, extra: ['room_id' => (string) $room->ulid, ...$extra]),
+            silent: true,
+        );
     }
 
     /** Rupiah tanpa desimal, titik sebagai pemisah ribuan — gaya aplikasi. */

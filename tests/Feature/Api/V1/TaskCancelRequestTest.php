@@ -300,7 +300,8 @@ final class TaskCancelRequestTest extends TestCase
             ->postJson(route('v1.tasks.cancel-requests.approve', [$task, $requestId]))
             ->assertOk();
 
-        $message = $fake->firstTo($this->worker);
+        // Room chat ikut `expired` dan mengirim sinyal senyap lebih dulu.
+        $message = $fake->firstVisibleTo($this->worker);
         $this->assertNotNull($message);
         $this->assertSame('task_cancelled', $message->data['type']);
 

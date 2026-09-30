@@ -42,4 +42,11 @@ enum PushType: string
     case TopupRejected = 'topup_rejected';
     case WithdrawalCompleted = 'withdrawal_completed';
     case WithdrawalRejected = 'withdrawal_rejected';
+    // Chat (FCM satu-satunya jalur realtime). `chat_message` = notifikasi
+    // tampil; sisanya data-only (sinyal sinkron — klien memuat ulang dari API).
+    case ChatMessage = 'chat_message';
+    case ChatMessageDeleted = 'chat_message_deleted';
+    case ChatReceipt = 'chat_receipt';
+    case ChatRoomUpdated = 'chat_room_updated';
+    case ChatRoomDeactivated = 'chat_room_deactivated';
 }

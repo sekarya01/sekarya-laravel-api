@@ -238,6 +238,18 @@ final class Task extends Model
             ->latestOfMany('id');
     }
 
+    /**
+     * Room chat task ini — lahir saat pekerjaan dibuka (ChatRoomLifecycle).
+     * Termasuk yang sudah dinonaktifkan (soft delete), supaya jalurnya bisa
+     * menjawab 410 alih-alih membuat room kedua.
+     *
+     * @return HasOne<ChatRoom, $this>
+     */
+    public function chatRoom(): HasOne
+    {
+        return $this->hasOne(ChatRoom::class)->withTrashed();
+    }
+
     /** @return HasMany<TaskStatusLog, $this> */
     public function statusLogs(): HasMany
     {

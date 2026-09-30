@@ -72,6 +72,11 @@ final class RateLimitServiceProvider extends ServiceProvider
         RateLimiter::for('write', fn (Request $request): Limit => Limit::perMinute($limits['write'])
             ->by($request->user()?->getAuthIdentifier() ?? $request->ip()));
 
+        // Chat: kirim pesan & unggah lampiran. Ember sendiri — obrolan yang
+        // ramai tidak boleh menghabiskan kuota pasang task/penawaran.
+        RateLimiter::for('chat', fn (Request $request): Limit => Limit::perMinute($limits['chat'])
+            ->by('chat|'.($request->user()?->getAuthIdentifier() ?? $request->ip())));
+
         // Endpoint pengelola. Kuncinya diberi awalan `admin|` supaya kuota
         // pengelola tidak pernah berbagi ember dengan kuota pengguna: id
         // keduanya adalah bigint dari dua tabel berbeda, jadi admin id 7 dan
