@@ -45,4 +45,19 @@ final class FakePushNotifier implements PushNotifier
 
         return null;
     }
+
+    /**
+     * Pesan TAMPIL pertama untuk penerima — melewati sinyal senyap chat
+     * (`silent`), yang bisa berangkat lebih dulu dalam aksi yang sama.
+     */
+    public function firstVisibleTo(User $user): ?PushMessage
+    {
+        foreach ($this->sent as $entry) {
+            if ($entry['user']->getKey() === $user->getKey() && ! $entry['message']->silent) {
+                return $entry['message'];
+            }
+        }
+
+        return null;
+    }
 }

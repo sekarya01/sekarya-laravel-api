@@ -6,6 +6,9 @@ namespace Tests\Feature\Api\V1;
 
 use App\Models\Activity;
 use App\Models\Bid;
+use App\Models\ChatAttachment;
+use App\Models\ChatMessage;
+use App\Models\ChatParticipant;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\WalletTopup;
@@ -48,6 +51,9 @@ final class OwnerAuthorizationTypeTest extends TestCase
             'activity.worker_id' => [Activity::class, 'worker_id'],
             'wallet_topup.user_id' => [WalletTopup::class, 'user_id'],
             'wallet_withdrawal.user_id' => [WalletWithdrawal::class, 'user_id'],
+            'chat_participant.user_id' => [ChatParticipant::class, 'user_id'],
+            'chat_message.sender_id' => [ChatMessage::class, 'sender_id'],
+            'chat_attachment.uploader_id' => [ChatAttachment::class, 'uploader_id'],
         ];
     }
 

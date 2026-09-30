@@ -129,6 +129,11 @@ tags:
     description: Eksekusi pekerjaan, dibuka oleh transfer.
   - name: Penilaian
     description: Rating dua arah, terikat task yang selesai.
+  - name: Chat
+    description: |
+      Satu room per task, lahir saat DEAL, baca-saja begitu task berakhir. Realtime
+      hanya lewat push FCM (`chat_message`, `chat_message_deleted`, `chat_receipt`,
+      `chat_room_updated`, `chat_room_deactivated`); isi selalu dimuat dari API.
   - name: Pengelola
     description: |
       Konsol pengelola: verifikasi identitas, konfirmasi transfer, moderasi
@@ -694,6 +699,18 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '422':
           $ref: '#/components/responses/ValidationFailed'
+    delete:
+      tags: [User]
+      operationId: deleteAccount
+      summary: Hapus akun — soft-delete + anonimisasi (G3)
+      description: |
+        Konfirmasi kata sandi wajib. Buku besar & reputasi tetap; data pribadi
+        dianonimkan. Ditolak `account_has_active_obligations` bila masih ada
+        pekerjaan berjalan atau permintaan dompet menggantung.
+      responses:
+        '204': { description: Akun dihapus. }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /workers:
     get:
@@ -3283,6 +3300,334 @@ paths:
   # hanya lahir dari `php artisan sekarya:admin create` (super_admin, sekali)
   # dan `POST /admin/admins` (dipanggil super_admin).
 
+  # ─────────────────────────────── CHAT ───────────────────────────────
+
+  /chat/rooms:
+    get:
+      tags: [Chat]
+      operationId: listChatRooms
+      summary: Room chat saya
+      description: |
+        Satu room per task, lahir saat DEAL. Urut aktivitas terakhir
+        (`updated_at` disentuh tiap pesan). Room `deactivated` tidak pernah ikut.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [active, expired] }
+      responses:
+        '200':
+          description: Satu halaman room.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ChatRoom' }
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /chat/unread-count:
+    get:
+      tags: [Chat]
+      operationId: showUnreadChatCount
+      summary: Jumlah pesan belum dibaca (badge ikon chat)
+      description: Pesan orang lain yang belum dibaca di seluruh room sendiri. COUNT di server.
+      responses:
+        '200':
+          description: Jumlah belum dibaca.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/NotificationCount' }
+              example:
+                data: { count: 3 }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /chat/rooms/{room}:
+    parameters:
+      - $ref: '#/components/parameters/ChatRoomUlid'
+    get:
+      tags: [Chat]
+      operationId: showChatRoom
+      summary: Satu room
+      description: Bukan peserta → `404 chat_room_not_found`; dinonaktifkan → `410 chat_room_deactivated`.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleChatRoom'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ChatDomainError'
+        '410':
+          $ref: '#/components/responses/ChatDomainError'
+    patch:
+      tags: [Chat]
+      operationId: updateChatRoom
+      summary: Bisukan notifikasi room
+      description: |
+        Hanya untuk diri sendiri. Room yang dibisukan tetap menerima sinyal
+        push senyap (daftar tetap sinkron), tanpa notifikasi tampil.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [is_muted]
+              properties:
+                is_muted: { type: boolean }
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleChatRoom'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ChatDomainError'
+        '410':
+          $ref: '#/components/responses/ChatDomainError'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /chat/rooms/{room}/messages:
+    parameters:
+      - $ref: '#/components/parameters/ChatRoomUlid'
+    get:
+      tags: [Chat]
+      operationId: listChatMessages
+      summary: Pesan sebuah room
+      description: |
+        Terbaru dulu, termasuk kerangka pesan yang dihapus (`deleted_at` terisi).
+        `after_id` = sinkron sesudah push: hanya pesan yang lebih baru dari id itu.
+        Room `expired` tetap terbaca.
+      parameters:
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
+        - name: after_id
+          in: query
+          required: false
+          schema: { type: string, minLength: 26, maxLength: 26 }
+      responses:
+        '200':
+          description: Satu halaman pesan.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, links, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ChatMessage' }
+                  links: { $ref: '#/components/schemas/CursorLinks' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ChatDomainError'
+        '410':
+          $ref: '#/components/responses/ChatDomainError'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+    post:
+      tags: [Chat]
+      operationId: sendChatMessage
+      summary: Kirim pesan
+      description: |
+        `text` → `caption` wajib. `image`/`video`/`audio`/`file` → `attachment_id`
+        dari `POST /chat/rooms/{room}/attachments`, jenisnya harus cocok.
+        `reply` → `reply_type` + `replied_message_id` wajib. `caption` diabaikan
+        untuk `audio`/`file`.
+
+        Idempoten per `client_message_id`: kirim ulang → `200` dengan pesan yang sama.
+        Peserta lain menerima push `chat_message` (senyap bila room dibisukan).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                client_message_id: { type: [string, 'null'], maxLength: 64 }
+                type: { type: string, enum: [text, reply, image, video, audio, file] }
+                reply_type: { type: [string, 'null'], enum: [text, image, video, audio, file, null] }
+                replied_message_id: { type: [string, 'null'], minLength: 26, maxLength: 26 }
+                attachment_id: { type: [string, 'null'], minLength: 26, maxLength: 26 }
+                caption: { type: [string, 'null'], maxLength: 4000 }
+            example:
+              client_message_id: c3f1a2e4-8b7d-4c1e-9a55-0f2b6d7e8a91
+              type: text
+              caption: Besok jam 8 bisa datang?
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleChatMessage'
+        '201':
+          $ref: '#/components/responses/SingleChatMessage'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ChatDomainError'
+        '410':
+          $ref: '#/components/responses/ChatDomainError'
+        '422':
+          $ref: '#/components/responses/ChatDomainError'
+        '429':
+          description: Batas laju `chat`.
+
+  /chat/rooms/{room}/attachments:
+    parameters:
+      - $ref: '#/components/parameters/ChatRoomUlid'
+    post:
+      tags: [Chat]
+      operationId: storeChatAttachment
+      summary: Unggah lampiran chat (langkah 1 dari 2)
+      description: |
+        Jenis (`image`/`video`/`audio`/`file`) ditentukan server dari MIME isi berkas;
+        wadah MPEG-4/3GP berekstensi audio (`.m4a` pesan suara, terdeteksi `video/mp4`)
+        tetap `audio`. Dimensi foto
+        dibaca server; durasi & dimensi video/audio dikirim klien. Batas per jenis di
+        `config/sekarya.php` → `chat.limits` (`422 chat_attachment_too_large`).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                duration: { type: integer, minimum: 0, description: Detik (video/audio). }
+                width: { type: integer, minimum: 0 }
+                height: { type: integer, minimum: 0 }
+                waveform:
+                  type: array
+                  maxItems: 100
+                  items: { type: integer, minimum: 0, maximum: 15 }
+      responses:
+        '201':
+          description: Lampiran tersimpan; kirim `id` sebagai `attachment_id`.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ChatAttachment' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ChatDomainError'
+        '410':
+          $ref: '#/components/responses/ChatDomainError'
+        '422':
+          $ref: '#/components/responses/ChatDomainError'
+        '429':
+          description: Batas laju `chat`.
+
+  /chat/rooms/{room}/receipts:
+    parameters:
+      - $ref: '#/components/parameters/ChatRoomUlid'
+    post:
+      tags: [Chat]
+      operationId: updateChatReceipts
+      summary: Majukan penanda sampai / dibaca
+      description: |
+        Id pesan TERAKHIR yang sudah sampai / dibaca di perangkat; semua sebelum id itu
+        ikut tertandai. Penanda hanya maju. Dibaca selalu berarti sudah sampai.
+        Berubah → push senyap `chat_receipt` ke peserta lain.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                delivered_message_id: { type: [string, 'null'], minLength: 26, maxLength: 26 }
+                read_message_id: { type: [string, 'null'], minLength: 26, maxLength: 26 }
+      responses:
+        '200':
+          description: Penanda milik sendiri sesudah diperbarui.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ChatParticipant' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/ChatDomainError'
+        '410':
+          $ref: '#/components/responses/ChatDomainError'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
+  /chat/messages/{message}:
+    parameters:
+      - $ref: '#/components/parameters/ChatMessageUlid'
+    delete:
+      tags: [Chat]
+      operationId: deleteChatMessage
+      summary: Hapus pesan sendiri untuk semua
+      description: |
+        Kerangka tetap (urutan & kutipan balasan utuh): `deleted_at` terisi, `caption`
+        dan lampiran `null`, berkas lampiran dihapus. Hanya pengirim, hanya selama
+        room `active`.
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleChatMessage'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/ChatDomainError'
+        '404':
+          $ref: '#/components/responses/ChatDomainError'
+        '422':
+          $ref: '#/components/responses/ChatDomainError'
+
+  /tasks/{task}/chat-room:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    get:
+      tags: [Chat]
+      operationId: showTaskChatRoom
+      summary: Room chat task ini untuk saya
+      description: |
+        `{"data": null}` bila belum ada room (belum DEAL), Anda bukan pesertanya, atau
+        room sudah dinonaktifkan. Dipakai tombol "Chat" di Detail Tugas.
+      responses:
+        '200':
+          description: Room, atau `data` null.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/ChatRoom'
+                      - type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /admin/auth/login:
     post:
       tags: [Pengelola]
@@ -4291,6 +4636,48 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /admin/tasks/{task}/chat-room/deactivate:
+    parameters:
+      - $ref: '#/components/parameters/TaskUlid'
+    post:
+      tags: [Pengelola]
+      operationId: deactivateChatRoom
+      summary: Nonaktifkan chat sebuah task (moderasi)
+      security:
+        - adminAccessToken: []
+      description: |
+        **Menghapus permanen** seluruh pesan dan lampiran (baris + berkas) room task
+        ini. Tidak bisa dibatalkan. `reason` wajib dan tercatat di jejak audit
+        (`chat_room.deactivated`). Peserta kemudian menerima `410 chat_room_deactivated`.
+        Idempoten. Isi percakapan tidak pernah keluar lewat API pengelola.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 10, maxLength: 500 }
+      responses:
+        '200':
+          description: Status room sesudah dinonaktifkan.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/AdminChatRoom' }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+
   /admin/users:
     get:
       tags: [Pengelola]
@@ -4673,7 +5060,7 @@ paths:
       responses:
         '204': { description: Kata sandi berganti. }
         '401': { $ref: '#/components/responses/Unauthenticated' }
-        '422': { $ref: '#/components/responses/ValidationError' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /me/verifications/documents:
     post:
@@ -4698,23 +5085,11 @@ paths:
                     properties:
                       path: { type: string, example: 'verifications/ab12…-ktp.jpg' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
-        '422': { $ref: '#/components/responses/ValidationError' }
-
-  /me:
-    delete:
-      tags: [User]
-      operationId: deleteAccount
-      summary: Hapus akun — soft-delete + anonimisasi (G3)
-      description: |
-        Konfirmasi kata sandi wajib. Buku besar & reputasi tetap; data pribadi
-        dianonimkan. Ditolak `account_has_active_obligations` bila masih ada
-        pekerjaan berjalan atau permintaan dompet menggantung.
-      responses:
-        '204': { description: Akun dihapus. }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
-        '422': { $ref: '#/components/responses/ValidationError' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /users/{user}/reports:
+    parameters:
+      - $ref: '#/components/parameters/UserUlid'
     post:
       tags: [User]
       operationId: createUserReport
@@ -4722,9 +5097,11 @@ paths:
       responses:
         '201': { description: Laporan masuk antrean admin. }
         '401': { $ref: '#/components/responses/Unauthenticated' }
-        '422': { $ref: '#/components/responses/ValidationError' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /users/{user}/block:
+    parameters:
+      - $ref: '#/components/parameters/UserUlid'
     put:
       tags: [User]
       operationId: storeUserBlock
@@ -4732,7 +5109,7 @@ paths:
       responses:
         '204': { description: Diblokir. }
         '401': { $ref: '#/components/responses/Unauthenticated' }
-        '422': { $ref: '#/components/responses/ValidationError' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
     delete:
       tags: [User]
       operationId: destroyUserBlock
@@ -4760,7 +5137,7 @@ paths:
       responses:
         '201': { description: Tiket kendala dibuat/diperbarui. }
         '401': { $ref: '#/components/responses/Unauthenticated' }
-        '422': { $ref: '#/components/responses/ValidationError' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
   /tasks/{task}/dispute:
     parameters:
@@ -4840,7 +5217,7 @@ paths:
       responses:
         '200': { description: Sengketa diputuskan. }
         '401': { $ref: '#/components/responses/Unauthenticated' }
-        '422': { $ref: '#/components/responses/ValidationError' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
 
 
 components:
@@ -5101,6 +5478,18 @@ components:
       required: true
       description: ULID permintaan penarikan.
       schema: { type: string, example: 01M2WALLETWD00000000000001 }
+    ChatRoomUlid:
+      name: room
+      in: path
+      required: true
+      description: ULID room chat.
+      schema: { type: string, minLength: 26, maxLength: 26 }
+    ChatMessageUlid:
+      name: message
+      in: path
+      required: true
+      description: ULID pesan chat.
+      schema: { type: string, minLength: 26, maxLength: 26 }
     VerificationId:
       name: verification
       in: path
@@ -5194,6 +5583,39 @@ components:
             properties:
               data:
                 $ref: '#/components/schemas/Activity'
+    SingleChatRoom:
+      description: Satu room, dari sudut pandang pemanggil.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/ChatRoom' }
+    SingleChatMessage:
+      description: Satu pesan.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/ChatMessage' }
+    ChatDomainError:
+      description: |
+        Galat chat: `chat_room_not_found` (404), `chat_room_deactivated` (410),
+        `chat_room_expired` (422), `chat_message_not_found` (404),
+        `chat_message_not_owned` (403), `chat_attachment_invalid` (422, `context.reason`),
+        `chat_attachment_too_large` (422), `chat_replied_message_invalid` (422) — atau
+        galat validasi `{message, errors}`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/RequestId' }
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/DomainError'
+              - $ref: '#/components/schemas/ValidationError'
     Unauthenticated:
       description: Token tidak ada, tidak sah, atau sudah kedaluwarsa.
       headers:
@@ -7048,6 +7470,186 @@ components:
         identity_verified: { type: boolean }
         redeemed_at: { type: string, format: date-time }
 
+    ChatRoom:
+      type: object
+      title: ChatRoom
+      description: |
+        Satu room per task. `room_name` = judul task, `room_avatar` = foto pertama task.
+        `unread_count`, `is_muted`, `permissions` milik pemanggil.
+      required: [id, task_id, room_name, room_type, room_status, participants, participants_count,
+        last_message, unread_count, permissions, is_muted, created_at, updated_at]
+      properties:
+        id: { type: string }
+        task_id: { type: string }
+        room_name: { type: string }
+        room_avatar: { type: [string, 'null'], format: uri }
+        room_type: { type: string, enum: [individual, group] }
+        room_status: { type: string, enum: [active, expired, deactivated] }
+        participants:
+          type: array
+          items: { $ref: '#/components/schemas/ChatParticipant' }
+        participants_count: { type: integer }
+        last_message:
+          oneOf:
+            - $ref: '#/components/schemas/ChatLastMessage'
+            - type: 'null'
+        unread_count: { type: integer, minimum: 0 }
+        permissions:
+          type: object
+          required: [can_send, can_attach, can_reply]
+          properties:
+            can_send: { type: boolean }
+            can_attach: { type: boolean }
+            can_reply: { type: boolean }
+        is_muted: { type: boolean }
+        expired_at: { type: [string, 'null'], format: date-time }
+        deactivated_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        deleted_at: { type: [string, 'null'], format: date-time }
+
+    ChatParticipant:
+      type: object
+      title: ChatParticipant
+      description: Data tampilan saja — tanpa email, telepon, alamat.
+      required: [id, type, name, avatar, role, joined_at]
+      properties:
+        id: { type: string, description: ULID pengguna — sama dengan `sender_id` pesan. }
+        type: { type: string, enum: [user, worker] }
+        name: { type: string }
+        avatar: { type: [string, 'null'], format: uri }
+        role: { type: string, enum: [owner, member] }
+        joined_at: { type: string, format: date-time }
+        left_at: { type: [string, 'null'], format: date-time }
+        last_delivered_message_id: { type: [string, 'null'] }
+        last_read_message_id: { type: [string, 'null'] }
+        last_read_at: { type: [string, 'null'], format: date-time }
+
+    ChatLastMessage:
+      type: object
+      title: ChatLastMessage
+      required: [id, sender_id, content, preview, caption, created_at, deleted_at]
+      properties:
+        id: { type: string }
+        sender_id: { type: [string, 'null'] }
+        content:
+          type: object
+          properties:
+            type: { type: string, enum: [text, reply, image, video, audio, file, system] }
+            reply_type: { type: [string, 'null'] }
+        preview: { type: string, description: 'Teks siap tampil: isi teks, `Foto`, `Video`, `Pesan suara`, nama dokumen, atau `Pesan dihapus`.' }
+        caption: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        deleted_at: { type: [string, 'null'], format: date-time }
+
+    ChatMessage:
+      type: object
+      title: ChatMessage
+      description: |
+        Bentuk tetap untuk semua jenis; field yang tidak berlaku `null` (string/objek)
+        atau `0` (angka). `status` dari sudut pengirim: `read` bila semua peserta aktif
+        lain sudah membaca, `delivered` bila semua sudah menerima, selain itu `sent`
+        (`pending`/`failed` hanya ada di klien).
+      required: [id, room_id, client_message_id, sender_id, content, caption, status, is_edited,
+        created_at, updated_at, deleted_at]
+      properties:
+        id: { type: string }
+        room_id: { type: string }
+        client_message_id: { type: [string, 'null'] }
+        sender_id: { type: [string, 'null'], description: '`null` untuk pesan `system`.' }
+        content: { $ref: '#/components/schemas/ChatMessageContent' }
+        caption: { type: [string, 'null'], description: 'Isi teks. `null` untuk audio/file dan pesan yang dihapus.' }
+        status: { type: string, enum: [sent, delivered, read] }
+        is_edited: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        deleted_at: { type: [string, 'null'], format: date-time }
+
+    ChatMessageContent:
+      type: object
+      title: ChatMessageContent
+      required: [id, type, reply_type, reference, file_name, extension, mime_type, duration, size,
+        width, height, thumbnail, waveform, replied, system_event, system_params]
+      properties:
+        id: { type: [string, 'null'], description: Id lampiran. }
+        type: { type: string, enum: [text, reply, image, video, audio, file, system] }
+        reply_type: { type: [string, 'null'], enum: [text, image, video, audio, file, null] }
+        reference: { type: [string, 'null'], format: uri }
+        file_name: { type: [string, 'null'] }
+        extension: { type: [string, 'null'] }
+        mime_type: { type: [string, 'null'] }
+        duration: { type: integer, description: Detik; 0 selain video/audio. }
+        size: { type: integer, description: Byte; 0 tanpa lampiran. }
+        width: { type: integer }
+        height: { type: integer }
+        thumbnail: { type: [string, 'null'], format: uri }
+        waveform:
+          type: array
+          items: { type: integer, minimum: 0, maximum: 15 }
+        replied:
+          oneOf:
+            - $ref: '#/components/schemas/ChatReplied'
+            - type: 'null'
+        system_event:
+          type: [string, 'null']
+          enum: [room_created, task_completed, task_cancelled, room_expired, null]
+        system_params: { type: object, additionalProperties: true }
+
+    ChatReplied:
+      type: object
+      title: ChatReplied
+      description: Ringkasan pesan yang dibalas. Tidak bersarang.
+      required: [id, sender_id, sender_name, content, caption, is_deleted]
+      properties:
+        id: { type: string }
+        sender_id: { type: [string, 'null'] }
+        sender_name: { type: [string, 'null'] }
+        content:
+          type: object
+          properties:
+            type: { type: string }
+            reply_type: { type: [string, 'null'] }
+            reference: { type: [string, 'null'] }
+            thumbnail: { type: [string, 'null'] }
+            extension: { type: [string, 'null'] }
+            file_name: { type: [string, 'null'] }
+            duration: { type: integer }
+        caption: { type: [string, 'null'], maxLength: 201 }
+        is_deleted: { type: boolean }
+
+    ChatAttachment:
+      type: object
+      title: ChatAttachment
+      required: [id, type, reference, file_name, extension, mime_type, size, duration, width, height]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [image, video, audio, file] }
+        reference: { type: string, format: uri }
+        file_name: { type: string }
+        extension: { type: string }
+        mime_type: { type: string }
+        size: { type: integer }
+        duration: { type: integer }
+        width: { type: integer }
+        height: { type: integer }
+        thumbnail: { type: [string, 'null'], format: uri }
+        waveform:
+          type: array
+          items: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    AdminChatRoom:
+      type: object
+      title: AdminChatRoom
+      required: [id, task_id, room_type, room_status]
+      properties:
+        id: { type: string }
+        task_id: { type: string }
+        room_type: { type: string, enum: [individual, group] }
+        room_status: { type: string, enum: [active, expired, deactivated] }
+        expired_at: { type: [string, 'null'], format: date-time }
+        deactivated_at: { type: [string, 'null'], format: date-time }
+
     UserNotification:
       type: object
       title: UserNotification
@@ -7165,6 +7767,14 @@ components:
             - worker_invite_exhausted
             - worker_invite_already_redeemed
             - worker_already_registered
+            - chat_room_not_found
+            - chat_room_deactivated
+            - chat_room_expired
+            - chat_message_not_found
+            - chat_message_not_owned
+            - chat_attachment_invalid
+            - chat_attachment_too_large
+            - chat_replied_message_invalid
         context:
           type: object
           additionalProperties: true

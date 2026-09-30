@@ -9,6 +9,7 @@ use App\Enums\TaskStatus;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
 use App\Models\Task;
 use App\Models\TaskStatusLog;
+use App\Support\Chat\ChatRoomLifecycle;
 
 /**
  * Satu-satunya jalan memindahkan status task: memvalidasi transisi,
@@ -18,6 +19,8 @@ use App\Models\TaskStatusLog;
  */
 final class TaskStatusRecorder
 {
+    public function __construct(private readonly ChatRoomLifecycle $chat) {}
+
     /** @param array<string, mixed> $metadata */
     public function move(
         Task $task,
@@ -48,5 +51,12 @@ final class TaskStatusRecorder
             'reason' => $reason,
             'metadata' => $metadata === [] ? null : $metadata,
         ]);
+
+        // Task berakhir = chat berakhir (baca saja). Di sini, bukan di tiap
+        // Action pembatal/penyelesai: ada banyak jalur ke status akhir, dan
+        // yang lupa akan meninggalkan room yang masih menerima pesan.
+        if ($to->isFinal()) {
+            $this->chat->expire($task, $to);
+        }
     }
 }

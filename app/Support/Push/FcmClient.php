@@ -239,6 +239,21 @@ final class FcmClient
     /** @return array<string, mixed> */
     private function payload(string $deviceToken, PushMessage $message): array
     {
+        // Data-only: tanpa blok `notification`, SDK tidak menggambar apa pun
+        // dan `onMessageReceived` selalu dipanggil — itulah sinyal sinkron.
+        // iOS butuh `content-available` + prioritas 5 untuk pesan latar.
+        if ($message->silent) {
+            return [
+                'token' => $deviceToken,
+                'data' => $message->data,
+                'android' => ['priority' => 'high'],
+                'apns' => [
+                    'headers' => ['apns-priority' => '5', 'apns-push-type' => 'background'],
+                    'payload' => ['aps' => ['content-available' => 1]],
+                ],
+            ];
+        }
+
         $payload = [
             'token' => $deviceToken,
             'notification' => [

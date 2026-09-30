@@ -557,6 +557,51 @@ Yang tidak boleh "dirapikan":
   pernah menangkap cache yang melenceng dari riwayatnya. `WalletFactory` karena itu tidak
   punya state bersaldo.
 
+## Chat per task
+
+Satu room per task (`chat_rooms.task_id` UNIQUE). Panduan manusianya `docs/API.md`
+bagian 17. Yang tidak boleh "dirapikan":
+
+- **Lahir & berakhirnya room DIKAITKAN ke dua titik tunggal yang sudah ada**, bukan ke
+  Action satu per satu: `WorkOpening::open()` memanggil `ChatRoomLifecycle::open()`
+  (DEAL membuka chat: pemberi kerja + semua yang diterima; 1 mitra `individual`, lebih
+  `group`), dan `TaskStatusRecorder::move()` memanggil `expire()` begitu task masuk status
+  akhir — room langsung `expired` (baca saja), tanpa masa tenggang (keputusan produk
+  2026-09-30). Menaruhnya di Action pembatal/penyelesai berarti jalur baru ke status akhir
+  lupa menutup chat.
+- **`deactivated` = hapus permanen isi, BUKAN hapus baris room.** Pesan + lampiran (baris
+  DAN berkas) hilang; baris room di-soft-delete dan pesertanya disisakan supaya peserta
+  mendapat `410 chat_room_deactivated` dan task tidak dibukakan room kedua. Rute room
+  memakai `->withTrashed()` justru untuk itu. Pemicu: pengelola
+  (`POST /admin/tasks/{task}/chat-room/deactivate`, `reason` wajib, jejak audit di dalam
+  transaksi) dan `sekarya:chat:purge-expired` (harian, `chat.purge_after_days`).
+- **Penanda baca/terima = SATU id pesan per peserta**, bukan baris per pesan. Id pesan
+  ULID (urut waktu), jadi "sudah dibaca" = `id <= last_read_message_id`. `status`
+  (`sent`/`delivered`/`read`) DIHITUNG di `ChatMessageResource` dari penanda peserta aktif
+  lain — tidak disimpan. Penanda hanya MAJU (`UpdateChatReceiptsAction`).
+- **Bukan peserta = 404 `chat_room_not_found`**, bukan 403 — pola `task_not_found`.
+  Urutan di `ChatAccess`: keanggotaan dulu, baru status room (410 hanya untuk peserta).
+- **Realtime = FCM saja** (hosting bersama tanpa WebSocket). Push chat lewat
+  `PushDispatcher::sendTransient()` — tetap satu-satunya tempat yang mengantrekan
+  `SendPushNotification`, tetapi TANPA baris `user_notifications` (chat bukan isi lonceng).
+  `PushMessage::$silent` = data-only (tanda baca, pesan dihapus, room berubah); klien
+  memuat isi dari API (`messages?after_id=`), push hanya sinyal (batas payload 4 KB).
+- **Lampiran dua langkah & jenisnya dari MIME server.** `POST chat/rooms/{room}/attachments`
+  menulis baris `chat_attachments` (disk publik, nama acak, nama asli hanya untuk
+  ditampilkan), lalu pesan merujuk `attachment_id` — satu lampiran satu pesan (UNIQUE),
+  milik pengirim, room yang sama, jenis cocok. Durasi & dimensi video/audio dari klien
+  (tanpa ffprobe di hosting). Batas per jenis di `config/sekarya.php` → `chat.limits`.
+  Jenis ditentukan `ChatMessageType::forFile(mime, ekstensi)`: MIME isi berkas dulu,
+  KECUALI wadah MPEG-4/3GP berekstensi audio — pesan suara `.m4a` Android terbaca
+  `video/mp4` oleh `finfo`; tanpa pengecualian ini setiap VN ditolak `kind_mismatch`
+  (ditemukan di device 2026-09-30, dijaga `ChatApiTest`).
+- **Kirim idempoten per `(room, sender, client_message_id)`** (UNIQUE): kirim ulang → 200
+  pesan yang sama.
+- **Hapus pesan = kerangka tetap** (soft delete, caption & lampiran dikosongkan, berkas
+  dihapus SESUDAH commit) supaya urutan & kutipan balasan tidak rusak.
+- Room task yang sudah berjalan sebelum rilis dibukakan sekali jalan oleh migrasi data
+  `2026_09_30_000002_open_chat_rooms_for_running_tasks` (aman diulang).
+
 ## Observability (Axiom)
 
 Full guide: `docs/OBSERVABILITY.md`. Reusable rules and the leak table live in the

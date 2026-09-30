@@ -52,6 +52,9 @@ enum AdminAction: string
     case WorkerInviteCreated = 'worker_invite.created';
     case WorkerInviteDeactivated = 'worker_invite.deactivated';
 
+    /** Room chat dinonaktifkan: seluruh pesan & lampirannya DIHAPUS PERMANEN. */
+    case ChatRoomDeactivated = 'chat_room.deactivated';
+
     /**
      * Slug tabel yang disentuh, bukan nama kelas PHP.
      *
@@ -86,6 +89,8 @@ enum AdminAction: string
 
             self::WorkerInviteCreated,
             self::WorkerInviteDeactivated => 'worker_invite_code',
+
+            self::ChatRoomDeactivated => 'chat_room',
         };
     }
 
@@ -114,7 +119,8 @@ enum AdminAction: string
             self::WalletTopupRejected,
             self::WalletWithdrawalRejected,
             self::UserSuspended,
-            self::UserBanned => true,
+            self::UserBanned,
+            self::ChatRoomDeactivated => true,
             default => false,
         };
     }

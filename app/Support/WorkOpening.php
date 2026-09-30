@@ -11,6 +11,7 @@ use App\Models\Activity;
 use App\Models\Bid;
 use App\Models\Payment;
 use App\Models\Task;
+use App\Support\Chat\ChatRoomLifecycle;
 use Illuminate\Support\Collection;
 
 /**
@@ -35,7 +36,10 @@ use Illuminate\Support\Collection;
  */
 final class WorkOpening
 {
-    public function __construct(private readonly TaskStatusRecorder $recorder) {}
+    public function __construct(
+        private readonly TaskStatusRecorder $recorder,
+        private readonly ChatRoomLifecycle $chat,
+    ) {}
 
     /**
      * @return Collection<int, Activity>
@@ -77,6 +81,10 @@ final class WorkOpening
         if ($task->status !== TaskStatus::Active) {
             $this->recorder->move($task, TaskStatus::Active, $actorType, $actorId, reason: $reason);
         }
+
+        // Deal juga membuka chat task ini: pemberi kerja + semua yang
+        // diterima, satu room. Idempoten seperti activity di atas.
+        $this->chat->open($task);
 
         return $activities;
     }

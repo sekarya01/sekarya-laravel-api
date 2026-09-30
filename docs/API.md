@@ -5,7 +5,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 | | |
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
-| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 128 operation cocok dengan 128 rute nyata |
+| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 139 operation cocok dengan 139 rute nyata |
 | **Uji otomatis** | `bash docs/smoke.sh` — 194 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
@@ -1849,9 +1849,68 @@ Keempat tindakan itu tercatat di `admin_audit_logs` sebagai `wallet_topup.confir
 
 ---
 
+## 17. Chat per task
+
+Satu room per task. **Lahir saat DEAL** (penutupan lelang membuka pekerjaan —
+`WorkOpening`): pemberi kerja (`type: user`, `role: owner`) + semua mitra yang diterima
+(`type: worker`). Satu mitra → `room_type: individual`, lebih → `group`. Tidak ada chat
+sebelum DEAL.
+
+| `room_status` | Kapan | Perilaku |
+|---|---|---|
+| `active` | sejak DEAL | baca & kirim |
+| `expired` | task masuk status akhir (`completed`/`cancelled`/`refunded`/`expired`) — **langsung** | baca saja; kirim → `422 chat_room_expired`; `permissions.*` = `false` |
+| `deactivated` | pengelola (`POST /admin/tasks/{task}/chat-room/deactivate`) atau otomatis `purge_after_days` (bawaan 90) sesudah `expired` | **pesan + lampiran dihapus permanen**; peserta mendapat `410 chat_room_deactivated`, room hilang dari daftar |
+
+Realtime **hanya FCM** (hosting bersama tanpa WebSocket). Push membawa sinyal, isinya
+selalu dimuat dari API. Push chat **tidak** masuk lonceng (`me/notifications`).
+
+| `data.type` | Tampil? | Ke siapa | Klien sebaiknya |
+|---|---|---|---|
+| `chat_message` | ya (senyap bila room dibisukan) | peserta lain | `GET messages?after_id=<terakhir>` |
+| `chat_message_deleted` | tidak | peserta lain | muat ulang pesan `message_id` |
+| `chat_receipt` | tidak | peserta lain | muat ulang room (penanda `participants[]`) |
+| `chat_room_updated` | tidak | semua peserta | muat ulang room (mis. jadi `expired`) |
+| `chat_room_deactivated` | tidak | semua peserta | buang salinan lokal room |
+
+Semua membawa `room_id` + `task_id` (ULID).
+
+Kirim lampiran = **dua langkah**: unggah dulu (`POST /chat/rooms/{room}/attachments`,
+multipart `file` + opsional `duration`/`width`/`height`/`waveform[]`), lalu kirim pesan
+dengan `attachment_id`. Jenis lampiran (`image`/`video`/`audio`/`file`) ditentukan server
+dari MIME isi berkas — berkas audio dalam wadah MPEG-4 (`.m4a` pesan suara Android,
+terdeteksi `video/mp4`) tetap `audio` — dan harus sama dengan jenis pesan (atau
+`reply_type`).
+
+Pesan yang gagal terkirim dikirim ulang dengan `client_message_id` yang SAMA: server
+mengembalikan pesan yang sudah ada (`200`), tidak membuat duplikat.
+
+```bash
+# teks
+curl -X POST $BASE/chat/rooms/$ROOM/messages -H "Authorization: Bearer $TOKEN" \
+  -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d '{"type":"text","caption":"Besok jam 8 bisa?","client_message_id":"c3f1a2e4-…"}'
+
+# balasan berupa gambar
+curl -X POST $BASE/chat/rooms/$ROOM/messages … \
+  -d '{"type":"reply","reply_type":"image","attachment_id":"01J…","replied_message_id":"01J…"}'
+```
+
+- `client_message_id` = idempotensi: kirim ulang dengan nilai sama → `200` + pesan yang
+  sama (baru → `201`).
+- `caption` wajib untuk teks; diabaikan (`null`) untuk `audio`/`file`.
+- `status` pesan dihitung dari penanda peserta lain: `read` bila SEMUA sudah membaca,
+  `delivered` bila semua sudah menerima, selain itu `sent`. Klien memajukan penandanya
+  lewat `POST /chat/rooms/{room}/receipts` (`delivered_message_id`/`read_message_id`,
+  hanya maju).
+- Hapus pesan = kerangka tetap (`deleted_at` terisi, `caption`/`content.reference`
+  `null`), berkas lampirannya dihapus.
+
+---
+
 ## Ringkasan endpoint
 
-**128 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**139 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -2047,6 +2106,22 @@ Tidak ada `POST /admin/auth/register`, dan itu disengaja: akun pengelola hanya l
 | `GET` | `/admin/disputes` | admin | `admin` | Antrean sengketa (G5). |
 | `POST` | `/admin/disputes/{dispute}/resolve` | admin | `admin` | Putuskan sengketa — `release`/`refund` (G5). |
 
+### Chat (G8)
+
+| | Endpoint | Token | Limit | Keterangan |
+|---|---|---|---|---|
+| `GET` | `/chat/rooms` | access | `api` | Room saya, aktivitas terakhir dulu. Filter `status` (`active`/`expired`). Cursor. |
+| `GET` | `/chat/unread-count` | access | `api` | `{count}` pesan belum dibaca di seluruh room — badge ikon chat. |
+| `GET` | `/chat/rooms/{room}` | access | `api` | Satu room. Bukan peserta → `404`; dinonaktifkan → `410`. |
+| `PATCH` | `/chat/rooms/{room}` | access | `api` | `{is_muted}` — bisukan notifikasi room untuk diri sendiri. |
+| `GET` | `/chat/rooms/{room}/messages` | access | `api` | Pesan terbaru dulu (termasuk kerangka yang dihapus). `after_id` untuk sinkron. |
+| `POST` | `/chat/rooms/{room}/messages` | access | `chat` | Kirim pesan. `201` baru, `200` bila `client_message_id` sudah diterima. |
+| `POST` | `/chat/rooms/{room}/attachments` | access | `chat` | Unggah lampiran (langkah 1). Balasan `id` untuk `attachment_id`. |
+| `POST` | `/chat/rooms/{room}/receipts` | access | `api` | Majukan penanda sampai/baca milik sendiri. |
+| `DELETE` | `/chat/messages/{message}` | access | `api` | Hapus pesan sendiri untuk semua; berkasnya ikut dihapus. |
+| `GET` | `/tasks/{task}/chat-room` | access | `api` | Room task ini untuk saya, atau `{"data": null}`. |
+| `POST` | `/admin/tasks/{task}/chat-room/deactivate` | admin | `admin` | Hapus permanen isi chat task (moderasi). `reason` wajib, tercatat di jejak audit. |
+
 Health check tanpa prefix: `GET /up`. Referensi ter-render: `GET /docs`, spec mentah:
 `GET /docs/openapi.yaml` — keduanya hanya terdaftar **di luar produksi**.
 
@@ -2094,6 +2169,14 @@ Bercabanglah pada `code`, **jangan** pada `message`.
 | `bank_account_not_verified` | 422 | Menarik saldo tanpa rekening yang disetujui pengelola |
 | `wallet_request_not_pending` | 422 | Permintaan saldo sudah diputuskan; tidak bisa diubah lagi |
 | `too_many_pending_wallet_requests` | 422 | Terlalu banyak permintaan saldo menggantung sekaligus |
+| `chat_room_not_found` | 404 | Room tidak ada, **atau** Anda bukan pesertanya |
+| `chat_room_deactivated` | 410 | Room dinonaktifkan; isinya sudah dihapus — buang salinan lokal |
+| `chat_room_expired` | 422 | Task sudah berakhir; chat hanya bisa dibaca |
+| `chat_message_not_found` | 404 | Pesan tidak ada di room ini |
+| `chat_message_not_owned` | 403 | Hanya pengirim yang bisa menghapus pesannya |
+| `chat_attachment_invalid` | 422 | Lampiran bukan milik Anda/beda room/sudah terpakai/jenis tidak cocok (`context.reason`) |
+| `chat_attachment_too_large` | 422 | Melebihi batas jenis itu (`context.max_kb`, `context.max_seconds`) |
+| `chat_replied_message_invalid` | 422 | Pesan yang dibalas tidak ada, beda room, pesan sistem, atau sudah dihapus |
 
 `task_not_found` sengaja `404`, bukan `403` — `403` akan mengonfirmasi bahwa task milik
 orang lain itu ada.
@@ -2162,7 +2245,8 @@ di luar produksi.
   di mutasi rekening. Tidak ada virtual account, tidak ada disbursement API.
 - **Penyelesaian sengketa.** `reject` membuat task `disputed` dan dana tetap ditahan;
   belum ada jalan keluar dari status itu lewat API.
-- **Chat.** Diputuskan memakai database terpisah; kaitkan lewat `tasks.ulid`.
+- **Chat realtime tanpa FCM** (WebSocket/typing indicator) — chat per task sudah ada
+  (bagian 17), sinkronnya lewat push FCM + `messages?after_id`.
 - **Notifikasi**, alamat tersimpan, urut berdasarkan jarak, dan penutup lelang otomatis
   (task yang `bidding_closes_at`-nya lewat disembunyikan dari feed, tapi statusnya tetap
   `open` sampai ada job yang mengubahnya).

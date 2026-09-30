@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\V1\Admin\Auth\AdminLoginController;
 use App\Http\Controllers\Api\V1\Admin\Auth\AdminLogoutController;
 use App\Http\Controllers\Api\V1\Admin\Auth\AdminRefreshTokenController;
 use App\Http\Controllers\Api\V1\Admin\Auth\ShowAdminMeController;
+use App\Http\Controllers\Api\V1\Admin\Chat\DeactivateChatRoomController;
 use App\Http\Controllers\Api\V1\Admin\Dispute\ListDisputesController;
 use App\Http\Controllers\Api\V1\Admin\Dispute\ResolveDisputeController;
 use App\Http\Controllers\Api\V1\Admin\Payment\ConfirmPaymentController;
@@ -66,6 +67,16 @@ use App\Http\Controllers\Api\V1\Bid\ListTaskBidsController;
 use App\Http\Controllers\Api\V1\Bid\PlaceBidController;
 use App\Http\Controllers\Api\V1\Bid\WithdrawBidController;
 use App\Http\Controllers\Api\V1\Category\ListCategoriesController;
+use App\Http\Controllers\Api\V1\Chat\DeleteChatMessageController;
+use App\Http\Controllers\Api\V1\Chat\ListChatMessagesController;
+use App\Http\Controllers\Api\V1\Chat\ListChatRoomsController;
+use App\Http\Controllers\Api\V1\Chat\SendChatMessageController;
+use App\Http\Controllers\Api\V1\Chat\ShowChatRoomController;
+use App\Http\Controllers\Api\V1\Chat\ShowTaskChatRoomController;
+use App\Http\Controllers\Api\V1\Chat\ShowUnreadChatCountController;
+use App\Http\Controllers\Api\V1\Chat\StoreChatAttachmentController;
+use App\Http\Controllers\Api\V1\Chat\UpdateChatReceiptsController;
+use App\Http\Controllers\Api\V1\Chat\UpdateChatRoomController;
 use App\Http\Controllers\Api\V1\City\ListCitiesController;
 use App\Http\Controllers\Api\V1\Notification\ListNotificationsController;
 use App\Http\Controllers\Api\V1\Notification\MarkAllNotificationsReadController;
@@ -450,6 +461,34 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // `active` dijawab 404 yang sama dengan ULID yang tidak ada.
         Route::get('users/{user}', ShowPublicUserController::class)->name('users.show');
 
+        // ── Chat per task ─────────────────────────────────────────────────
+        //
+        // Satu room per task, lahir saat DEAL (WorkOpening), `expired` (baca
+        // saja) begitu task berakhir (TaskStatusRecorder). Realtime = FCM
+        // saja: push membawa sinyal, isi selalu dimuat dari sini
+        // (`messages?after_id=`). Bukan peserta = 404; room dinonaktifkan =
+        // 410 — binding `withTrashed()` supaya room itu masih bisa dijawab.
+        Route::get('chat/rooms', ListChatRoomsController::class)->name('chat.rooms.index');
+        Route::get('chat/unread-count', ShowUnreadChatCountController::class)->name('chat.unread-count');
+        Route::get('chat/rooms/{room}', ShowChatRoomController::class)
+            ->withTrashed()->name('chat.rooms.show');
+        Route::patch('chat/rooms/{room}', UpdateChatRoomController::class)
+            ->withTrashed()->name('chat.rooms.update');
+        Route::get('chat/rooms/{room}/messages', ListChatMessagesController::class)
+            ->withTrashed()->name('chat.rooms.messages.index');
+        Route::post('chat/rooms/{room}/messages', SendChatMessageController::class)
+            ->withTrashed()->middleware('throttle:chat')->name('chat.rooms.messages.store');
+        // Unggah dulu, lalu kirim `attachment_id` di pesan.
+        Route::post('chat/rooms/{room}/attachments', StoreChatAttachmentController::class)
+            ->withTrashed()->middleware('throttle:chat')->name('chat.rooms.attachments.store');
+        // Penanda "sudah sampai" / "sudah dibaca" milik sendiri (hanya maju).
+        Route::post('chat/rooms/{room}/receipts', UpdateChatReceiptsController::class)
+            ->withTrashed()->name('chat.rooms.receipts');
+        Route::delete('chat/messages/{message}', DeleteChatMessageController::class)
+            ->withTrashed()->name('chat.messages.destroy');
+        // Tombol "Chat" di Detail Tugas; `{"data": null}` bila tidak ada.
+        Route::get('tasks/{task}/chat-room', ShowTaskChatRoomController::class)->name('tasks.chat-room.show');
+
         // ── Report & blokir pengguna (G7) ─────────────────────────────────
         Route::post('users/{user}/reports', CreateUserReportController::class)
             ->middleware('throttle:write')->name('users.reports.store');
@@ -597,6 +636,9 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
             // Sengketa (G5): jalan keluar dari status `disputed`.
             Route::get('disputes', ListDisputesController::class)->name('disputes.index');
             Route::post('disputes/{dispute}/resolve', ResolveDisputeController::class)->name('disputes.resolve');
+            // Chat (moderasi): hapus permanen seluruh isi room sebuah task.
+            Route::post('tasks/{task}/chat-room/deactivate', DeactivateChatRoomController::class)
+                ->name('tasks.chat-room.deactivate');
             Route::get('users', ListUsersController::class)->name('users.index');
             Route::get('users/{user}', ShowUserController::class)->name('users.show');
             Route::post('users/{user}/suspend', SuspendUserController::class)->name('users.suspend');

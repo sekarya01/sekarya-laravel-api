@@ -137,6 +137,37 @@ final class FcmClientTest extends TestCase
         });
     }
 
+    /**
+     * Pesan senyap (sinkron chat) = data-only: TANPA blok `notification`,
+     * supaya perangkat tidak menggambar apa pun dan aplikasi selalu dibangunkan.
+     */
+    public function test_a_silent_message_is_data_only(): void
+    {
+        $this->configureFirebase();
+        $this->fakeGoogle();
+
+        app(FcmClient::class)->send('device-token-1', new PushMessage(
+            title: '',
+            body: '',
+            data: ['type' => 'chat_receipt', 'task_id' => '01JABC', 'room_id' => '01JROOM'],
+            silent: true,
+        ));
+
+        Http::assertSent(function (Request $request): bool {
+            if (! str_contains($request->url(), 'messages:send')) {
+                return false;
+            }
+
+            $message = $request->data()['message'] ?? [];
+
+            return ! isset($message['notification'])
+                && ! isset($message['android']['notification'])
+                && ($message['data']['type'] ?? null) === 'chat_receipt'
+                && ($message['data']['room_id'] ?? null) === '01JROOM'
+                && ($message['apns']['payload']['aps']['content-available'] ?? null) === 1;
+        });
+    }
+
     public function test_the_access_token_is_reused_across_sends(): void
     {
         $this->configureFirebase();
