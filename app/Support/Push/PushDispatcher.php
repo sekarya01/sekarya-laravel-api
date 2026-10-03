@@ -6,6 +6,7 @@ namespace App\Support\Push;
 
 use App\Jobs\SendPushNotification;
 use App\Models\UserNotification;
+use Illuminate\Support\Facades\DB;
 
 /**
  * SATU-SATUNYA pintu keluar notifikasi: kotak masuk in-app DAN push.
@@ -50,11 +51,19 @@ final class PushDispatcher
      * Pesan chat dan sinyal sinkronnya bukan notifikasi lonceng: satu
      * percakapan bisa menghasilkan ratusan, dan riwayatnya sudah ada di
      * `chat_messages`. Tetap lewat kelas ini supaya tetap hanya ada SATU
-     * tempat yang mengantrekan `SendPushNotification`, dan tetap sesudah
-     * commit.
+     * tempat yang mengirim `SendPushNotification`, dan tetap sesudah commit.
+     *
+     * Chat harus REALTIME, jadi job ini TIDAK lewat antrean: di hosting
+     * bersama antrean diproses cron per menit (`queue:work --stop-when-empty`,
+     * docs/DEPLOYMENT.md §8) — pesan baru sampai ke lawan bicara terlambat
+     * hingga ±1 menit, atau tidak pernah bila cron pekerja mati. Ia dijalankan
+     * di proses yang sama SESUDAH respons HTTP terkirim
+     * (`dispatchAfterResponse` → fastcgi/litespeed_finish_request), sehingga
+     * pengirim tidak ikut menunggu FCM. Konsekuensinya tanpa percobaan ulang
+     * antrean; aplikasi menutupnya dengan sinkron berkala selama chat terbuka.
      */
     public function sendTransient(int $userId, PushMessage $message): void
     {
-        SendPushNotification::dispatch($userId, $message)->afterCommit();
+        DB::afterCommit(static fn () => SendPushNotification::dispatchAfterResponse($userId, $message));
     }
 }

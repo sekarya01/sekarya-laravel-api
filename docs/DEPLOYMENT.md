@@ -402,8 +402,17 @@ Pakai bentuk yang selesai sendiri:
 `--max-time=55` membuatnya berhenti sebelum cron menit berikutnya menyala, sehingga tidak
 pernah ada dua pekerja berebut antrean yang sama.
 
-Saat ini belum ada tugas terjadwal maupun job yang wajib. Antrean baru terpakai kalau
-`AXIOM_DELIVERY=queue`; untuk shared hosting biarkan `sync`.
+Yang memakai keduanya:
+
+- **Antrean** — push notifikasi lonceng (penawaran, status tugas, dompet) lewat job
+  `SendPushNotification`. Tanpa cron pekerja di atas, job menumpuk di tabel `jobs` dan push
+  tidak pernah terkirim. **Push chat TIDAK lewat antrean** — ia dikirim sesudah respons
+  (`PushDispatcher::sendTransient`) supaya pesan sampai realtime, bukan menunggu cron menit
+  berikutnya. Axiom memakai antrean hanya bila `AXIOM_DELIVERY=queue`; untuk shared hosting
+  biarkan `sync`.
+- **Jadwal** (`schedule:run`, `routes/console.php`) — `sekarya:tasks:expire-bidding` tiap
+  5 menit dan `sekarya:chat:purge-expired` harian 03:30 (hapus isi chat room yang sudah lama
+  berakhir, `chat.purge_after_days`).
 
 ---
 
