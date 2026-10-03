@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Api\V1;
 
-use App\Enums\ChatMessageType;
 use App\Models\ChatAttachment;
 use Illuminate\Http\Request;
 
@@ -30,7 +29,7 @@ final class ChatAttachmentResource extends BaseResource
             'duration' => $this->duration,
             'width' => $this->width,
             'height' => $this->height,
-            'thumbnail' => $this->kind === ChatMessageType::Image ? $this->publicUrl($this->path) : null,
+            'thumbnail' => $this->publicUrl($this->resource->thumbnailPath()),
             'waveform' => $this->waveform ?? [],
             'created_at' => $this->iso($this->created_at),
         ];

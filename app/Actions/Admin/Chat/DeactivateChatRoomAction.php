@@ -46,7 +46,8 @@ final class DeactivateChatRoomAction
                 return null;
             }
 
-            $paths = ChatAttachment::query()->where('room_id', $locked->getKey())->pluck('path')->all();
+            $paths = ChatAttachment::query()->where('room_id', $locked->getKey())->get()
+                ->flatMap(fn (ChatAttachment $a): array => $a->storedPaths())->all();
 
             // Pesan dulu (FK attachment_id), baru lampirannya.
             ChatMessage::query()->withTrashed()->where('room_id', $locked->getKey())->forceDelete();

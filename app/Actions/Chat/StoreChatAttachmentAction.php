@@ -55,6 +55,7 @@ final class StoreChatAttachmentAction
             'uploader_id' => $user->getKey(),
             'kind' => $kind,
             'path' => $path,
+            'thumbnail_path' => $kind === ChatMessageType::Video ? $this->storeThumbnail($room, $data) : null,
             'file_name' => mb_substr($file->getClientOriginalName(), 0, 255),
             'extension' => strtolower((string) $file->getClientOriginalExtension()),
             'mime_type' => mb_substr($mime, 0, 100),
@@ -64,6 +65,18 @@ final class StoreChatAttachmentAction
             'height' => in_array($kind, [ChatMessageType::Image, ChatMessageType::Video], true) ? $height : 0,
             'waveform' => $kind === ChatMessageType::Audio ? $data->waveform : null,
         ]);
+    }
+
+    /**
+     * Thumbnail video (bingkai awal dari perangkat) di folder room yang sama.
+     * Gagal simpan thumbnail tidak menggagalkan unggahan videonya — bubble
+     * cukup jatuh ke tampilan tanpa pratinjau.
+     */
+    private function storeThumbnail(ChatRoom $room, StoreChatAttachmentData $data): ?string
+    {
+        $stored = $data->thumbnail?->store('uploads/chat/'.$room->ulid, 'public');
+
+        return is_string($stored) && $stored !== '' ? $stored : null;
     }
 
     private function assertWithinLimits(ChatMessageType $kind, int $sizeKb, int $seconds): void

@@ -595,6 +595,17 @@ bagian 17. Yang tidak boleh "dirapikan":
   KECUALI wadah MPEG-4/3GP berekstensi audio — pesan suara `.m4a` Android terbaca
   `video/mp4` oleh `finfo`; tanpa pengecualian ini setiap VN ditolak `kind_mismatch`
   (ditemukan di device 2026-09-30, dijaga `ChatApiTest`).
+- **Thumbnail video dari PERANGKAT** (tanpa ffmpeg di hosting): bagian multipart opsional
+  `thumbnail` (jpg/png/webp ≤ 1 MB, bingkai awal) disimpan ke `thumbnail_path` di folder
+  room yang sama — HANYA untuk jenis `video` (jenis lain diabaikan). `thumbnail` di
+  resource = `ChatAttachment::thumbnailPath()` (foto = berkasnya sendiri, video =
+  `thumbnail_path`, video lama `null`). Hapus pesan / nonaktifkan room menghapus SEMUA
+  berkas lampiran lewat `storedPaths()` — jangan kembali ke `path` saja.
+- **Berkas chat dilayani Laravel**, bukan symlink: `routes/storage.php` →
+  `ShowChatAttachmentController` (`storage/uploads/chat/{room}/{file}`, room = ULID, nama
+  `hashName`). Produksi tidak punya symlink `public/storage`; rute fallback lama hanya
+  `tasks|avatars|proofs` sehingga SEMUA lampiran chat sempat 404 (2026-10-04). Folder baru
+  di disk `public` = rute penyaji baru + test.
 - **Kirim idempoten per `(room, sender, client_message_id)`** (UNIQUE): kirim ulang → 200
   pesan yang sama.
 - **Hapus pesan = kerangka tetap** (soft delete, caption & lampiran dikosongkan, berkas

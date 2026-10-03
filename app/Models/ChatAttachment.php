@@ -22,7 +22,7 @@ final class ChatAttachment extends Model
 
     /** @var list<string> */
     protected $fillable = [
-        'room_id', 'uploader_id', 'kind', 'path', 'file_name', 'extension',
+        'room_id', 'uploader_id', 'kind', 'path', 'thumbnail_path', 'file_name', 'extension',
         'mime_type', 'size', 'duration', 'width', 'height', 'waveform',
     ];
 
@@ -39,6 +39,30 @@ final class ChatAttachment extends Model
             'height' => 'integer',
             'waveform' => 'array',
         ];
+    }
+
+    /**
+     * Semua berkas milik lampiran ini di disk `public` (berkas + thumbnail
+     * video bila ada) — dihapus bersama saat lampirannya dihapus.
+     *
+     * @return list<string>
+     */
+    public function storedPaths(): array
+    {
+        return array_values(array_filter([$this->path, $this->thumbnail_path]));
+    }
+
+    /**
+     * Path pratinjau: foto = berkasnya sendiri, video = bingkai awal yang
+     * diunggah perangkat (null untuk video lama), jenis lain tidak punya.
+     */
+    public function thumbnailPath(): ?string
+    {
+        return match ($this->kind) {
+            ChatMessageType::Image => $this->path,
+            ChatMessageType::Video => $this->thumbnail_path,
+            default => null,
+        };
     }
 
     /** ULID huruf besar, sama dengan id publik lain di API ini. */

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Storage\ShowChatAttachmentController;
 use App\Http\Controllers\Storage\ShowPublicUploadController;
 use Illuminate\Support\Facades\Route;
 
@@ -34,3 +35,19 @@ Route::get('storage/uploads/{folder}/{file}', ShowPublicUploadController::class)
     ->where('folder', 'tasks|avatars|proofs')
     ->where('file', '[A-Za-z0-9]{1,100}\.(jpe?g|png|webp)')
     ->name('storage.public-upload');
+
+/*
+ * Lampiran chat: `uploads/chat/{room}/{file}` (StoreChatAttachmentAction).
+ *
+ *   - room = ULID room (26 karakter Crockford, huruf besar), bukan path bebas;
+ *   - nama berkas = `hashName` (huruf/angka) + ekstensi huruf/angka 2–5 —
+ *     tanpa titik ganda, garis miring, atau `%`, jadi `..` tidak terbentuk.
+ *     Ekstensi tidak dibatasi daftar `sekarya.chat.extensions` karena
+ *     `hashName` memakai ekstensi TEBAKAN dari MIME (mp3 → `mpga`, m4a →
+ *     `mp4`), yang bisa di luar daftar itu. Isinya hanya berkas yang lolos
+ *     validasi unggah chat.
+ */
+Route::get('storage/uploads/chat/{room}/{file}', ShowChatAttachmentController::class)
+    ->where('room', '[0-9A-HJKMNP-TV-Z]{26}')
+    ->where('file', '[A-Za-z0-9]{1,100}\.[A-Za-z0-9]{2,5}')
+    ->name('storage.chat-attachment');

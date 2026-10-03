@@ -45,7 +45,7 @@ final class DeleteChatMessageAction
             return $this->present($message, $room);
         }
 
-        $path = $this->db->transaction(function () use ($message): ?string {
+        $paths = $this->db->transaction(function () use ($message): array {
             $attachment = $message->attachment_id === null
                 ? null
                 : ChatAttachment::query()->find($message->attachment_id);
@@ -54,13 +54,13 @@ final class DeleteChatMessageAction
             $message->delete();
             $attachment?->delete();
 
-            return $attachment?->path;
+            return $attachment?->storedPaths() ?? [];
         });
 
         // Berkas dihapus SESUDAH commit: kalau transaksinya gagal, pesan
         // masih menunjuk ke berkas yang masih ada.
-        if ($path !== null) {
-            $this->storage->disk('public')->delete($path);
+        if ($paths !== []) {
+            $this->storage->disk('public')->delete($paths);
         }
 
         $this->notifier->sync($room, PushType::ChatMessageDeleted, $user->getKey(), [

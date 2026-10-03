@@ -908,6 +908,7 @@ CREATE TABLE IF NOT EXISTS `chat_attachments` (
   `uploader_id` bigint unsigned NOT NULL,
   `kind` varchar(8) COLLATE utf8mb4_unicode_ci NOT NULL,
   `path` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `thumbnail_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `file_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `extension` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
   `mime_type` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -1313,5 +1314,6 @@ INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (63, '2026_0
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (64, '2026_09_26_000019_drop_checklist_columns', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (65, '2026_09_30_000001_create_chat_tables', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (66, '2026_09_30_000002_open_chat_rooms_for_running_tasks', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (67, '2026_10_04_000001_add_thumbnail_to_chat_attachments', 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -1876,7 +1876,10 @@ selalu dimuat dari API. Push chat **tidak** masuk lonceng (`me/notifications`).
 Semua membawa `room_id` + `task_id` (ULID).
 
 Kirim lampiran = **dua langkah**: unggah dulu (`POST /chat/rooms/{room}/attachments`,
-multipart `file` + opsional `duration`/`width`/`height`/`waveform[]`), lalu kirim pesan
+multipart `file` + opsional `duration`/`width`/`height`/`waveform[]`, dan untuk video
+`thumbnail` — bingkai awal JPEG/PNG/WebP ≤ 1 MB yang diambil perangkat, karena server tidak
+punya ffmpeg; muncul sebagai `thumbnail` di lampiran, pesan, dan kutipan balasan; video
+tanpa thumbnail = `null`), lalu kirim pesan
 dengan `attachment_id`. Jenis lampiran (`image`/`video`/`audio`/`file`) ditentukan server
 dari MIME isi berkas — berkas audio dalam wadah MPEG-4 (`.m4a` pesan suara Android,
 terdeteksi `video/mp4`) tetap `audio` — dan harus sama dengan jenis pesan (atau
@@ -2116,7 +2119,7 @@ Tidak ada `POST /admin/auth/register`, dan itu disengaja: akun pengelola hanya l
 | `PATCH` | `/chat/rooms/{room}` | access | `api` | `{is_muted}` — bisukan notifikasi room untuk diri sendiri. |
 | `GET` | `/chat/rooms/{room}/messages` | access | `api` | Pesan terbaru dulu (termasuk kerangka yang dihapus). `after_id` untuk sinkron. |
 | `POST` | `/chat/rooms/{room}/messages` | access | `chat` | Kirim pesan. `201` baru, `200` bila `client_message_id` sudah diterima. |
-| `POST` | `/chat/rooms/{room}/attachments` | access | `chat` | Unggah lampiran (langkah 1). Balasan `id` untuk `attachment_id`. |
+| `POST` | `/chat/rooms/{room}/attachments` | access | `chat` | Unggah lampiran (langkah 1; video boleh + `thumbnail`). Balasan `id` untuk `attachment_id`. |
 | `POST` | `/chat/rooms/{room}/receipts` | access | `api` | Majukan penanda sampai/baca milik sendiri. |
 | `DELETE` | `/chat/messages/{message}` | access | `api` | Hapus pesan sendiri untuk semua; berkasnya ikut dihapus. |
 | `GET` | `/tasks/{task}/chat-room` | access | `api` | Room task ini untuk saya, atau `{"data": null}`. |

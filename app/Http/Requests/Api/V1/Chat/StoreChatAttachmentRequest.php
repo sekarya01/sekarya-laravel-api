@@ -28,6 +28,9 @@ final class StoreChatAttachmentRequest extends FormRequest
             'height' => ['sometimes', 'integer', 'min:0', 'max:20000'],
             'waveform' => ['sometimes', 'array', 'max:100'],
             'waveform.*' => ['integer', 'min:0', 'max:15'],
+            // Bingkai awal video yang diambil perangkat (server tanpa ffmpeg).
+            // Diabaikan untuk jenis selain video.
+            'thumbnail' => ['sometimes', 'file', 'max:1024', 'mimes:jpg,jpeg,png,webp'],
         ];
     }
 }
