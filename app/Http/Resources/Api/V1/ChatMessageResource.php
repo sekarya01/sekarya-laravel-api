@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Resources\Api\V1;
 
 use App\Enums\ChatMessageStatus;
-use App\Enums\ChatMessageType;
 use App\Models\ChatAttachment;
 use App\Models\ChatMessage;
 use App\Models\ChatParticipant;
@@ -67,9 +66,9 @@ final class ChatMessageResource extends BaseResource
             'size' => $attachment->size ?? 0,
             'width' => $attachment->width ?? 0,
             'height' => $attachment->height ?? 0,
-            // Tanpa pembuat thumbnail di server: foto memakai berkasnya
-            // sendiri, video `null` (klien mengambil bingkai pertama).
-            'thumbnail' => $attachment?->kind === ChatMessageType::Image ? $this->publicUrl($attachment->path) : null,
+            // Foto = berkasnya sendiri; video = bingkai awal yang diunggah
+            // perangkat (null untuk video lama); jenis lain null.
+            'thumbnail' => $this->publicUrl($attachment?->thumbnailPath()),
         ];
     }
 
@@ -99,7 +98,7 @@ final class ChatMessageResource extends BaseResource
                 'type' => $replied->type->value,
                 'reply_type' => $replied->reply_type?->value,
                 'reference' => $this->publicUrl($attachment?->path),
-                'thumbnail' => $attachment?->kind === ChatMessageType::Image ? $this->publicUrl($attachment->path) : null,
+                'thumbnail' => $this->publicUrl($attachment?->thumbnailPath()),
                 'extension' => $attachment?->extension,
                 'file_name' => $attachment?->file_name,
                 'duration' => $attachment->duration ?? 0,

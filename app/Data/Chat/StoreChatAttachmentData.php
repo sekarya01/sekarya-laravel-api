@@ -16,6 +16,7 @@ final readonly class StoreChatAttachmentData
         public int $width = 0,
         public int $height = 0,
         public ?array $waveform = null,
+        public ?UploadedFile $thumbnail = null,
     ) {}
 
     public static function fromRequest(StoreChatAttachmentRequest $request): self
@@ -31,6 +32,7 @@ final readonly class StoreChatAttachmentData
             waveform: $request->has('waveform')
                 ? array_values(array_map('intval', (array) $request->input('waveform')))
                 : null,
+            thumbnail: $request->file('thumbnail'),
         );
     }
 }

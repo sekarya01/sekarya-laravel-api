@@ -261,6 +261,60 @@ final class ChatApiTest extends TestCase
             ->assertJsonPath('data.content.replied.is_deleted', false);
     }
 
+    /**
+     * Video membawa thumbnail bingkai awal dari perangkat (server tanpa
+     * ffmpeg): tersimpan di folder room, tampil di `thumbnail` lampiran,
+     * pesan, dan kutipan balasan, dan ikut terhapus bersama pesannya.
+     */
+    public function test_video_thumbnail_is_stored_returned_and_deleted_with_the_message(): void
+    {
+        $worker = $this->activeUser();
+        $room = $this->roomOf($this->dealtTask([$worker]));
+
+        $upload = $this->asUser($worker)->post(route('v1.chat.rooms.attachments.store', $room->ulid), [
+            'file' => UploadedFile::fake()->create('demo.mp4', 300, 'video/mp4'),
+            'thumbnail' => UploadedFile::fake()->image('demo-thumb.jpg', 480, 270),
+            'duration' => 12, 'width' => 1280, 'height' => 720,
+        ], ['Accept' => 'application/json'])->assertCreated()
+            ->assertJsonPath('data.type', 'video')
+            ->json('data');
+        $attachment = ChatAttachment::query()->findOrFail($upload['id']);
+        $this->assertNotNull($attachment->thumbnail_path);
+        $this->assertStringStartsWith('uploads/chat/'.$room->ulid.'/', $attachment->thumbnail_path);
+        Storage::disk('public')->assertExists($attachment->thumbnail_path);
+        $this->assertStringEndsWith($attachment->thumbnail_path, (string) $upload['thumbnail']);
+
+        $video = $this->asUser($worker)->postJson(route('v1.chat.rooms.messages.store', $room->ulid), [
+            'type' => 'video', 'attachment_id' => $upload['id'],
+        ])->assertCreated()
+            ->assertJsonPath('data.content.thumbnail', $upload['thumbnail'])
+            ->json('data.id');
+
+        $this->asUser($this->poster)->postJson(route('v1.chat.rooms.messages.store', $room->ulid), [
+            'type' => 'reply', 'reply_type' => 'text', 'caption' => 'Mantap', 'replied_message_id' => $video,
+        ])->assertCreated()->assertJsonPath('data.content.replied.content.thumbnail', $upload['thumbnail']);
+
+        $this->asUser($worker)->deleteJson(route('v1.chat.messages.destroy', $video))->assertOk();
+        Storage::disk('public')->assertMissing($attachment->path);
+        Storage::disk('public')->assertMissing($attachment->thumbnail_path);
+    }
+
+    public function test_thumbnail_is_ignored_for_non_video_and_old_videos_have_none(): void
+    {
+        $worker = $this->activeUser();
+        $room = $this->roomOf($this->dealtTask([$worker]));
+
+        $doc = $this->asUser($worker)->post(route('v1.chat.rooms.attachments.store', $room->ulid), [
+            'file' => UploadedFile::fake()->create('rincian.pdf', 50, 'application/pdf'),
+            'thumbnail' => UploadedFile::fake()->image('x.jpg', 10, 10),
+        ], ['Accept' => 'application/json'])->assertCreated()->assertJsonPath('data.thumbnail', null)->json('data.id');
+        $this->assertNull(ChatAttachment::query()->findOrFail($doc)->thumbnail_path);
+
+        $this->asUser($worker)->post(route('v1.chat.rooms.attachments.store', $room->ulid), [
+            'file' => UploadedFile::fake()->create('lama.mp4', 100, 'video/mp4'),
+        ], ['Accept' => 'application/json'])->assertCreated()->assertJsonPath('data.thumbnail', null);
+    }
+
     public function test_an_attachment_of_another_room_or_kind_is_refused(): void
     {
         $worker = $this->activeUser();
