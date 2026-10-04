@@ -7,6 +7,7 @@ namespace Tests\Unit\Actions\Task;
 use App\Actions\Task\ListTasksAction;
 use App\Data\CursorPageData;
 use App\Data\Task\ListTasksData;
+use App\Enums\BidStatus;
 use App\Enums\TaskStatus;
 use App\Models\Bid;
 use App\Models\Category;
@@ -496,6 +497,24 @@ final class ListTasksActionTest extends TestCase
             ->workedBy($this->data(), $this->seeker)->pluck('title')->all();
 
         $this->assertSame(['Saya kerjakan'], $titles);
+    }
+
+    /** Tab mitra "Diajukan": penawaran yang masih menunggu ikut; yang ditolak/ditarik tidak. */
+    public function test_worked_by_includes_pending_bids_but_not_rejected_or_withdrawn(): void
+    {
+        foreach (['pending' => BidStatus::Pending, 'ditolak' => BidStatus::Rejected, 'ditarik' => BidStatus::Withdrawn] as $title => $status) {
+            $task = $this->task(['title' => $title]);
+            Bid::factory()->create([
+                'task_id' => $task->getKey(),
+                'bidder_id' => $this->seeker->getKey(),
+                'status' => $status,
+            ]);
+        }
+
+        $titles = app(ListTasksAction::class)
+            ->workedBy($this->data(['status' => TaskStatus::Open]), $this->seeker)->pluck('title')->all();
+
+        $this->assertSame(['pending'], $titles);
     }
 
     // ── pagination ──────────────────────────────────────────────────────────

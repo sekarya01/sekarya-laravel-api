@@ -2036,7 +2036,7 @@ paths:
     get:
       tags: [Task]
       operationId: listMyWorkedTasks
-      summary: Task yang saya kerjakan
+      summary: Task yang saya kerjakan atau ajukan (penawaran accepted/pending)
       parameters:
         - $ref: '#/components/parameters/PerPage'
         - $ref: '#/components/parameters/Cursor'
@@ -2074,7 +2074,7 @@ paths:
     get:
       tags: [Task]
       operationId: showWorkedTaskCounts
-      summary: Hitungan task yang saya kerjakan per status
+      summary: Hitungan task yang saya kerjakan atau ajukan per status
       responses:
         '200':
           description: Hitungan per status.

@@ -81,7 +81,10 @@ final class ListTasksAction
     }
 
     /**
-     * Task yang dikerjakan seseorang.
+     * Task yang dikerjakan ATAU diajukan seseorang: penawarannya diterima, atau
+     * masih menunggu (tab mitra "Diajukan"). Penawaran pending hanya hidup
+     * selama lelang dibuka — saat deal sisanya ditolak (TaskHiring::close) —
+     * jadi tab Dikerjakan/Selesai tetap hanya berisi yang diterima.
      *
      * @return CursorPaginator<int, Task>
      */
@@ -96,7 +99,7 @@ final class ListTasksAction
                 ->from('bids')
                 ->whereColumn('bids.task_id', 'tasks.id')
                 ->where('bids.bidder_id', $worker->getKey())
-                ->where('bids.status', BidStatus::Accepted->value))
+                ->whereIn('bids.status', [BidStatus::Pending->value, BidStatus::Accepted->value]))
             ->when($data->statuses !== [], fn (Builder $q) => $this->applyStatuses($q, $data->statuses))
             // Mitra melihat status pekerjaannya sendiri dari daftar (mis.
             // "Sudah sampai"), bukan hanya "Dikerjakan".

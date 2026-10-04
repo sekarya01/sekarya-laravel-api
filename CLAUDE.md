@@ -557,6 +557,14 @@ Yang tidak boleh "dirapikan":
   pernah menangkap cache yang melenceng dari riwayatnya. `WalletFactory` karena itu tidak
   punya state bersaldo.
 
+## Daftar tugas mitra (`tasks/worked`)
+
+Himpunannya = task tempat bid mitra `accepted` **atau** `pending` (tab mobile "Diajukan",
+2026-10-05; dulu hanya `accepted` sehingga tab itu selalu kosong). `ListTasksAction::workedBy`
+dan `CountTasksByStatusAction::workedBy` WAJIB berubah bersama. Bid pending hanya hidup selama
+lelang dibuka — `TaskHiring::close` menolak sisanya — jadi tab Dikerjakan/Selesai tetap berisi
+yang diterima saja. Ditolak/ditarik tidak ikut.
+
 ## Chat per task
 
 Satu room per task (`chat_rooms.task_id` UNIQUE). Panduan manusianya `docs/API.md`

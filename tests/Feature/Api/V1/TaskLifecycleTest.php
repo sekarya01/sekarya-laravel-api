@@ -350,6 +350,25 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonPath('data.completed', 0);
     }
 
+    /** Tab mitra "Diajukan": tugas yang ditawar (belum deal) ikut daftar & hitungan. */
+    public function test_worked_includes_tasks_i_bid_on_before_deal(): void
+    {
+        $id = $this->createTask();
+        $this->asUser($this->worker)->postJson(route('v1.tasks.bids.store', $id), ['amount' => 200_000])
+            ->assertCreated();
+
+        $this->asUser($this->worker)
+            ->getJson(route('v1.tasks.worked', ['status' => 'open']))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $id)
+            ->assertJsonPath('data.0.my_bid.status', 'pending');
+        $this->asUser($this->worker)
+            ->getJson(route('v1.tasks.worked.counts'))
+            ->assertOk()
+            ->assertJsonPath('data.open', 1);
+    }
+
     /**
      * Tab "Berjalan / Selesai / Dibatalkan" butuh LEBIH DARI SATU status
      * sekaligus supaya paginasinya tidak berlubang: menyaring satu status per
