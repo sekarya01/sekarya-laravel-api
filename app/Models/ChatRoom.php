@@ -23,7 +23,7 @@ final class ChatRoom extends Model
     use HasUlid, SoftDeletes;
 
     /** @var list<string> */
-    protected $fillable = ['task_id', 'type'];
+    protected $fillable = ['task_id', 'type', 'avatar'];
 
     /** @return array<string, string> */
     protected function casts(): array

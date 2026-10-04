@@ -1857,6 +1857,11 @@ Satu room per task. **Lahir saat DEAL** (penutupan lelang membuka pekerjaan —
 pekerja pertama — chat bersama pemberi kerja + semua mitra; task satu pekerja →
 `individual`. Tidak ada chat sebelum DEAL.
 
+`room_name` = judul task (selalu terkini). `room_avatar` = foto pertama task **saat room
+lahir**, dibekukan di kolom `chat_rooms.avatar` — foto yang ditambah/diganti sesudah DEAL
+tidak mengubahnya; `null` bila task belum berfoto saat itu (klien membiarkannya kosong).
+Room yang lahir sebelum 2026-10-05 tidak diisi ulang → `null`.
+
 | `room_status` | Kapan | Perilaku |
 |---|---|---|
 | `active` | sejak DEAL | baca & kirim |
