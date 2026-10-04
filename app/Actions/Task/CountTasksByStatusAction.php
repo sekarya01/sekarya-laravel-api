@@ -34,7 +34,8 @@ final class CountTasksByStatusAction
             ->from('bids')
             ->whereColumn('bids.task_id', 'tasks.id')
             ->where('bids.bidder_id', $worker->getKey())
-            ->where('bids.status', BidStatus::Accepted->value)));
+            // Sama dengan ListTasksAction::workedBy — diajukan (pending) + diterima.
+            ->whereIn('bids.status', [BidStatus::Pending->value, BidStatus::Accepted->value])));
     }
 
     /**

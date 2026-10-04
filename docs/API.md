@@ -1983,7 +1983,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `GET` | `/tasks` | access | `api` | Feed siap dilamar. Filter: `q`, `lat`/`lng`/`radius_km`, `posted_within_hours`, `needed_from`/`needed_to` (jadwal, `from` inklusif `to` eksklusif), `category_id`/`category_ids[]`, `city`, `budget_from`/`budget_to`, `skills`, `match_my_skills`, `exclude_my_bids`. |
 | `POST` | `/tasks` | access | `write` | Buat task. `workers_needed` menentukan berapa orang direkrut. `publish_now` mengabari mitra sekitar → `meta.notified_workers` (B13). |
 | `GET` | `/tasks/posted` | access | `api` | Task yang saya posting. |
-| `GET` | `/tasks/worked` | access | `api` | Task yang saya kerjakan. |
+| `GET` | `/tasks/worked` | access | `api` | Task yang saya kerjakan **atau ajukan**: penawaran saya `accepted` atau masih `pending` (tab mitra "Diajukan"; yang ditolak/ditarik tidak ikut). |
 | `GET` | `/tasks/{task}` | access | `api` | Detail satu task, termasuk `hiring`, `workers`, `payment`, `activities`, `cancel_request`. Alamat & koordinat penuh hanya untuk pemberi kerja dan pekerja yang sudah deal (`location.is_precise`). |
 | `PUT` | `/tasks/{task}` | access | `write` | Sunting isi task. Parsial; hanya `draft`/`open`. |
 | `POST` | `/tasks/{task}/cancel` | access | `api` | Batalkan LANGSUNG — hanya bila belum ada pekerja yang deal. |
@@ -1996,7 +1996,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/tasks/{task}/start` | access | `api` | Berhenti merekrut lebih awal: target turun ke jumlah yang sudah diterima. |
 | `POST` | `/tasks/{task}/approve-all` | access | `api` | Konfirmasi selesai & rilis dana untuk semua pekerja sekali tekan. Belum ada hasil diserahkan → `422 no_submitted_activities`. |
 | `GET` | `/tasks/posted/counts` | access | `api` | Hitungan task saya per status (judul tab). Setiap status selalu ada. |
-| `GET` | `/tasks/worked/counts` | access | `api` | Hitungan task yang saya kerjakan per status. |
+| `GET` | `/tasks/worked/counts` | access | `api` | Hitungan per status untuk himpunan yang sama dengan `/tasks/worked` (diterima + diajukan). |
 | `GET` | `/tasks/bookmarked` | access | `api` | Tugas yang saya simpan. Cursor. Tiap baris membawa `is_bookmarked`. |
 | `PUT` | `/tasks/{task}/bookmark` | access | `api` | Simpan tugas. Idempoten (204). |
 | `DELETE` | `/tasks/{task}/bookmark` | access | `api` | Lepas simpanan. Idempoten (204). |
