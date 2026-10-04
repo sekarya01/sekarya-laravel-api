@@ -1315,5 +1315,6 @@ INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (64, '2026_0
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (65, '2026_09_30_000001_create_chat_tables', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (66, '2026_09_30_000002_open_chat_rooms_for_running_tasks', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (67, '2026_10_04_000001_add_thumbnail_to_chat_attachments', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (68, '2026_10_04_000002_group_chat_rooms_for_multi_worker_tasks', 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

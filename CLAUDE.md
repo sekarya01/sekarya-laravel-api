@@ -564,8 +564,9 @@ bagian 17. Yang tidak boleh "dirapikan":
 
 - **Lahir & berakhirnya room DIKAITKAN ke dua titik tunggal yang sudah ada**, bukan ke
   Action satu per satu: `WorkOpening::open()` memanggil `ChatRoomLifecycle::open()`
-  (DEAL membuka chat: pemberi kerja + semua yang diterima; 1 mitra `individual`, lebih
-  `group`), dan `TaskStatusRecorder::move()` memanggil `expire()` begitu task masuk status
+  (DEAL membuka chat: pemberi kerja + semua yang diterima; `group` bila task berkuota > 1
+  ATAU mitra diterima > 1, selain itu `individual` — `ChatRoomType::forTask`, keputusan
+  produk 2026-10-04; room lama dibetulkan migrasi data `2026_10_04_000002`), dan `TaskStatusRecorder::move()` memanggil `expire()` begitu task masuk status
   akhir — room langsung `expired` (baca saja), tanpa masa tenggang (keputusan produk
   2026-09-30). Menaruhnya di Action pembatal/penyelesai berarti jalur baru ke status akhir
   lupa menutup chat.
