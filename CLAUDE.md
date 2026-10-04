@@ -582,8 +582,12 @@ bagian 17. Yang tidak boleh "dirapikan":
 - **Bukan peserta = 404 `chat_room_not_found`**, bukan 403 — pola `task_not_found`.
   Urutan di `ChatAccess`: keanggotaan dulu, baru status room (410 hanya untuk peserta).
 - **Realtime = FCM saja** (hosting bersama tanpa WebSocket). Push chat lewat
-  `PushDispatcher::sendTransient()` — tetap satu-satunya tempat yang mengantrekan
-  `SendPushNotification`, tetapi TANPA baris `user_notifications` (chat bukan isi lonceng).
+  `PushDispatcher::sendTransient()` — tetap satu-satunya pintu `SendPushNotification`,
+  tetapi TANPA baris `user_notifications` (chat bukan isi lonceng) dan **TANPA antrean**:
+  `DB::afterCommit` + `dispatchAfterResponse` (dikirim di proses yang sama sesudah respons).
+  Antrean di hosting hanya diproses cron per menit — lewat antrean, pesan sampai ke lawan
+  bicara terlambat ±1 menit / tak sampai bila cron pekerja mati (ditemukan 2026-10-04,
+  dijaga `TransientPushTest`). Jangan kembalikan ke `dispatch()->afterCommit()`.
   `PushMessage::$silent` = data-only (tanda baca, pesan dihapus, room berubah); klien
   memuat isi dari API (`messages?after_id=`), push hanya sinyal (batas payload 4 KB).
 - **Lampiran dua langkah & jenisnya dari MIME server.** `POST chat/rooms/{room}/attachments`

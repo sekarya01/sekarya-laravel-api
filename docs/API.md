@@ -1873,7 +1873,10 @@ selalu dimuat dari API. Push chat **tidak** masuk lonceng (`me/notifications`).
 | `chat_room_updated` | tidak | semua peserta | muat ulang room (mis. jadi `expired`) |
 | `chat_room_deactivated` | tidak | semua peserta | buang salinan lokal room |
 
-Semua membawa `room_id` + `task_id` (ULID).
+Semua membawa `room_id` + `task_id` (ULID). Push chat dikirim **langsung sesudah respons**
+pengirim (tidak menunggu antrean/cron), jadi praktis realtime; klien tetap disarankan
+menarik `messages?after_id=` berkala selama layar chat terbuka sebagai jaring pengaman bila
+push terlambat atau hilang.
 
 Kirim lampiran = **dua langkah**: unggah dulu (`POST /chat/rooms/{room}/attachments`,
 multipart `file` + opsional `duration`/`width`/`height`/`waveform[]`, dan untuk video
