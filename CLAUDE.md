@@ -570,6 +570,11 @@ bagian 17. Yang tidak boleh "dirapikan":
   akhir — room langsung `expired` (baca saja), tanpa masa tenggang (keputusan produk
   2026-09-30). Menaruhnya di Action pembatal/penyelesai berarti jalur baru ke status akhir
   lupa menutup chat.
+- **Avatar room DIBEKUKAN saat lahir** (`chat_rooms.avatar`, migrasi `2026_10_05_000001`):
+  `ChatRoomLifecycle::open()` menyalin `task.photos[0]` (atau null) satu kali;
+  `ChatRoomResource.room_avatar` membaca kolom itu, BUKAN `task.photos` terkini (koreksi
+  produk 2026-10-05 — foto yang ditambah sesudah DEAL dulu ikut tampil). Room lama = null,
+  sengaja tidak di-backfill.
 - **`deactivated` = hapus permanen isi, BUKAN hapus baris room.** Pesan + lampiran (baris
   DAN berkas) hilang; baris room di-soft-delete dan pesertanya disisakan supaya peserta
   mendapat `410 chat_room_deactivated` dan task tidak dibukakan room kedua. Rute room

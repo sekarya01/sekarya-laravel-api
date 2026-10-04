@@ -7480,7 +7480,9 @@ components:
       type: object
       title: ChatRoom
       description: |
-        Satu room per task. `room_name` = judul task, `room_avatar` = foto pertama task.
+        Satu room per task. `room_name` = judul task (terkini). `room_avatar` = foto pertama task
+        SAAT ROOM LAHIR (DEAL), dibekukan — foto yang ditambah/diganti sesudahnya tidak mengubahnya;
+        null bila task belum berfoto saat itu (room sebelum 2026-10-05 selalu null).
         `unread_count`, `is_muted`, `permissions` milik pemanggil.
       required: [id, task_id, room_name, room_type, room_status, participants, participants_count,
         last_message, unread_count, permissions, is_muted, created_at, updated_at]

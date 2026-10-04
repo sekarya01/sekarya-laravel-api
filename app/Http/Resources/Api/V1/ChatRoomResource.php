@@ -14,7 +14,8 @@ use Illuminate\Http\Request;
  * Satu room untuk penontonnya (`$request->user()`): `unread_count`,
  * `is_muted`, dan `permissions` milik penonton itu.
  *
- * Nama & foto room dibaca dari task-nya (tidak disalin).
+ * Nama room dibaca dari task-nya; avatar = yang dibekukan saat room lahir
+ * (kolom `avatar`), bukan foto task terkini.
  *
  * @mixin ChatRoom
  */
@@ -28,13 +29,12 @@ final class ChatRoomResource extends BaseResource
             fn (ChatParticipant $p): bool => $viewer instanceof User && $p->user_id === $viewer->getKey(),
         );
         $canWrite = $this->status->acceptsMessages() && $me?->isActive() === true;
-        $photo = $this->task->photos[0] ?? null;
 
         return [
             'id' => $this->ulid,
             'task_id' => $this->task->ulid,
             'room_name' => $this->task->title,
-            'room_avatar' => is_string($photo) ? $this->publicUrl($photo) : null,
+            'room_avatar' => $this->avatar === null ? null : $this->publicUrl($this->avatar),
             'room_type' => $this->type->value,
             'room_status' => $this->status->value,
             'participants' => ChatParticipantResource::collection($this->participants),

@@ -613,6 +613,7 @@ CREATE TABLE IF NOT EXISTS `chat_rooms` (
   `ulid` char(26) COLLATE utf8mb4_unicode_ci NOT NULL,
   `task_id` bigint unsigned NOT NULL,
   `type` varchar(12) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `avatar` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` varchar(12) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active',
   `last_message_id` char(26) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `expired_at` timestamp NULL DEFAULT NULL,
@@ -1316,5 +1317,6 @@ INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (65, '2026_0
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (66, '2026_09_30_000002_open_chat_rooms_for_running_tasks', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (67, '2026_10_04_000001_add_thumbnail_to_chat_attachments', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (68, '2026_10_04_000002_group_chat_rooms_for_multi_worker_tasks', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (69, '2026_10_05_000001_add_avatar_to_chat_rooms', 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

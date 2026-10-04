@@ -51,8 +51,9 @@ final class ChatApiTest extends TestCase
      * Task lewat jalur nyata: pasang, ditawar, semua diterima → DEAL.
      *
      * @param  list<User>  $workers
+     * @param  list<string>  $photos  foto task SEBELUM deal (path storage)
      */
-    private function dealtTask(array $workers): Task
+    private function dealtTask(array $workers, array $photos = []): Task
     {
         $taskId = $this->asUser($this->poster)->postJson(route('v1.tasks.store'), [
             'category_id' => $this->anyCategory()->getKey(),
@@ -64,6 +65,10 @@ final class ChatApiTest extends TestCase
             'workers_needed' => count($workers),
             'publish_now' => true,
         ])->assertCreated()->json('data.id');
+
+        if ($photos !== []) {
+            Task::query()->where('ulid', $taskId)->firstOrFail()->forceFill(['photos' => $photos])->save();
+        }
 
         foreach ($workers as $worker) {
             $bid = $this->asUser($worker)
@@ -117,6 +122,40 @@ final class ChatApiTest extends TestCase
         $types = collect($this->asUser($worker)->getJson(route('v1.chat.rooms.show', $room->ulid))->json('data.participants'))
             ->pluck('type', 'id')->all();
         $this->assertSame(['user', 'worker'], [$types[$this->poster->ulid], $types[$worker->ulid]]);
+    }
+
+    public function test_room_avatar_is_null_when_task_had_no_photo_at_deal_and_stays_null(): void
+    {
+        $worker = $this->activeUser();
+        $task = $this->dealtTask([$worker]);
+        $room = $this->roomOf($task);
+
+        $this->assertNull(ChatRoom::query()->whereKey($room->getKey())->value('avatar'));
+
+        // Foto ditambah SESUDAH room lahir — avatar room tidak ikut berubah.
+        $task->forceFill(['photos' => ['tasks/later.jpg']])->save();
+
+        $this->asUser($worker)->getJson(route('v1.chat.rooms.show', $room->ulid))
+            ->assertOk()
+            ->assertJsonPath('data.room_avatar', null)
+            ->assertJsonStructure(['data' => ['room_avatar']]);
+    }
+
+    public function test_room_avatar_is_frozen_to_first_task_photo_at_deal(): void
+    {
+        $worker = $this->activeUser();
+        $task = $this->dealtTask([$worker], ['tasks/first.jpg', 'tasks/second.jpg']);
+        $room = $this->roomOf($task);
+
+        $this->assertSame('tasks/first.jpg', ChatRoom::query()->whereKey($room->getKey())->value('avatar'));
+
+        $task->forceFill(['photos' => ['tasks/replaced.jpg']])->save();
+
+        $avatar = $this->asUser($worker)->getJson(route('v1.chat.rooms.show', $room->ulid))
+            ->assertOk()
+            ->json('data.room_avatar');
+        $this->assertIsString($avatar);
+        $this->assertStringEndsWith('tasks/first.jpg', $avatar);
     }
 
     public function test_many_workers_share_one_group_room(): void

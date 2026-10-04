@@ -41,7 +41,12 @@ final class ChatRoomLifecycle
 
         $room = ChatRoom::query()->withTrashed()->firstOrCreate(
             ['task_id' => $task->getKey()],
-            ['type' => ChatRoomType::forTask((int) $task->workers_needed, $bids->count())],
+            [
+                'type' => ChatRoomType::forTask((int) $task->workers_needed, $bids->count()),
+                // Dibekukan saat lahir: foto pertama task SAAT INI, atau null.
+                // Foto yang diubah sesudahnya tidak menyentuh avatar room.
+                'avatar' => is_string($task->photos[0] ?? null) ? $task->photos[0] : null,
+            ],
         );
 
         if (! $room->wasRecentlyCreated) {
