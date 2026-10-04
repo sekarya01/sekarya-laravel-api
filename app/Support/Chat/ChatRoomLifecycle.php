@@ -41,7 +41,7 @@ final class ChatRoomLifecycle
 
         $room = ChatRoom::query()->withTrashed()->firstOrCreate(
             ['task_id' => $task->getKey()],
-            ['type' => ChatRoomType::forWorkerCount($bids->count())],
+            ['type' => ChatRoomType::forTask((int) $task->workers_needed, $bids->count())],
         );
 
         if (! $room->wasRecentlyCreated) {

@@ -1853,8 +1853,9 @@ Keempat tindakan itu tercatat di `admin_audit_logs` sebagai `wallet_topup.confir
 
 Satu room per task. **Lahir saat DEAL** (penutupan lelang membuka pekerjaan —
 `WorkOpening`): pemberi kerja (`type: user`, `role: owner`) + semua mitra yang diterima
-(`type: worker`). Satu mitra → `room_type: individual`, lebih → `group`. Tidak ada chat
-sebelum DEAL.
+(`type: worker`). Task berkuota > 1 (atau mitra diterima > 1) → `room_type: group` sejak
+pekerja pertama — chat bersama pemberi kerja + semua mitra; task satu pekerja →
+`individual`. Tidak ada chat sebelum DEAL.
 
 | `room_status` | Kapan | Perilaku |
 |---|---|---|
