@@ -1868,18 +1868,24 @@ Room yang lahir sebelum 2026-10-05 tidak diisi ulang → `null`.
 | `expired` | task masuk status akhir (`completed`/`cancelled`/`refunded`/`expired`) — **langsung** | baca saja; kirim → `422 chat_room_expired`; `permissions.*` = `false` |
 | `deactivated` | pengelola (`POST /admin/tasks/{task}/chat-room/deactivate`) atau otomatis `purge_after_days` (bawaan 90) sesudah `expired` | **pesan + lampiran dihapus permanen**; peserta mendapat `410 chat_room_deactivated`, room hilang dari daftar |
 
-Realtime **hanya FCM** (hosting bersama tanpa WebSocket). Push membawa sinyal, isinya
-selalu dimuat dari API. Push chat **tidak** masuk lonceng (`me/notifications`).
+Realtime **hanya FCM** (hosting bersama tanpa WebSocket). Push chat **tidak** masuk
+lonceng (`me/notifications`).
 
 | `data.type` | Tampil? | Ke siapa | Klien sebaiknya |
 |---|---|---|---|
-| `chat_message` | ya (senyap bila room dibisukan) | peserta lain | `GET messages?after_id=<terakhir>` |
+| `chat_message` | ya, **digambar klien** (data-only; senyap bila room dibisukan) | peserta lain | pasang `message` langsung; tanpa itu `GET messages?after_id=<terakhir>` |
 | `chat_message_deleted` | tidak | peserta lain | muat ulang pesan `message_id` |
 | `chat_receipt` | tidak | peserta lain | muat ulang room (penanda `participants[]`) |
 | `chat_room_updated` | tidak | semua peserta | muat ulang room (mis. jadi `expired`) |
 | `chat_room_deactivated` | tidak | semua peserta | buang salinan lokal room |
 
-Semua membawa `room_id` + `task_id` (ULID). Push chat dikirim **langsung sesudah respons**
+Semua membawa `room_id` + `task_id` (ULID). `chat_message` yang bernotifikasi dikirim
+**data-only** (tanpa blok `notification`) dengan `notify`=`"1"`, `title` (judul task),
+`body` ("Nama: pratinjau"), `sender_name`, `sender_type` (`user`/`worker`),
+`sender_avatar` (URL, opsional), `preview`, dan `message` = `ChatMessageResource` utuh
+(JSON). Bila `data` melewati ±4 KB FCM, `message` dikirim sebagai `message_gz` (gzip +
+base64) atau dibuang bila tetap tak muat — klien kembali ke API. Sinyal senyap room
+dibisukan tidak membawa `notify`. Push chat dikirim **langsung sesudah respons**
 pengirim (tidak menunggu antrean/cron), jadi praktis realtime; klien tetap disarankan
 menarik `messages?after_id=` berkala selama layar chat terbuka sebagai jaring pengaman bila
 push terlambat atau hilang.
@@ -1965,7 +1971,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/me/verifications` | access | `api` | Ajukan verifikasi identitas (KTP, selfie, rekening). |
 | `POST` | `/me/devices` | access | `write` | Daftarkan token perangkat FCM untuk push. Token sama = berpindah pemilik. |
 | `DELETE` | `/me/devices/{token}` | access | `api` | Lepaskan token perangkat saat logout. Idempoten. |
-| `GET` | `/me/notifications` | access | `api` | Kotak masuk notifikasi sendiri — riwayat yang sama dengan push FCM. `unread=1` menyaring yang belum dibaca. Cursor, terbaru dulu. |
+| `GET` | `/me/notifications` | access | `api` | Kotak masuk notifikasi sendiri — riwayat yang sama dengan push FCM (push tugas di FCM juga membawa `task` = tugas utuh bentuk `GET /tasks/{task}` dari sudut penerima, atau `task_gz` gzip+base64 bila > ±4 KB, atau tidak ada bila tetap tak muat; `data` di sini TANPA snapshot itu). `unread=1` menyaring yang belum dibaca. Cursor, terbaru dulu. |
 | `GET` | `/me/notifications/unread-count` | access | `api` | Jumlah belum dibaca untuk badge lonceng, dihitung server. Balasan `{count}`. |
 | `POST` | `/me/notifications/read-all` | access | `api` | Tandai seluruh kotak masuk sudah dibaca. Balasan `{count}` (sisa belum dibaca = 0). Idempoten. |
 | `POST` | `/me/notifications/{notification}/read` | access | `api` | Tandai satu notifikasi sudah dibaca. Milik orang lain dijawab 404 yang sama dengan id yang tidak ada. |

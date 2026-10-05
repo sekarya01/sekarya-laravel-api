@@ -168,6 +168,31 @@ final class FcmClientTest extends TestCase
         });
     }
 
+    /** Pesan chat digambar aplikasi sendiri → data-only juga, `data` tetap utuh. */
+    public function test_a_message_drawn_by_the_app_is_data_only(): void
+    {
+        $this->configureFirebase();
+        $this->fakeGoogle();
+
+        app(FcmClient::class)->send('device-token-1', new PushMessage(
+            title: 'Bersihkan taman',
+            body: 'Rina: Halo',
+            data: ['type' => 'chat_message', 'task_id' => '01JABC', 'notify' => '1'],
+            drawnByApp: true,
+        ));
+
+        Http::assertSent(function (Request $request): bool {
+            if (! str_contains($request->url(), 'messages:send')) {
+                return false;
+            }
+
+            $message = $request->data()['message'] ?? [];
+
+            return ! isset($message['notification'])
+                && ($message['data']['notify'] ?? null) === '1';
+        });
+    }
+
     public function test_the_access_token_is_reused_across_sends(): void
     {
         $this->configureFirebase();
