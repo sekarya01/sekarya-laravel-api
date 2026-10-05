@@ -18,6 +18,11 @@ namespace App\Support\Push;
  * `silent` = pesan data-only: tidak menggambar notifikasi, hanya membangunkan
  * aplikasi untuk menyinkron (dipakai chat: tanda baca, pesan dihapus, room
  * berubah). Pesan senyap tidak pernah masuk kotak masuk lonceng.
+ *
+ * `drawnByApp` = tetap pesan yang BERNOTIFIKASI, tapi dikirim data-only agar
+ * aplikasi yang menggambarnya sendiri (chat: gaya pesan per room + tombol
+ * Balas/Tandai dibaca) — juga saat aplikasi di belakang/di-kill. Datanya
+ * wajib membawa `title`/`body` untuk digambar.
  */
 final readonly class PushMessage
 {
@@ -27,5 +32,17 @@ final readonly class PushMessage
         public string $body,
         public array $data = [],
         public bool $silent = false,
+        public bool $drawnByApp = false,
     ) {}
+
+    /**
+     * Salinan dengan `data` lain — dipakai job push untuk menyisipkan
+     * snapshot per penerima (hanya ke FCM, bukan ke baris lonceng).
+     *
+     * @param  array<string, string>  $data
+     */
+    public function withData(array $data): self
+    {
+        return new self($this->title, $this->body, $data, $this->silent, $this->drawnByApp);
+    }
 }

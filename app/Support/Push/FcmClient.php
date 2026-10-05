@@ -242,7 +242,8 @@ final class FcmClient
         // Data-only: tanpa blok `notification`, SDK tidak menggambar apa pun
         // dan `onMessageReceived` selalu dipanggil — itulah sinyal sinkron.
         // iOS butuh `content-available` + prioritas 5 untuk pesan latar.
-        if ($message->silent) {
+        // `drawnByApp` juga data-only: aplikasi yang menggambar notifikasinya.
+        if ($message->silent || $message->drawnByApp) {
             return [
                 'token' => $deviceToken,
                 'data' => $message->data,

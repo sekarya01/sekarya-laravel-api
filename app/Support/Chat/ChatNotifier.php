@@ -28,7 +28,7 @@ final class ChatNotifier
     public function messageSent(ChatRoom $room, ChatMessage $message, ChatParticipant $sender): void
     {
         $task = $room->task;
-        $loud = PushMessages::chatMessage($task, $room, $message, $sender->displayName());
+        $loud = PushMessages::chatMessage($task, $room, $message, $sender);
         $quiet = PushMessages::chatSync(PushType::ChatMessage, $task, $room, [
             'message_id' => (string) $message->getKey(),
         ]);

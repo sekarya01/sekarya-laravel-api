@@ -288,6 +288,32 @@ final class Task extends Model
     }
 
     /**
+     * Muat relasi bentuk DETAIL (`GET tasks/{task}`) dari sudut [viewer] —
+     * SATU sumber untuk endpoint detail dan snapshot tugas di push FCM, supaya
+     * keduanya tidak pernah berbeda bentuk.
+     *
+     * activities.worker wajib: mobile memakai worker.name untuk kartu mitra +
+     * syarat tampil stepper status pengerjaan. myBid dibatasi ke penonton
+     * persis seperti di feed — tanpa itu `my_bid` selalu null dan mitra yang
+     * membuka ulang task yang sudah ia tawar melihat "Ajukan Penawaran" hidup
+     * lagi. workers.skills: keahlian pekerja untuk layar profilnya.
+     * cancel_request pending: popup persetujuan di Detail Kerjaan.
+     */
+    public function loadDetailFor(?User $viewer): self
+    {
+        $viewerId = $viewer?->getKey();
+
+        return $this->load([
+            'category', 'poster', 'workers.skills', 'skills', 'payment', 'activities.worker',
+            'pendingCancelRequest.approvals',
+            'myBid' => fn ($q) => $q->where('bidder_id', $viewerId),
+        ])->loadExists([
+            // Apakah penonton menyimpan tugas ini (B11).
+            'bookmarks as bookmarked' => fn ($q) => $q->where('user_id', $viewerId),
+        ]);
+    }
+
+    /**
      * Boleh melihat lokasi PRESISI (alamat lengkap + koordinat penuh)?
      *
      * SATU penentu untuk seluruh API — TaskResource membacanya di setiap

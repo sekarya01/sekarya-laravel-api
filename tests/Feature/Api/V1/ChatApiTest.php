@@ -184,6 +184,22 @@ final class ChatApiTest extends TestCase
 
     // ── kirim & baca ────────────────────────────────────────────────────────
 
+    /** Caption panjang membuat `data` melewati 4 KB FCM → pesan utuh dibuang, sisanya tetap. */
+    public function test_a_message_too_big_for_the_push_is_left_out_of_the_data(): void
+    {
+        $worker = $this->activeUser();
+        $room = $this->roomOf($this->dealtTask([$worker]));
+        $this->push->sent = [];
+
+        $this->sendText($worker, $room, str_repeat('panjang ', 500))->assertCreated();
+
+        $push = $this->push->firstTo($this->poster);
+        $this->assertNotNull($push);
+        $this->assertArrayNotHasKey('message', $push->data);
+        $this->assertSame('1', $push->data['notify']);
+        $this->assertLessThanOrEqual(4096, strlen((string) json_encode($push->data)));
+    }
+
     public function test_sending_text_notifies_the_other_side_without_touching_the_bell(): void
     {
         $worker = $this->activeUser();
@@ -205,6 +221,14 @@ final class ChatApiTest extends TestCase
         $this->assertSame($room->ulid, $push->data['room_id']);
         $this->assertFalse($push->silent);
         $this->assertStringContainsString('Besok jam 8 bisa?', $push->body);
+        $this->assertTrue($push->drawnByApp, 'aplikasi menggambar notifikasi gaya pesan');
+        $this->assertSame('1', $push->data['notify']);
+        $this->assertSame('Besok jam 8 bisa?', $push->data['preview']);
+        $this->assertNotEmpty($push->data['sender_name']);
+        $this->assertSame('worker', $push->data['sender_type']);
+        $pushed = json_decode($push->data['message'], true);
+        $this->assertSame('Besok jam 8 bisa?', $pushed['caption'], 'pesan utuh ikut di data push');
+        $this->assertSame($room->ulid, $pushed['room_id']);
         $this->assertSame(0, $this->push->countTo($worker), 'pengirim tidak mengabari dirinya sendiri');
 
         $this->assertSame(0, UserNotification::query()->where('type', 'chat_message')->count(), 'chat bukan isi lonceng');

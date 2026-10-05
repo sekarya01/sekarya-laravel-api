@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Support\Push;
 
 use App\Enums\PushType;
+use App\Http\Resources\Api\V1\ChatMessageResource;
 use App\Models\Activity;
 use App\Models\Bid;
 use App\Models\ChatMessage;
+use App\Models\ChatParticipant;
 use App\Models\ChatRoom;
 use App\Models\Task;
 use App\Models\TaskCancelRequest;
@@ -15,6 +17,7 @@ use App\Models\User;
 use App\Models\WalletTopup;
 use App\Models\WalletWithdrawal;
 use App\Support\Chat\ChatPreview;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Satu-satunya tempat copy notifikasi push dan bentuk `data` disusun.
@@ -298,17 +301,54 @@ final class PushMessages
      * Pesan chat baru → peserta lain. Judul = nama room (judul task), isi =
      * "Nama: pratinjau" (lihat ChatPreview). Isi pesan utuh TIDAK ikut di
      * `data` — batas payload FCM 4 KB; klien memuat pesannya dari API.
+     *
+     * Dikirim data-only (`drawnByApp`): aplikasi menggambar notifikasi gaya
+     * pesan per room (avatar + nama pengirim + pratinjau) dengan tombol
+     * Balas/Tandai dibaca (nama + peran pengirim). `notify` = "1" membedakannya dari sinyal senyap
+     * room yang dibisukan.
      */
-    public static function chatMessage(Task $task, ChatRoom $room, ChatMessage $message, string $senderName): PushMessage
+    public static function chatMessage(Task $task, ChatRoom $room, ChatMessage $message, ChatParticipant $sender): PushMessage
     {
+        $senderName = $sender->displayName();
+        $avatarPath = $sender->avatarPath();
+        $title = $task->title;
+        $body = mb_strimwidth(sprintf('%s: %s', $senderName, ChatPreview::of($message)), 0, 180, '…');
+
+        $data = self::data(PushType::ChatMessage, $task, extra: array_filter([
+            'room_id' => (string) $room->ulid,
+            'message_id' => (string) $message->getKey(),
+            'notify' => '1',
+            'title' => $title,
+            'body' => $body,
+            'sender_name' => $senderName,
+            'preview' => mb_strimwidth(ChatPreview::of($message), 0, 180, '…'),
+            // Peran pengirim (`user` = pemberi kerja, `worker` = mitra) —
+            // klien menampilkannya sesudah nama: "Rina · Pemberi kerja".
+            'sender_type' => $sender->type->value,
+            'sender_avatar' => $avatarPath === null ? null : Storage::disk('public')->url($avatarPath),
+        ], fn ($value) => $value !== null));
+
         return new PushMessage(
-            title: $task->title,
-            body: mb_strimwidth(sprintf('%s: %s', $senderName, ChatPreview::of($message)), 0, 180, '…'),
-            data: self::data(PushType::ChatMessage, $task, extra: [
-                'room_id' => (string) $room->ulid,
-                'message_id' => (string) $message->getKey(),
-            ]),
+            title: $title,
+            body: $body,
+            data: self::withChatMessage($data, $room, $message),
+            drawnByApp: true,
         );
+    }
+
+    /**
+     * Sisipkan pesan UTUH (bentuk `ChatMessageResource`) di `data.message`
+     * (atau `message_gz`) — lihat [PushSnapshot].
+     *
+     * @param  array<string, string>  $data
+     * @return array<string, string>
+     */
+    private static function withChatMessage(array $data, ChatRoom $room, ChatMessage $message): array
+    {
+        $message->loadMissing(['attachment', 'replied.attachment']);
+        $message->setRelation('room', $room->loadMissing('participants.user'));
+
+        return PushSnapshot::attach($data, 'message', ChatMessageResource::make($message)->resolve());
     }
 
     /**
