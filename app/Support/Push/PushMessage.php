@@ -41,8 +41,8 @@ final readonly class PushMessage
      *
      * @param  array<string, string>  $data
      */
-    public function withData(array $data): self
+    public function withData(array $data, ?bool $drawnByApp = null): self
     {
-        return new self($this->title, $this->body, $data, $this->silent, $this->drawnByApp);
+        return new self($this->title, $this->body, $data, $this->silent, $drawnByApp ?? $this->drawnByApp);
     }
 }

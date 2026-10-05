@@ -53,14 +53,20 @@ final class SendPushNotification implements ShouldQueue
     }
 
     /**
-     * Push TUGAS membawa tugas UTUH (bentuk `GET tasks/{task}`, dari sudut
-     * PENERIMA — lokasi presisi, `my_bid`, jarak bergantung penonton) di
-     * `data.task`/`task_gz` (lihat [PushSnapshot]). Dibangun di sini, SESUDAH
-     * commit, supaya isinya keadaan akhir — bukan saat push dijadwalkan di
-     * tengah transaksi. Hanya ke FCM: baris lonceng tetap `data` ramping.
+     * Push TUGAS: dikirim data-only (`drawnByApp`) supaya APLIKASI yang
+     * menggambar — satu notifikasi per tugas yang diganti tiap status berubah
+     * (riwayat statusnya ditumpuk di dalamnya). Dengan blok `notification`,
+     * sistem menggambar notifikasi BARU tiap push saat app di belakang.
+     * `data` membawa `notify`/`title`/`body` untuk digambar.
      *
-     * Chat & sinyal senyap dilewati (punya snapshot pesannya sendiri);
-     * tugas yang sudah terhapus = kirim tanpa snapshot.
+     * Plus tugas UTUH (bentuk `GET tasks/{task}`, dari sudut PENERIMA — lokasi
+     * presisi, `my_bid`, jarak bergantung penonton) di `data.task`/`task_gz`
+     * (lihat [PushSnapshot]). Dibangun di sini, SESUDAH commit, supaya isinya
+     * keadaan akhir — bukan saat push dijadwalkan di tengah transaksi. Hanya
+     * ke FCM: baris lonceng tetap `data` ramping.
+     *
+     * Chat & sinyal senyap dilewati (punya jalurnya sendiri); tugas yang
+     * sudah terhapus = tetap digambar, tanpa snapshot.
      */
     private function withTaskSnapshot(User $user): PushMessage
     {
@@ -71,15 +77,15 @@ final class SendPushNotification implements ShouldQueue
             return $this->message;
         }
 
+        $data = [...$data, 'notify' => '1', 'title' => $this->message->title, 'body' => $this->message->body];
         $task = Task::query()->where('ulid', $taskId)->first();
-        if ($task === null) {
-            return $this->message;
+        if ($task !== null) {
+            $request = Request::create('/');
+            $request->setUserResolver(static fn () => $user);
+            $snapshot = TaskResource::make($task->loadDetailFor($user))->resolve($request);
+            $data = PushSnapshot::attach($data, 'task', $snapshot);
         }
 
-        $request = Request::create('/');
-        $request->setUserResolver(static fn () => $user);
-        $snapshot = TaskResource::make($task->loadDetailFor($user))->resolve($request);
-
-        return $this->message->withData(PushSnapshot::attach($data, 'task', $snapshot));
+        return $this->message->withData($data, drawnByApp: true);
     }
 }
