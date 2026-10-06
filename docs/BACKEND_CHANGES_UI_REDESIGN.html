@@ -689,7 +689,8 @@ POST /api/v1/activities/{a}/submit
   }
 }
 </code></pre>
-<p><code>from</code> inklusif, <code>to</code> eksklusif (sama dengan filter entries), rentang maks 366 hari. Filter <code>types[]</code>/<code>direction</code> boleh diterima agar total mengikuti tab. "Pendapatan minggu ini" + "vs pekan lalu" = dua panggilan (minggu ini dan minggu lalu), atau <code>compare_previous=1</code> → <code>previous: {credit_total, earning_total}</code>.</p>
+<p><code>from</code> inklusif, <code>to</code> eksklusif (sama dengan filter entries), rentang maks 366 hari. Filter <code>types[]</code>/<code>direction</code> boleh diterima agar total mengikuti tab. "Pendapatan minggu ini" + "vs pekan lalu" = dua panggilan (minggu ini dan minggu lalu), atau <code>compare_previous=1</code> → <code>previous: {credit_total, earning_total, earning_count}</code>.</p>
+<p>Tambahan untuk layar Pemasukan (semua opsional, klien lama tidak terpengaruh): <code>earning_count</code> (selalu ada); <code>group=day|week</code> → <code>by_day[{date,…}]</code> / <code>by_week[{week_start,…}]</code> — wajib <code>from</code>/<code>to</code>, zona offset <code>from</code>, diisi nol, pekan mulai Senin; item deret (termasuk <code>by_month</code>) kini membawa <code>earning_count</code>; <code>with_categories=1</code> → <code>by_category[{slug,name,icon,earning_total,earning_count}]</code>, urut total turun lalu nama, fallback <code>lainnya</code>.</p>
 <h3>B3 · Notifikasi in-app (P1)</h3>
 <pre><code class="language-http">GET  /api/v1/me/notifications?unread=1&amp;per_page=20
 GET  /api/v1/me/notifications/unread-count          → {&quot;data&quot;:{&quot;count&quot;:3}}

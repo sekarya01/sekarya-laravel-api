@@ -7,6 +7,7 @@ namespace Tests\Unit\Actions\Wallet;
 use App\Actions\Wallet\SummarizeWalletAction;
 use App\Data\Wallet\WalletSummaryQueryData;
 use App\Enums\WalletEntryType;
+use App\Enums\WalletSummaryGroup;
 use App\Models\User;
 use App\Models\WalletEntry;
 use App\Support\WalletLedger;
@@ -122,13 +123,13 @@ final class SummarizeWalletActionTest extends TestCase
             new WalletSummaryQueryData(
                 from: CarbonImmutable::parse('2026-09-01T00:00:00+00:00'),
                 to: CarbonImmutable::parse('2026-11-01T00:00:00+00:00'),
-                groupByMonth: true,
+                group: WalletSummaryGroup::Month,
             ),
         );
 
         $this->assertSame([
-            ['month' => '2026-09', 'credit_total' => 10_000, 'debit_total' => 5_000, 'entries_count' => 2, 'earning_total' => 0],
-            ['month' => '2026-10', 'credit_total' => 3_000, 'debit_total' => 0, 'entries_count' => 1, 'earning_total' => 3_000],
+            ['month' => '2026-09', 'credit_total' => 10_000, 'debit_total' => 5_000, 'entries_count' => 2, 'earning_total' => 0, 'earning_count' => 0],
+            ['month' => '2026-10', 'credit_total' => 3_000, 'debit_total' => 0, 'entries_count' => 1, 'earning_total' => 3_000, 'earning_count' => 1],
         ], $summary->byMonth);
     }
 

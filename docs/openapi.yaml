@@ -1455,7 +1455,7 @@ paths:
     get:
       tags: [Saldo]
       operationId: showWalletSummary
-      summary: Ringkasan saldo (total masuk/keluar, pendapatan, per bulan)
+      summary: Ringkasan saldo (total masuk/keluar, pendapatan, deret, per kategori)
       description: |
         Angka untuk kartu "Total Masuk / Total Keluar" di Riwayat dan
         "Pendapatan minggu ini" di Beranda Mitra — **dijumlahkan server** dari
@@ -1474,8 +1474,19 @@ paths:
         rentang — itulah "pendapatan". Untuk "minggu ini vs pekan lalu",
         panggil dua kali dengan rentang minggu yang berbeda, atau kirim
         `compare_previous=1` dan baca `previous` (periode sebelumnya yang
-        panjangnya SAMA, tepat sebelum `from`). `group=month` menambahkan
-        deret `by_month`.
+        panjangnya SAMA, tepat sebelum `from`). `earning_count` = banyaknya
+        mutasi `earning` dalam rentang.
+
+        `group=day|week|month` menambahkan deret `by_day` / `by_week` /
+        `by_month`, dibucket memakai offset `from`. `day`/`week` WAJIB
+        `from`+`to` dan DIISI NOL: setiap hari/pekan dalam `[from, to)` muncul
+        urut naik (juga untuk akun tanpa dompet); pekan mulai Senin, jadi
+        `week_start` pertama bisa sebelum `from`. `month` hanya memuat bulan
+        yang punya baris.
+
+        `with_categories=1` menambahkan `by_category`: pendapatan per kategori
+        task, urut `earning_total` turun lalu `name` naik, hanya total > 0.
+        Pendapatan tanpa task/kategori masuk `lainnya`.
 
         Selalu milik yang sedang login. Tidak ada parameter pemilik; parameter
         lain diabaikan. Membacanya tidak membuat baris dompet.
@@ -1510,8 +1521,15 @@ paths:
         - name: group
           in: query
           required: false
-          description: '`month` menambahkan deret `by_month`.'
-          schema: { type: string, enum: [month] }
+          description: |
+            `day` → `by_day`, `week` → `by_week` (pekan mulai Senin), `month` →
+            `by_month`. `day`/`week` mewajibkan `from` dan `to`.
+          schema: { type: string, enum: [day, week, month] }
+        - name: with_categories
+          in: query
+          required: false
+          description: Sertakan `by_category` (pendapatan per kategori task).
+          schema: { type: boolean }
       responses:
         '200':
           description: Ringkasan terhitung.
@@ -7239,7 +7257,7 @@ components:
     WalletSummary:
       type: object
       title: WalletSummary
-      required: [from, to, credit_total, debit_total, entries_count, by_type, earning_total]
+      required: [from, to, credit_total, debit_total, entries_count, by_type, earning_total, earning_count]
       properties:
         from: { type: string, format: date-time, example: '2026-09-01T00:00:00+07:00' }
         to: { type: string, format: date-time, example: '2026-10-01T00:00:00+07:00' }
@@ -7263,16 +7281,21 @@ components:
           type: integer
           description: Jumlah mutasi `earning` dalam rentang. Ini angka "pendapatan mingguan" di Beranda Mitra.
           example: 0
+        earning_count:
+          type: integer
+          description: Banyaknya mutasi `earning` dalam rentang (mengikuti filter).
+          example: 0
         previous:
           description: |
             Periode sebelumnya yang panjangnya SAMA, tepat sebelum `from`.
             Hanya ada bila `compare_previous=1` — dasar "+18% dari pekan lalu".
           oneOf:
             - type: object
-              required: [credit_total, earning_total]
+              required: [credit_total, earning_total, earning_count]
               properties:
                 credit_total: { type: integer, example: 480000 }
                 earning_total: { type: integer, example: 120000 }
+                earning_count: { type: integer, example: 3 }
             - type: 'null'
         by_month:
           type: array
@@ -7281,13 +7304,64 @@ components:
             `group=month`, urut menaik.
           items:
             type: object
-            required: [month, credit_total, debit_total, entries_count, earning_total]
+            required: [month, credit_total, debit_total, entries_count, earning_total, earning_count]
             properties:
               month: { type: string, example: '2026-09' }
               credit_total: { type: integer }
               debit_total: { type: integer }
               entries_count: { type: integer }
               earning_total: { type: integer }
+              earning_count: { type: integer }
+        by_day:
+          type: array
+          description: |
+            Rincian per hari (offset `from`). Hanya ada bila `group=day`.
+            Diisi nol: setiap hari dalam `[from, to)` muncul, urut menaik.
+          items:
+            type: object
+            required: [date, credit_total, debit_total, entries_count, earning_total, earning_count]
+            properties:
+              date: { type: string, format: date, example: '2026-09-01' }
+              credit_total: { type: integer }
+              debit_total: { type: integer }
+              entries_count: { type: integer }
+              earning_total: { type: integer }
+              earning_count: { type: integer }
+        by_week:
+          type: array
+          description: |
+            Rincian per pekan mulai Senin (offset `from`). Hanya ada bila
+            `group=week`. Diisi nol, urut menaik; `week_start` pertama bisa
+            sebelum `from`.
+          items:
+            type: object
+            required: [week_start, credit_total, debit_total, entries_count, earning_total, earning_count]
+            properties:
+              week_start: { type: string, format: date, example: '2026-08-31' }
+              credit_total: { type: integer }
+              debit_total: { type: integer }
+              entries_count: { type: integer }
+              earning_total: { type: integer }
+              earning_count: { type: integer }
+        by_category:
+          type: array
+          description: |
+            Pendapatan (`earning`) per kategori task. Hanya ada bila
+            `with_categories=1` (`[]` bila belum ada). Urut `earning_total`
+            turun lalu `name` naik; hanya total > 0; tanpa paginasi.
+            Pendapatan tanpa task/kategori masuk `lainnya` / "Lainnya".
+          items:
+            type: object
+            required: [slug, name, icon, earning_total, earning_count]
+            properties:
+              slug: { type: string, example: pindahan }
+              name: { type: string, example: Pindahan & Angkut }
+              icon:
+                oneOf:
+                  - { type: string, example: truck }
+                  - { type: 'null' }
+              earning_total: { type: integer, example: 150000 }
+              earning_count: { type: integer, example: 2 }
     WalletConfig:
       type: object
       title: WalletConfig

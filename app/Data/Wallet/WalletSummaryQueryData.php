@@ -6,6 +6,7 @@ namespace App\Data\Wallet;
 
 use App\Enums\WalletEntryDirection;
 use App\Enums\WalletEntryType;
+use App\Enums\WalletSummaryGroup;
 use App\Http\Requests\Api\V1\Wallet\ShowWalletSummaryRequest;
 use Carbon\CarbonImmutable;
 
@@ -29,7 +30,10 @@ final readonly class WalletSummaryQueryData
         public array $types = [],
         public ?WalletEntryDirection $direction = null,
         public bool $comparePrevious = false,
-        public bool $groupByMonth = false,
+        /** `null` = tanpa deret. */
+        public ?WalletSummaryGroup $group = null,
+        /** Sertakan `by_category` (pendapatan per kategori task). */
+        public bool $withCategories = false,
     ) {}
 
     /**
@@ -58,7 +62,10 @@ final readonly class WalletSummaryQueryData
                 ? WalletEntryDirection::from($request->string('direction')->value())
                 : null,
             comparePrevious: $request->boolean('compare_previous'),
-            groupByMonth: $request->string('group')->value() === 'month',
+            group: $request->filled('group')
+                ? WalletSummaryGroup::from($request->string('group')->value())
+                : null,
+            withCategories: $request->boolean('with_categories'),
         );
     }
 
