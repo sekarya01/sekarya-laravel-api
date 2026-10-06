@@ -25,6 +25,8 @@ final readonly class CreateTaskData
         public array $options = [],
         public array $photos = [],
         public ?string $locationText = null,
+        /** Nama alamat ("Rumah") — ditahan sampai deal seperti alamat lengkap. */
+        public ?string $locationLabel = null,
         /** Wilayah kasar yang selalu tampil — lihat Task::revealsLocationTo. */
         public ?string $area = null,
         public ?float $latitude = null,
@@ -57,6 +59,9 @@ final readonly class CreateTaskData
             photos: $request->array('photos'),
             locationText: $request->filled('location_text')
                 ? trim($request->string('location_text')->value())
+                : null,
+            locationLabel: $request->filled('location_label')
+                ? trim($request->string('location_label')->value())
                 : null,
             area: $request->filled('area') ? trim($request->string('area')->value()) : null,
             latitude: $request->filled('latitude') ? $request->float('latitude') : null,

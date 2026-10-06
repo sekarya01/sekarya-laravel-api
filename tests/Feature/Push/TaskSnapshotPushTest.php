@@ -41,6 +41,11 @@ final class TaskSnapshotPushTest extends TestCase
         $this->assertSame($task->ulid, $snapshot['id']);
         $this->assertSame('Bersihkan taman', $snapshot['title']);
         $this->assertTrue($snapshot['location']['is_precise'], 'pemberi kerja melihat lokasi presisi');
+
+        // Digambar aplikasi (data-only): satu notifikasi per tugas, diganti tiap status berubah.
+        $push = $this->push->firstTo($task->poster);
+        $this->assertTrue($push?->drawnByApp);
+        $this->assertSame(['1', 'Judul', 'Isi'], [$data['notify'], $data['title'], $data['body']]);
     }
 
     public function test_a_long_task_is_gzipped_to_fit_the_fcm_limit(): void
@@ -62,7 +67,9 @@ final class TaskSnapshotPushTest extends TestCase
 
         $this->deliver($task->poster, $task, 'chat_message');
 
-        $this->assertArrayNotHasKey('task', $this->push->firstTo($task->poster)?->data ?? []);
+        $push = $this->push->firstTo($task->poster);
+        $this->assertArrayNotHasKey('task', $push?->data ?? []);
+        $this->assertFalse($push?->drawnByApp);
     }
 
     private function deliver(User $user, Task $task, string $type): void

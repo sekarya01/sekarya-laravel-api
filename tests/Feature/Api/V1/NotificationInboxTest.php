@@ -86,11 +86,12 @@ final class NotificationInboxTest extends TestCase
         $this->assertSame('bid_placed', $row->type);
         $this->assertSame($push->title, $row->title);
         $this->assertSame($push->body, $row->body);
-        // Push = data baris lonceng + snapshot tugas UTUH (hanya FCM, lihat
-        // SendPushNotification::withTaskSnapshot); selebihnya identik.
+        // Push = data baris lonceng + snapshot tugas UTUH + notify/title/body
+        // untuk digambar app (hanya FCM, lihat SendPushNotification); selebihnya identik.
         $snapshotKey = array_key_exists('task', $push->data) ? 'task' : 'task_gz';
         $this->assertArrayHasKey($snapshotKey, $push->data);
-        $this->assertSame($row->data, array_diff_key($push->data, [$snapshotKey => true]));
+        $drawn = ['notify' => true, 'title' => true, 'body' => true];
+        $this->assertSame($row->data, array_diff_key($push->data, [$snapshotKey => true, ...$drawn]));
 
         // Dan belum dibaca — itu yang membuat badge lonceng menyala.
         $this->assertNull($row->read_at);
