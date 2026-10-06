@@ -1724,11 +1724,38 @@ curl -s "$BASE/me/wallet/summary?from=2026-09-01T00:00:00%2B07:00&to=2026-10-01T
   "by_type": { "topup": 250000, "refund": 300000, "earning": 0, "task_hold": 230000,
                "task_release": 0, "withdrawal": 0, "withdrawal_reversal": 0,
                "adjustment_credit": 0, "adjustment_debit": 0 },
-  "earning_total": 0,
-  "previous": { "credit_total": 480000, "earning_total": 120000 },
+  "earning_total": 0, "earning_count": 0,
+  "previous": { "credit_total": 480000, "earning_total": 120000, "earning_count": 3 },
   "by_month": [
     { "month": "2026-09", "credit_total": 550000, "debit_total": 230000,
-      "entries_count": 4, "earning_total": 0 }
+      "entries_count": 4, "earning_total": 0, "earning_count": 0 }
+  ]
+}
+```
+
+Layar **Pemasukan** (grafik pendapatan mitra) memakai deret harian/pekanan dan rincian
+per kategori:
+
+```bash
+curl -s "$BASE/me/wallet/summary?from=2026-09-01T00:00:00%2B07:00&to=2026-09-04T00:00:00%2B07:00&group=day&with_categories=1" \
+  -H "Authorization: Bearer $AT" -H 'Accept: application/json' | jq '.data | {by_day, by_category}'
+```
+
+```json
+{
+  "by_day": [
+    { "date": "2026-09-01", "credit_total": 150000, "debit_total": 15000, "entries_count": 3,
+      "earning_total": 150000, "earning_count": 2 },
+    { "date": "2026-09-02", "credit_total": 0, "debit_total": 0, "entries_count": 0,
+      "earning_total": 0, "earning_count": 0 },
+    { "date": "2026-09-03", "credit_total": 75000, "debit_total": 7500, "entries_count": 2,
+      "earning_total": 75000, "earning_count": 1 }
+  ],
+  "by_category": [
+    { "slug": "pindahan", "name": "Pindahan & Angkut", "icon": "truck",
+      "earning_total": 150000, "earning_count": 2 },
+    { "slug": "lainnya", "name": "Lainnya", "icon": null,
+      "earning_total": 75000, "earning_count": 1 }
   ]
 }
 ```
@@ -1741,8 +1768,24 @@ curl -s "$BASE/me/wallet/summary?from=2026-09-01T00:00:00%2B07:00&to=2026-10-01T
   "Pendapatan minggu ini vs pekan lalu": dua panggilan dengan rentang minggu berbeda,
   atau `compare_previous=1` → `previous` (periode sepanjang sama, tepat sebelum `from`).
   "+18% dari pekan lalu" dihitung klien dari dua angka ini.
-- `types[]`/`direction` menyaring agar total mengikuti tab yang dibuka. `group=month`
-  menambahkan deret `by_month` (bucket memakai offset `from`).
+- `earning_count` = banyaknya mutasi `earning` dalam rentang (selalu ada; juga di
+  `previous`).
+- `types[]`/`direction` menyaring agar total mengikuti tab yang dibuka — termasuk deret
+  dan `by_category`.
+- `group=day|week|month` menambahkan deret `by_day` / `by_week` / `by_month`; bucket
+  memakai offset `from` (dihitung di PHP, bukan `CONVERT_TZ`). Setiap item:
+  `credit_total`, `debit_total`, `entries_count`, `earning_total`, `earning_count`, plus
+  kunci `date` / `week_start` / `month`.
+  - `day`/`week` **wajib** `from`+`to` (422 bila tidak) dan **diisi nol**: setiap
+    hari/pekan dalam `[from, to)` muncul urut naik, juga untuk akun tanpa dompet. Pekan
+    mulai **Senin**; `week_start` pekan pertama bisa sebelum `from`.
+  - `month` tetap seperti semula: hanya bulan yang punya baris (kosong → kunci tidak ada).
+- `with_categories=1` → `by_category`: pendapatan (`earning`) per kategori task
+  (`slug`, `name`, `icon`, `earning_total`, `earning_count`), urut `earning_total` turun
+  lalu `name` naik, hanya total > 0, tanpa paginasi. Pendapatan yang task/kategorinya
+  tidak bisa dirunut masuk `lainnya` / "Lainnya" (ikon `null`; bila kategori asli
+  `lainnya` juga ada, digabung memakai nama/ikon kategori itu). Tanpa parameter ini kunci
+  tidak ada; diminta tapi kosong → `[]`.
 - Selalu milik yang login — tidak ada parameter pemilik. Tidak membuat dompet.
 - `SUM … GROUP BY type` pada indeks `(wallet_id, created_at, id)`; `EXPLAIN` diperiksa
   di test pada 3.000 baris.

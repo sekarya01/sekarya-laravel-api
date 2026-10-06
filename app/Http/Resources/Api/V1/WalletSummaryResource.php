@@ -11,9 +11,11 @@ use Illuminate\Http\Request;
  * Ringkasan saldo sendiri (B2). Seluruh angka bilangan bulat rupiah.
  *
  * Nama field mengikuti kontrak dokumen redesign: `credit_total`,
- * `debit_total`, `entries_count`, `by_type`, `earning_total`. `previous`
- * hanya muncul bila diminta (`compare_previous=1`); `by_month` hanya bila
- * `group=month`.
+ * `debit_total`, `entries_count`, `by_type`, `earning_total`,
+ * `earning_count`. `previous` hanya muncul bila diminta (`compare_previous=1`);
+ * `by_day`/`by_week`/`by_month` hanya bila `group=day|week|month`;
+ * `by_category` hanya bila `with_categories=1` (daftar kosong bila belum ada
+ * pendapatan).
  *
  * `by_type` SELALU memuat setiap jenis mutasi (nol bila tidak ada), supaya
  * klien tidak perlu membedakan "kunci hilang" dari "nol" — dan supaya ia
@@ -36,17 +38,31 @@ final class WalletSummaryResource extends BaseResource
             'entries_count' => $summary->entriesCount,
             'by_type' => (object) $summary->byType,
             'earning_total' => $summary->earningTotal,
+            'earning_count' => $summary->earningCount,
         ];
 
         if ($summary->previousCreditTotal !== null) {
             $data['previous'] = [
                 'credit_total' => $summary->previousCreditTotal,
                 'earning_total' => $summary->previousEarningTotal ?? 0,
+                'earning_count' => $summary->previousEarningCount ?? 0,
             ];
         }
 
         if ($summary->byMonth !== []) {
             $data['by_month'] = $summary->byMonth;
+        }
+
+        if ($summary->byDay !== null) {
+            $data['by_day'] = $summary->byDay;
+        }
+
+        if ($summary->byWeek !== null) {
+            $data['by_week'] = $summary->byWeek;
+        }
+
+        if ($summary->byCategory !== null) {
+            $data['by_category'] = $summary->byCategory;
         }
 
         return $data;

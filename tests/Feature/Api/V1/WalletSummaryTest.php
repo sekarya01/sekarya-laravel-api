@@ -6,6 +6,9 @@ namespace Tests\Feature\Api\V1;
 
 use App\Enums\WalletEntryDirection;
 use App\Enums\WalletEntryType;
+use App\Models\Activity;
+use App\Models\Category;
+use App\Models\Task;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletEntry;
@@ -99,6 +102,13 @@ final class WalletSummaryTest extends TestCase
         );
         $this->assertStringContainsString('"by_type":{', (string) $response->getContent());
 
+        // Kunci tingkat atas tanpa parameter tambahan: kunci lama + `earning_count`.
+        $this->assertSame(
+            ['from', 'to', 'credit_total', 'debit_total', 'entries_count', 'by_type', 'earning_total', 'earning_count'],
+            array_keys($response->json('data')),
+        );
+        $response->assertJsonPath('data.earning_count', 0);
+
         // `previous`/`by_month` hanya muncul bila diminta.
         $response->assertJsonMissingPath('data.previous');
         $response->assertJsonMissingPath('data.by_month');
@@ -191,21 +201,179 @@ final class WalletSummaryTest extends TestCase
         ])->assertOk()->json('data.by_month');
 
         $this->assertSame([
-            ['month' => '2026-09', 'credit_total' => 10_000, 'debit_total' => 5_000, 'entries_count' => 2, 'earning_total' => 0],
-            ['month' => '2026-10', 'credit_total' => 3_000, 'debit_total' => 0, 'entries_count' => 1, 'earning_total' => 3_000],
+            ['month' => '2026-09', 'credit_total' => 10_000, 'debit_total' => 5_000, 'entries_count' => 2, 'earning_total' => 0, 'earning_count' => 0],
+            ['month' => '2026-10', 'credit_total' => 3_000, 'debit_total' => 0, 'entries_count' => 1, 'earning_total' => 3_000, 'earning_count' => 1],
         ], $byMonth);
     }
 
     public function test_an_unknown_group_is_refused(): void
     {
-        $this->summary(['group' => 'week'])
+        $this->summary(['group' => 'year'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('group');
+    }
+
+    /** Deret harian/pekanan diisi nol tanpa ujung yang jelas — rentang wajib. */
+    public function test_day_and_week_groups_require_a_range(): void
+    {
+        foreach (['day', 'week'] as $group) {
+            $this->summary(['group' => $group])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors(['from', 'to'], 'errors', $group);
+        }
+
+        // `month` tetap boleh tanpa rentang (bulan berjalan).
+        $this->summary(['group' => 'month'])->assertOk();
+    }
+
+    /**
+     * `group=day`: hari versi offset `from`, diisi nol, urut naik.
+     * 23:30 UTC tanggal 2 = 06:30 WIB tanggal 3.
+     */
+    public function test_group_by_day_is_zero_filled_in_the_offset_of_from(): void
+    {
+        $this->entry($this->user, WalletEntryType::Earning, 40_000, '2026-09-02 23:30:00');
+        $this->entry($this->user, WalletEntryType::Earning, 10_000, '2026-09-03 02:00:00');
+        $this->entry($this->user, WalletEntryType::TaskHold, 5_000, '2026-09-01 03:00:00');
+
+        $response = $this->summary([
+            'from' => '2026-09-01T00:00:00+07:00',
+            'to' => '2026-09-05T00:00:00+07:00',
+            'group' => 'day',
+        ])->assertOk();
+
+        $this->assertSame([
+            ['date' => '2026-09-01', 'credit_total' => 0, 'debit_total' => 5_000, 'entries_count' => 1, 'earning_total' => 0, 'earning_count' => 0],
+            ['date' => '2026-09-02', 'credit_total' => 0, 'debit_total' => 0, 'entries_count' => 0, 'earning_total' => 0, 'earning_count' => 0],
+            ['date' => '2026-09-03', 'credit_total' => 50_000, 'debit_total' => 0, 'entries_count' => 2, 'earning_total' => 50_000, 'earning_count' => 2],
+            ['date' => '2026-09-04', 'credit_total' => 0, 'debit_total' => 0, 'entries_count' => 0, 'earning_total' => 0, 'earning_count' => 0],
+        ], $response->json('data.by_day'));
+
+        $response->assertJsonPath('data.earning_count', 2)
+            ->assertJsonMissingPath('data.by_week')
+            ->assertJsonMissingPath('data.by_month')
+            ->assertJsonMissingPath('data.by_category');
+    }
+
+    /** Akun tanpa dompet tetap mendapat deret penuh berisi nol. */
+    public function test_group_by_day_without_a_wallet_is_all_zeros(): void
+    {
+        $byDay = $this->summary([
+            'from' => '2026-09-01T00:00:00+07:00',
+            'to' => '2026-09-08T00:00:00+07:00',
+            'group' => 'day',
+        ])->assertOk()->json('data.by_day');
+
+        $this->assertCount(7, $byDay);
+        $this->assertSame(0, array_sum(array_column($byDay, 'entries_count')));
+    }
+
+    /** `group=week`: pekan mulai Senin; pekan pertama bisa bermula sebelum `from`. */
+    public function test_group_by_week_starts_on_monday(): void
+    {
+        // Rabu 2 Sep 2026 → pekan 31 Agu (Senin).
+        $this->entry($this->user, WalletEntryType::Earning, 20_000, '2026-09-02 03:00:00');
+        // Minggu 13 Sep 20:00 UTC = Senin 14 Sep 03:00 WIB → pekan 14 Sep.
+        $this->entry($this->user, WalletEntryType::Earning, 30_000, '2026-09-13 20:00:00');
+
+        $byWeek = $this->summary([
+            'from' => '2026-09-01T00:00:00+07:00',
+            'to' => '2026-09-22T00:00:00+07:00',
+            'group' => 'week',
+        ])->assertOk()->json('data.by_week');
+
+        $this->assertSame(['2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21'], array_column($byWeek, 'week_start'));
+        $this->assertSame([20_000, 0, 30_000, 0], array_column($byWeek, 'earning_total'));
+        $this->assertSame([1, 0, 1, 0], array_column($byWeek, 'earning_count'));
+        $this->assertSame(['week_start', 'credit_total', 'debit_total', 'entries_count', 'earning_total', 'earning_count'], array_keys($byWeek[0]));
+    }
+
+    /** Satu baris `earning` yang dirujuk ke task berkategori tertentu. */
+    private function earningIn(?Category $category, int $amount, string $createdAtUtc): void
+    {
+        $ledger = app(WalletLedger::class);
+        $activity = Activity::factory()->create([
+            'task_id' => Task::factory()->create(['category_id' => $category?->getKey() ?? Category::factory()])->getKey(),
+            'worker_id' => $this->user->getKey(),
+        ]);
+
+        if ($category === null) {
+            // Task tanpa kategori tidak bisa dibuat (kolom wajib); rujukan
+            // yang tak bisa dirunut diwakili baris tanpa rujukan.
+            $row = $ledger->credit($ledger->walletFor($this->user), WalletEntryType::Earning, $amount, null, 'fixture');
+        } else {
+            $row = $ledger->credit($ledger->walletFor($this->user), WalletEntryType::Earning, $amount, $activity, 'fixture');
+        }
+
+        WalletEntry::query()->whereKey($row->getKey())->update(['created_at' => $createdAtUtc]);
+    }
+
+    public function test_with_categories_groups_earnings_by_task_category(): void
+    {
+        $angkut = Category::factory()->create(['slug' => 'uji-angkut', 'name' => 'Angkut', 'icon' => 'truck']);
+        $bersih = Category::factory()->create(['slug' => 'uji-bersih', 'name' => 'Bersih', 'icon' => 'broom']);
+        $cuci = Category::factory()->create(['slug' => 'uji-cuci', 'name' => 'Cuci', 'icon' => null]);
+
+        $this->earningIn($bersih, 50_000, '2026-09-05 03:00:00');
+        $this->earningIn($angkut, 30_000, '2026-09-06 03:00:00');
+        $this->earningIn($angkut, 20_000, '2026-09-07 03:00:00');
+        $this->earningIn($cuci, 10_000, '2026-09-08 03:00:00');
+        $this->earningIn(null, 5_000, '2026-09-09 03:00:00');
+        // Di luar rentang → tidak dihitung.
+        $this->earningIn($cuci, 99_000, '2026-10-02 03:00:00');
+        // Bukan earning → tidak masuk rincian kategori.
+        $this->entry($this->user, WalletEntryType::Topup, 70_000, '2026-09-05 03:00:00');
+
+        $response = $this->summary([
+            'from' => '2026-09-01T00:00:00+00:00',
+            'to' => '2026-10-01T00:00:00+00:00',
+            'with_categories' => 1,
+        ])->assertOk()
+            ->assertJsonPath('data.earning_total', 115_000)
+            ->assertJsonPath('data.earning_count', 5);
+
+        // 50.000 seri: Angkut sebelum Bersih (nama naik).
+        $this->assertSame([
+            ['slug' => 'uji-angkut', 'name' => 'Angkut', 'icon' => 'truck', 'earning_total' => 50_000, 'earning_count' => 2],
+            ['slug' => 'uji-bersih', 'name' => 'Bersih', 'icon' => 'broom', 'earning_total' => 50_000, 'earning_count' => 1],
+            ['slug' => 'uji-cuci', 'name' => 'Cuci', 'icon' => null, 'earning_total' => 10_000, 'earning_count' => 1],
+            ['slug' => 'lainnya', 'name' => 'Lainnya', 'icon' => null, 'earning_total' => 5_000, 'earning_count' => 1],
+        ], $response->json('data.by_category'));
+    }
+
+    public function test_by_category_is_omitted_by_default_and_empty_without_earnings(): void
+    {
+        $range = ['from' => '2026-09-01T00:00:00+00:00', 'to' => '2026-10-01T00:00:00+00:00'];
+
+        $this->summary($range)->assertOk()->assertJsonMissingPath('data.by_category');
+
+        $response = $this->summary($range + ['with_categories' => 1])->assertOk();
+        $this->assertSame([], $response->json('data.by_category'));
+        $this->assertStringContainsString('"by_category":[]', (string) $response->getContent());
+    }
+
+    public function test_compare_previous_carries_the_earning_count(): void
+    {
+        $this->entry($this->user, WalletEntryType::Earning, 10_000, '2026-09-08 03:00:00');
+        $this->entry($this->user, WalletEntryType::Earning, 10_000, '2026-09-09 03:00:00');
+        $this->entry($this->user, WalletEntryType::Earning, 10_000, '2026-09-03 03:00:00');
+
+        $this->summary([
+            'from' => '2026-09-07T00:00:00+00:00',
+            'to' => '2026-09-14T00:00:00+00:00',
+            'compare_previous' => 1,
+        ])->assertOk()
+            ->assertJsonPath('data.earning_count', 2)
+            ->assertJsonPath('data.previous.earning_count', 1)
+            ->assertJsonPath('data.previous.earning_total', 10_000);
     }
 
     /** Orang lain tidak bisa dibaca — tidak ada parameter pemilik, dan barisnya tidak ikut. */
     public function test_another_users_entries_never_count(): void
     {
+        // Rentang bawaan = bulan berjalan; dipatok supaya baris September
+        // tetap masuk berapa pun tanggal test dijalankan.
+        CarbonImmutable::setTestNow('2026-09-25 10:00:00');
         $other = $this->activeUser();
         $this->entry($other, WalletEntryType::Topup, 700_000, '2026-09-10 03:00:00');
         $this->entry($other, WalletEntryType::Earning, 90_000, '2026-09-22 03:00:00');

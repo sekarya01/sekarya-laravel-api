@@ -6,6 +6,7 @@ namespace App\Http\Requests\Api\V1\Wallet;
 
 use App\Enums\WalletEntryDirection;
 use App\Enums\WalletEntryType;
+use App\Enums\WalletSummaryGroup;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -37,8 +38,16 @@ final class ShowWalletSummaryRequest extends FormRequest
             // Tanpa `sometimes`: aturan itu melewatkan ruas yang tidak
             // dikirim, termasuk `required_with` — sehingga `from` sendirian
             // lolos.
-            'from' => ['required_with:to', 'date'],
-            'to' => ['required_with:from', 'date', ...($this->filled('from') ? ['after:from'] : [])],
+            //
+            // `group=day|week` mewajibkan rentang: deretnya diisi nol untuk
+            // setiap hari/pekan, jadi ujungnya harus disebut klien.
+            'from' => ['required_with:to', 'required_if:group,day,week', 'date'],
+            'to' => [
+                'required_with:from',
+                'required_if:group,day,week',
+                'date',
+                ...($this->filled('from') ? ['after:from'] : []),
+            ],
             // Penyaring yang sama dengan `me/wallet/entries`, supaya total
             // mengikuti tab: `direction` memisah masuk/keluar, `types[]`
             // memilih beberapa jenis sekaligus.
@@ -49,8 +58,10 @@ final class ShowWalletSummaryRequest extends FormRequest
             // membawa periode sebelumnya yang panjangnya SAMA, tepat sebelum
             // rentang ini.
             'compare_previous' => ['sometimes', 'boolean'],
-            // Rincian per bulan untuk deret "jumlah transaksi per bulan".
-            'group' => ['sometimes', Rule::in(['month'])],
+            // Deret per hari/pekan/bulan untuk grafik (Pemasukan, Riwayat).
+            'group' => ['sometimes', Rule::enum(WalletSummaryGroup::class)],
+            // Rincian pendapatan per kategori task (layar Pemasukan).
+            'with_categories' => ['sometimes', 'boolean'],
         ];
     }
 

@@ -266,7 +266,9 @@ GET /api/v1/me/wallet/summary?from=2026-09-01T00:00:00+07:00&to=2026-10-01T00:00
   }
 }
 ```
-`from` inklusif, `to` eksklusif (sama dengan filter entries), rentang maks 366 hari. Filter `types[]`/`direction` boleh diterima agar total mengikuti tab. "Pendapatan minggu ini" + "vs pekan lalu" = dua panggilan (minggu ini dan minggu lalu), atau `compare_previous=1` → `previous: {credit_total, earning_total}`.
+`from` inklusif, `to` eksklusif (sama dengan filter entries), rentang maks 366 hari. Filter `types[]`/`direction` boleh diterima agar total mengikuti tab. "Pendapatan minggu ini" + "vs pekan lalu" = dua panggilan (minggu ini dan minggu lalu), atau `compare_previous=1` → `previous: {credit_total, earning_total, earning_count}`.
+
+Tambahan untuk layar Pemasukan (semua opsional, klien lama tidak terpengaruh): `earning_count` (selalu ada); `group=day|week` → `by_day[{date,…}]` / `by_week[{week_start,…}]` — wajib `from`/`to`, zona offset `from`, diisi nol, pekan mulai Senin; item deret (termasuk `by_month`) kini membawa `earning_count`; `with_categories=1` → `by_category[{slug,name,icon,earning_total,earning_count}]`, urut total turun lalu nama, fallback `lainnya`.
 
 ### B3 · Notifikasi in-app (P1)
 ```http
