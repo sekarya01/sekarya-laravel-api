@@ -375,6 +375,7 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   `budget_max` bigint unsigned DEFAULT NULL,
   `ref_price_median` bigint unsigned DEFAULT NULL,
   `location_text` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `location_label` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `area` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `city` varchar(80) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `latitude` decimal(10,7) DEFAULT NULL,
@@ -1248,7 +1249,7 @@ INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VAL
 INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (145, 'Jayawijaya', 'Papua Pegunungan', 'kabupaten', 144);
 INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (146, 'Boven Digoel', 'Papua Selatan', 'kabupaten', 145);
 
--- migrations: 66 baris
+-- migrations: 70 baris
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (1, '0001_01_01_000000_create_users_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (2, '0001_01_01_000001_create_cache_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (3, '0001_01_01_000002_create_jobs_table', 1);
@@ -1318,5 +1319,6 @@ INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (66, '2026_0
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (67, '2026_10_04_000001_add_thumbnail_to_chat_attachments', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (68, '2026_10_04_000002_group_chat_rooms_for_multi_worker_tasks', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (69, '2026_10_05_000001_add_avatar_to_chat_rooms', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (70, '2026_10_06_000001_add_location_label_to_tasks_table', 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

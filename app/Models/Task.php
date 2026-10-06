@@ -31,7 +31,7 @@ final class Task extends Model
     protected $fillable = [
         'poster_id', 'category_id', 'title', 'description', 'options', 'photos',
         'budget_min', 'budget_max', 'ref_price_median',
-        'location_text', 'area', 'city', 'latitude', 'longitude', 'is_remote',
+        'location_text', 'location_label', 'area', 'city', 'latitude', 'longitude', 'is_remote',
         'needed_at', 'end_at', 'bidding_closes_at', 'status', 'workers_needed',
     ];
 

@@ -30,6 +30,9 @@ final class TaskLocationPrivacyTest extends TestCase
 
     private const string ADDRESS = 'Jl. Rahasia No. 7, RT 03/RW 05, lantai 2';
 
+    /** Nama alamat — sama pribadinya dengan alamat lengkap. */
+    private const string LABEL = 'Kos Melati Biru';
+
     private const float LAT = -6.8923456;
 
     private const float LNG = 107.6171234;
@@ -53,6 +56,7 @@ final class TaskLocationPrivacyTest extends TestCase
             'poster_id' => $poster->getKey(),
             'category_id' => $this->anyCategory()->getKey(),
             'location_text' => self::ADDRESS,
+            'location_label' => self::LABEL,
             'area' => 'Coblong',
             'city' => 'Kota Bandung',
             'latitude' => self::LAT,
@@ -76,12 +80,13 @@ final class TaskLocationPrivacyTest extends TestCase
 
         // Kuncinya HARUS ada: assertJsonPath(..., null) juga lulus saat kunci hilang.
         $this->assertSame(
-            ['text', 'area', 'city', 'latitude', 'longitude', 'is_precise', 'is_remote'],
+            ['text', 'label', 'area', 'city', 'latitude', 'longitude', 'is_precise', 'is_remote'],
             array_keys((array) $response->json($path)),
         );
 
         $response
             ->assertJsonPath($path.'.text', null)
+            ->assertJsonPath($path.'.label', null)
             ->assertJsonPath($path.'.is_precise', false)
             ->assertJsonPath($path.'.area', 'Coblong')
             ->assertJsonPath($path.'.city', 'Kota Bandung')
@@ -91,6 +96,7 @@ final class TaskLocationPrivacyTest extends TestCase
         // Seluruh badan, bukan hanya kuncinya: relasi bersarang bisa membocorkan.
         $body = (string) $response->getContent();
         $this->assertStringNotContainsString('Jl. Rahasia', $body);
+        $this->assertStringNotContainsString(self::LABEL, $body);
         $this->assertStringNotContainsString('6.8923456', $body);
         $this->assertStringNotContainsString('107.6171234', $body);
     }
@@ -99,6 +105,7 @@ final class TaskLocationPrivacyTest extends TestCase
     {
         $response->assertOk()
             ->assertJsonPath($path.'.text', self::ADDRESS)
+            ->assertJsonPath($path.'.label', self::LABEL)
             ->assertJsonPath($path.'.is_precise', true)
             ->assertJsonPath($path.'.latitude', self::LAT)
             ->assertJsonPath($path.'.longitude', self::LNG);
@@ -326,6 +333,53 @@ final class TaskLocationPrivacyTest extends TestCase
             ->putJson(route('v1.tasks.update', $this->task->ulid), ['area' => str_repeat('a', 81)])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('area');
+    }
+
+    // ── location_label ditulis lewat API ───────────────────────────────────
+
+    public function test_location_label_is_written_on_create_and_update(): void
+    {
+        $poster = $this->activeUser();
+        $this->fundWallet($poster, 10_000_000);
+
+        $id = $this->asUser($poster)->postJson(route('v1.tasks.store'), [
+            'category_id' => $this->anyCategory()->getKey(),
+            'title' => 'Pindahan lemari',
+            'description' => 'Lemari dua pintu ke lantai dua.',
+            'budget_min' => 150_000,
+            'city' => 'Kota Bandung',
+            'location_text' => self::ADDRESS,
+            'location_label' => '  Rumah  ',
+            'needed_at' => now()->addDay()->toIso8601String(),
+        ])->assertCreated()
+            ->assertJsonPath('data.location.label', 'Rumah')
+            ->json('data.id');
+
+        $this->assertSame('Rumah', Task::query()->where('ulid', $id)->value('location_label'));
+
+        // Ruas lain disunting: nama alamat TIDAK ikut terhapus.
+        $this->asUser($poster)->putJson(route('v1.tasks.update', $id), ['title' => 'Pindahan lemari besar'])
+            ->assertOk()
+            ->assertJsonPath('data.location.label', 'Rumah');
+        $this->assertSame('Rumah', Task::query()->where('ulid', $id)->value('location_label'));
+
+        $this->asUser($poster)->putJson(route('v1.tasks.update', $id), ['location_label' => 'Kantor'])
+            ->assertOk()
+            ->assertJsonPath('data.location.label', 'Kantor');
+        $this->assertSame('Kantor', Task::query()->where('ulid', $id)->value('location_label'));
+
+        // null eksplisit = dikosongkan.
+        $this->asUser($poster)->putJson(route('v1.tasks.update', $id), ['location_label' => null])
+            ->assertOk();
+        $this->assertNull(Task::query()->where('ulid', $id)->value('location_label'));
+    }
+
+    public function test_location_label_is_optional_and_limited_to_80_characters(): void
+    {
+        $this->asUser($this->poster)
+            ->putJson(route('v1.tasks.update', $this->task->ulid), ['location_label' => str_repeat('a', 81)])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('location_label');
     }
 
     private function activityFor(Task $task, User $worker): Activity

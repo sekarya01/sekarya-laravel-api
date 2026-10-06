@@ -42,6 +42,7 @@ final class CreateTaskAction
                 // dan sengketa harus bisa dinilai dengan angka yang berlaku saat itu.
                 'ref_price_median' => $category->ref_price_median,
                 'location_text' => $data->locationText,
+                'location_label' => $data->locationLabel,
                 'area' => $data->area,
                 'city' => $data->city,
                 'latitude' => $data->latitude,

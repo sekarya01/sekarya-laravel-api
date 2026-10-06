@@ -35,9 +35,11 @@ final class TaskResource extends BaseResource
             // Batas pengungkapan lokasi (Task::revealsLocationTo). Sebelum
             // deal: tanpa alamat, koordinat dibulatkan 3 desimal (±110 m) —
             // cukup untuk "sejauh apa", tidak cukup untuk menemukan pintunya.
-            // `area` + `city` selalu tampil: itu label kartu feed.
+            // `text` + `label` (nama alamat) ikut ditahan; `area` + `city` selalu
+            // tampil: itu label kartu feed.
             'location' => [
                 'text' => $precise ? $this->location_text : null,
+                'label' => $precise ? $this->location_label : null,
                 'area' => $this->area,
                 'city' => $this->city,
                 'latitude' => $this->coordinate($this->latitude, $precise),

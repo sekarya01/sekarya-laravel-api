@@ -6309,7 +6309,7 @@ components:
               description: Salinan harga referensi kategori saat task dibuat.
         location:
           type: object
-          required: [text, area, city, latitude, longitude, is_precise, is_remote]
+          required: [text, label, area, city, latitude, longitude, is_precise, is_remote]
           description: |
             **Batas pengungkapan.** Lokasi presisi hanya untuk pemberi kerja
             dan pekerja yang SUDAH deal (penawaran `accepted`) pada task ini
@@ -6321,6 +6321,12 @@ components:
             text:
               type: [string, 'null']
               description: Alamat lengkap. `null` bila `is_precise` false.
+            label:
+              type: [string, 'null']
+              description: |
+                Nama alamat dari pemberi kerja ("Rumah", "Kos"). `null` bila
+                `is_precise` false atau tidak diisi.
+              examples: [Rumah]
             area:
               type: [string, 'null']
               description: |
@@ -6928,6 +6934,10 @@ components:
           type: [string, 'null']
           maxLength: 255
           description: Alamat lengkap. Hanya terbaca pemberi kerja dan pekerja yang sudah deal.
+        location_label:
+          type: [string, 'null']
+          maxLength: 80
+          description: Nama alamat ("Rumah", "Kos"). Ditahan sampai deal seperti `location_text`.
         area:
           type: [string, 'null']
           maxLength: 80
@@ -6998,6 +7008,10 @@ components:
           type: [string, 'null']
           maxLength: 255
           description: Alamat lengkap. Hanya terbaca pemberi kerja dan pekerja yang sudah deal.
+        location_label:
+          type: [string, 'null']
+          maxLength: 80
+          description: Nama alamat ("Rumah", "Kos"). Ditahan sampai deal seperti `location_text`.
         area:
           type: [string, 'null']
           maxLength: 80

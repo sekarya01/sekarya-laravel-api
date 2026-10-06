@@ -836,11 +836,15 @@ dan berlaku di **setiap** endpoint yang memuat task: feed, detail, `tasks/worked
 
 ```json
 "location": {
-  "text": null, "area": "Coblong", "city": "Kota Bandung",
+  "text": null, "label": null, "area": "Coblong", "city": "Kota Bandung",
   "latitude": -6.892, "longitude": 107.617,
   "is_precise": false, "is_remote": false
 }
 ```
+
+`label` = nama alamat dari pemberi kerja ("Rumah", "Kos"; `location_label`, opsional,
+maks 80 karakter) — ditahan bersama `text`, karena nama tempat orang sama pribadinya
+dengan alamatnya.
 
 `area` (kecamatan/kelurahan, maks 80 karakter) **selalu** tampil — itu label kartu
 "Coblong, Kota Bandung". Diisi pemberi kerja lewat `POST /tasks` / `PUT /tasks/{task}`;

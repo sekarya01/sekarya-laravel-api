@@ -46,6 +46,7 @@ final class UpdateTaskRequest extends FormRequest
             'photos.*' => ['string', 'max:255'],
 
             'location_text' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'location_label' => ['sometimes', 'nullable', 'string', 'max:80'],
             'area' => ['sometimes', 'nullable', 'string', 'max:80'],
             'city' => ['sometimes', 'string', 'max:80'],
             'latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
