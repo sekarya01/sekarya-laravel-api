@@ -217,6 +217,10 @@ return [
         // sebenarnya tidak diketahui, dan angka yang mengaku presisi lebih
         // menyesatkan daripada yang jelas perkiraan.
         'eta_speed_kmh' => (float) env('SEKARYA_ETA_SPEED_KMH', 20),
+
+        // Tenggang konfirmasi pemberi kerja (jam): hasil yang tak kunjung
+        // disetujui/ditolak diambil alih sistem (`sekarya:activities:auto-approve`).
+        'auto_approve_hours' => (int) env('SEKARYA_AUTO_APPROVE_HOURS', 24),
     ],
 
     /*

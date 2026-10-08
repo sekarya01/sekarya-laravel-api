@@ -15,3 +15,8 @@ Schedule::command('sekarya:tasks:expire-bidding')->everyFiveMinutes();
 // Chat: room `expired` yang melewati masa simpan dihapus isinya permanen.
 // Harian, di luar jam ramai. Idempoten.
 Schedule::command('sekarya:chat:purge-expired')->dailyAt('03:30');
+
+// Hasil yang tak kunjung dikonfirmasi disetujui otomatis agar pekerja
+// dibayar. Idempoten: hanya menyentuh activity `submitted` yang
+// `submitted_at`-nya melewati tenggang (`sekarya.activities.auto_approve_hours`).
+Schedule::command('sekarya:activities:auto-approve')->hourly();
