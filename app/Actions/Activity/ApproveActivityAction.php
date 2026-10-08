@@ -52,9 +52,19 @@ final class ApproveActivityAction
         private readonly PushDispatcher $push,
     ) {}
 
-    public function handle(Activity $activity, User $poster, ?string $note = null): Activity
-    {
-        $activity = $this->db->transaction(function () use ($activity, $poster, $note): Activity {
+    /**
+     * @param  ActorType  $actorType  siapa yang tercatat menyetujui di riwayat
+     *                                status. Tombol poster memakai bawaan (`poster`); persetujuan otomatis
+     *                                sistem meneruskan `system` supaya audit tetap jujur.
+     */
+    public function handle(
+        Activity $activity,
+        User $poster,
+        ?string $note = null,
+        ActorType $actorType = ActorType::Poster,
+        ?int $actorId = null,
+    ): Activity {
+        $activity = $this->db->transaction(function () use ($activity, $poster, $note, $actorType, $actorId): Activity {
             if (! $activity->status->canTransitionTo(ActivityStatus::Approved)) {
                 throw InvalidStatusTransitionException::between(
                     $activity->status->value,
@@ -137,8 +147,8 @@ final class ApproveActivityAction
             $this->recorder->move(
                 $task,
                 TaskStatus::Completed,
-                ActorType::Poster,
-                $poster->getKey(),
+                $actorType,
+                $actorId ?? $poster->getKey(),
                 reason: $funded
                     ? 'seluruh hasil disetujui, dana dilepas'
                     : 'seluruh hasil disetujui; tugas tanpa dana ditahan, tidak ada yang dilepas',

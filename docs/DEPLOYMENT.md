@@ -411,8 +411,9 @@ Yang memakai keduanya:
   berikutnya. Axiom memakai antrean hanya bila `AXIOM_DELIVERY=queue`; untuk shared hosting
   biarkan `sync`.
 - **Jadwal** (`schedule:run`, `routes/console.php`) — `sekarya:tasks:expire-bidding` tiap
-  5 menit dan `sekarya:chat:purge-expired` harian 03:30 (hapus isi chat room yang sudah lama
-  berakhir, `chat.purge_after_days`).
+  5 menit, `sekarya:activities:auto-approve` per jam (setujui hasil yang melewati tenggang
+  `activities.auto_approve_hours`, 24 jam bawaan), dan `sekarya:chat:purge-expired` harian
+  03:30 (hapus isi chat room yang sudah lama berakhir, `chat.purge_after_days`).
 
 ---
 
