@@ -15,7 +15,7 @@ final class ExpireBiddingCommand extends Command
 {
     protected $signature = 'sekarya:tasks:expire-bidding';
 
-    protected $description = 'Ubah task `open` yang `bidding_closes_at`-nya lewat menjadi `expired`';
+    protected $description = 'Ubah task `open` yang `bidding_closes_at`-nya lewat, atau `needed_at`-nya lewat tanpa pekerja, menjadi `expired`';
 
     public function handle(ExpireBiddingAction $action): int
     {
