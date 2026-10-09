@@ -9,7 +9,8 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Tutup lelang yang batas waktunya sudah lewat (G12). Idempoten: hanya
-// menyentuh task `open` yang `bidding_closes_at`-nya <= sekarang.
+// menyentuh task `open` yang `bidding_closes_at`-nya <= sekarang, atau yang
+// `needed_at`-nya lewat tanpa pekerja diterima (`workers_hired` = 0).
 Schedule::command('sekarya:tasks:expire-bidding')->everyFiveMinutes();
 
 // Chat: room `expired` yang melewati masa simpan dihapus isinya permanen.

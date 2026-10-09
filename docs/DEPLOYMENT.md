@@ -385,10 +385,17 @@ seperti `/opt/cpanel/ea-php84/root/usr/bin/php`.
 > daripada `/usr/local/bin/php`: yang terakhir mengikuti PHP bawaan server, yang bisa
 > saja 8.5 — dan 8.5 merusak seluruh respons JSON aplikasi ini.
 
-**Penjadwal Laravel**, setiap menit:
+> [!danger] Folder di `cd` = folder yang DILAYANI web
+> Bisa ada lebih dari satu folder yang berisi `artisan` di home (mis. folder live dan
+> salinan hasil unggah/clone di dalamnya). Cron yang menunjuk salinan tetap "berhasil"
+> tapi memakai kode dan `.env` yang salah — jadwal tampak tidak pernah jalan.
+> Penentunya: Cara A → Document Root domain (`<folder>/public`); Cara B → baris
+> `require __DIR__.'/../<folder>/vendor/autoload.php';` di `public_html/index.php`.
+
+**Penjadwal Laravel**, setiap menit (log ke berkas, bukan dibuang — cron yang gagal itu diam):
 
 ```
-* * * * * cd /home/akunanda/sekarya && /usr/local/bin/php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /home/akunanda/sekarya && /opt/cpanel/ea-php84/root/usr/bin/php artisan schedule:run >> /home/akunanda/schedule.log 2>&1
 ```
 
 **Pekerja antrean.** Shared hosting tidak mengizinkan proses yang hidup terus, jadi jangan
@@ -396,8 +403,10 @@ memakai `queue:work` biasa — ia tidak akan pernah berhenti dan akan dimatikan 
 Pakai bentuk yang selesai sendiri:
 
 ```
-* * * * * cd /home/akunanda/sekarya && /usr/local/bin/php artisan queue:work --stop-when-empty --max-time=55 >> /dev/null 2>&1
+* * * * * cd /home/akunanda/sekarya && /opt/cpanel/ea-php84/root/usr/bin/php artisan queue:work --stop-when-empty --max-time=55 >> /home/akunanda/queue.log 2>&1
 ```
+
+Hanya DUA cron ini yang dibutuhkan; jadwal baru di `routes/console.php` ikut `schedule:run`.
 
 `--max-time=55` membuatnya berhenti sebelum cron menit berikutnya menyala, sehingga tidak
 pernah ada dua pekerja berebut antrean yang sama.
@@ -411,7 +420,8 @@ Yang memakai keduanya:
   berikutnya. Axiom memakai antrean hanya bila `AXIOM_DELIVERY=queue`; untuk shared hosting
   biarkan `sync`.
 - **Jadwal** (`schedule:run`, `routes/console.php`) — `sekarya:tasks:expire-bidding` tiap
-  5 menit, `sekarya:activities:auto-approve` per jam (setujui hasil yang melewati tenggang
+  5 menit (task `open` yang `bidding_closes_at`-nya lewat, atau `needed_at`-nya lewat tanpa
+  pekerja → `expired`), `sekarya:activities:auto-approve` per jam (setujui hasil yang melewati tenggang
   `activities.auto_approve_hours`, 24 jam bawaan), dan `sekarya:chat:purge-expired` harian
   03:30 (hapus isi chat room yang sudah lama berakhir, `chat.purge_after_days`).
 
