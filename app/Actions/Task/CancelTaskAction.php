@@ -40,12 +40,15 @@ final class CancelTaskAction
     public function handle(Task $task, User $actor, ?string $reason = null): Task
     {
         // Status yang boleh dibatalkan = yang punya transisi ke `cancelled`
-        // (lihat TaskStatus::allowedNext): `draft`, `open`, `dealt`, `active`.
+        // (lihat TaskStatus::allowedNext): `draft`, `open`, `expired`, `dealt`,
+        // `active`. Tugas `expired` sengaja tidak di-refund otomatis — dananya
+        // kembali di sini, saat pemberi kerja memutuskan membatalkan.
         // Di luar itu tolak SEBELUM menyentuh uang, supaya task yang sudah
         // selesai tidak bisa mengembalikan dana yang sudah dilepas.
         if (! in_array($task->status, [
             TaskStatus::Draft,
             TaskStatus::Open,
+            TaskStatus::Expired,
             TaskStatus::Dealt,
             TaskStatus::Active,
         ], true)) {

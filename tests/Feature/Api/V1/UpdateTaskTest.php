@@ -231,7 +231,6 @@ final class UpdateTaskTest extends TestCase
             'submitted' => [TaskStatus::Submitted],
             'completed' => [TaskStatus::Completed],
             'cancelled' => [TaskStatus::Cancelled],
-            'expired' => [TaskStatus::Expired],
         ];
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Task;
 
+use App\Enums\TaskStatus;
 use App\Models\Task;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -86,13 +87,25 @@ final class UpdateTaskRequest extends FormRequest
                 }
             }
 
-            if ($this->filled('end_at') && ! $errors->hasAny(['end_at', 'needed_at'])) {
+            // Tugas kedaluwarsa dibuka lagi lewat jadwal mulai BARU. Tanpa itu
+            // `needed_at`-nya tetap di masa lalu dan penutup lelang langsung
+            // mengembalikannya ke `expired` pada putaran berikutnya.
+            if ($task->status === TaskStatus::Expired && ! $this->has('needed_at')) {
+                $errors->add('needed_at', 'Pilih jadwal mulai baru untuk membuka lagi tugas ini.');
+            }
+
+            // Dibandingkan dua arah: `end_at` baru vs mulai efektif, DAN mulai
+            // baru vs `end_at` tersimpan — memajukan jadwal mulai melewati
+            // jadwal selesai lama sama salahnya.
+            $end = $this->has('end_at') ? $this->input('end_at') : $task->end_at;
+            if ($end !== null
+                && ($this->filled('end_at') || $this->has('needed_at'))
+                && ! $errors->hasAny(['end_at', 'needed_at'])) {
                 $start = $this->has('needed_at')
                     ? Carbon::parse($this->string('needed_at')->value())
                     : $task->needed_at;
 
-                if ($start !== null
-                    && Carbon::parse($this->string('end_at')->value())->lessThanOrEqualTo($start)) {
+                if ($start !== null && Carbon::parse($end)->lessThanOrEqualTo($start)) {
                     $errors->add('end_at', 'Jadwal selesai harus setelah jadwal mulai.');
                 }
             }

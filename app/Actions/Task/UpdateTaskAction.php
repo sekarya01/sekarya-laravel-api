@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Task;
 
 use App\Data\Task\UpdateTaskData;
+use App\Enums\ActorType;
 use App\Enums\TaskStatus;
 use App\Exceptions\Domain\TaskNotEditableException;
 use App\Exceptions\Domain\WorkersNeededBelowHiredException;
@@ -12,23 +13,27 @@ use App\Models\Category;
 use App\Models\Skill;
 use App\Models\Task;
 use App\Support\TaskEscrow;
+use App\Support\TaskStatusRecorder;
 use Illuminate\Database\ConnectionInterface;
 
 /**
  * Penyuntingan isi task oleh pemiliknya.
  *
- * Hanya `draft` dan `open`. Sesudah itu isinya sudah dipakai orang lain untuk
+ * Hanya `draft`, `open`, dan `expired`. Mengubah tugas `expired` (jadwal mulai
+ * baru wajib, lihat UpdateTaskRequest) membukanya lagi menjadi `open` dengan
+ * dana yang masih ditahan. Sesudah deal isinya sudah dipakai orang lain untuk
  * memutuskan, jadi perubahannya bukan lagi penyuntingan melainkan perubahan
  * kesepakatan — dan itu jalur lain (batalkan, lalu buat ulang).
  */
 final class UpdateTaskAction
 {
     /** Status yang isinya masih milik pemberi kerja sepenuhnya. */
-    private const EDITABLE = [TaskStatus::Draft, TaskStatus::Open];
+    private const EDITABLE = [TaskStatus::Draft, TaskStatus::Open, TaskStatus::Expired];
 
     public function __construct(
         private readonly ConnectionInterface $db,
         private readonly TaskEscrow $escrow,
+        private readonly TaskStatusRecorder $recorder,
     ) {}
 
     public function handle(Task $task, UpdateTaskData $data): Task
@@ -99,6 +104,22 @@ final class UpdateTaskAction
             if ($data->has('skills')) {
                 $task->skills()->sync(
                     Skill::query()->whereIn('slug', $data->skillSlugs)->pluck('id'),
+                );
+            }
+
+            // Dibuka lagi: batas penawaran lama yang sudah lewat ikut dibuang,
+            // kalau tidak penutup lelang langsung menutupnya kembali.
+            if ($task->status === TaskStatus::Expired) {
+                if ($task->bidding_closes_at?->isPast()) {
+                    $task->forceFill(['bidding_closes_at' => null])->save();
+                }
+
+                $this->recorder->move(
+                    $task,
+                    TaskStatus::Open,
+                    ActorType::Poster,
+                    (int) $task->poster_id,
+                    'Dibuka lagi dengan jadwal baru',
                 );
             }
 
