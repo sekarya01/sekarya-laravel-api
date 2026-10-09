@@ -45,10 +45,16 @@ final class EnumsTest extends TestCase
 
     public function test_terminal_task_statuses_allow_nothing(): void
     {
-        foreach ([TaskStatus::Completed, TaskStatus::Expired, TaskStatus::Cancelled, TaskStatus::Refunded] as $status) {
+        foreach ([TaskStatus::Completed, TaskStatus::Cancelled, TaskStatus::Refunded] as $status) {
             $this->assertSame([], $status->allowedNext(), $status->value.' harus final');
             $this->assertTrue($status->isFinal());
         }
+    }
+
+    public function test_expired_task_can_be_reopened_or_cancelled(): void
+    {
+        $this->assertSame([TaskStatus::Open, TaskStatus::Cancelled], TaskStatus::Expired->allowedNext());
+        $this->assertFalse(TaskStatus::Expired->isFinal());
     }
 
     public function test_only_open_accepts_bids(): void

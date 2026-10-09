@@ -33,7 +33,10 @@ enum TaskStatus: string
             self::Active => [self::Submitted, self::Cancelled],
             self::Submitted => [self::Completed, self::Disputed],
             self::Disputed => [self::Completed, self::Refunded],
-            self::Completed, self::Expired, self::Cancelled, self::Refunded => [],
+            // Kedaluwarsa BUKAN akhir: pemberi kerja bisa memajukan jadwal
+            // (Ubah → `open` lagi) atau membatalkan untuk menarik dananya.
+            self::Expired => [self::Open, self::Cancelled],
+            self::Completed, self::Cancelled, self::Refunded => [],
         };
     }
 

@@ -23,6 +23,14 @@ use Carbon\CarbonInterface;
  *
  * Pekerjaan hanya untuk task yang BELUM deal: begitu ada penawaran diterima,
  * status bukan lagi `open` dan transisi ke `expired` memang tidak sah.
+ *
+ * Dua tenggat: `bidding_closes_at` (kalau diisi), dan `needed_at` — jadwal
+ * mulai yang lewat tanpa seorang pun diterima berarti tugasnya praktis gagal.
+ * Yang sudah punya pekerja (`workers_hired` > 0) tidak disentuh lewat jalur
+ * `needed_at`: mereka sudah memegang tanggung jawabnya.
+ *
+ * Dana TIDAK dikembalikan di sini. `expired` bisa dibuka lagi lewat Ubah
+ * (jadwal baru → `open`); dana baru kembali saat pemberi kerja membatalkan.
  */
 final class ExpireBiddingAction
 {
@@ -39,8 +47,14 @@ final class ExpireBiddingAction
 
         Task::query()
             ->where('status', TaskStatus::Open)
-            ->whereNotNull('bidding_closes_at')
-            ->where('bidding_closes_at', '<=', $now)
+            ->where(fn ($query) => $query
+                ->where(fn ($q) => $q
+                    ->whereNotNull('bidding_closes_at')
+                    ->where('bidding_closes_at', '<=', $now))
+                ->orWhere(fn ($q) => $q
+                    ->whereNotNull('needed_at')
+                    ->where('needed_at', '<=', $now)
+                    ->where('workers_hired', 0)))
             ->orderBy('id')
             ->chunkById(100, function ($tasks) use (&$closed): void {
                 foreach ($tasks as $task) {
