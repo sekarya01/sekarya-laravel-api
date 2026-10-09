@@ -408,6 +408,13 @@ Pakai bentuk yang selesai sendiri:
 
 Hanya DUA cron ini yang dibutuhkan; jadwal baru di `routes/console.php` ikut `schedule:run`.
 
+> [!warning] Jadwal WAJIB `Schedule::call`, bukan `Schedule::command`
+> Di hosting ini proses anak yang dibuat `schedule:run` (`Schedule::command`) selesai
+> ±14 ms dengan DONE tanpa memproses apa pun, keluarannya dibuang ke `/dev/null`
+> (2026-10-09). Semua jadwal di `routes/console.php` karena itu dijalankan di dalam
+> proses yang sama lewat `Schedule::call` + `Artisan::call`; keluarannya ikut ke
+> `schedule.log`, dan `ScheduleRunTest` menolak `Schedule::command` baru.
+
 `--max-time=55` membuatnya berhenti sebelum cron menit berikutnya menyala, sehingga tidak
 pernah ada dua pekerja berebut antrean yang sama.
 
