@@ -88,8 +88,11 @@ Dua hal yang mudah terlewat:
 ## Feed & pencarian nama
 
 Filter feed: `q` (nama), `lat`/`lng`/`radius_km` (jarak), `posted_within_hours` (waktu),
-`category_id`, `skills`/`match_my_skills`. **Tidak satu pun memakai `LIKE`** — nol
-kemunculan `LIKE` di `app/`, dan itu harus tetap begitu.
+`category_id`, `skills`/`match_my_skills`. **Tidak satu pun memakai `LIKE`**, dan itu harus
+tetap begitu. Satu-satunya `LIKE` di `app/` adalah pengecualian tercatat:
+`ListWalletEntriesAction` (`q` riwayat saldo — `description` dan judul task
+rujukan), karena `wallet_id` sudah mempersempit lewat indeks ke riwayat SATU
+orang. Jangan menyalin pola itu ke kueri yang tidak dibatasi pemiliknya.
 
 Pencarian nama lewat tabel **`task_search`**, bukan indeks di `tasks` langsung:
 
