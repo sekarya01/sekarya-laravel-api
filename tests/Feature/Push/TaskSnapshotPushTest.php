@@ -72,6 +72,23 @@ final class TaskSnapshotPushTest extends TestCase
         $this->assertFalse($push?->drawnByApp);
     }
 
+    /**
+     * Push tanpa tugas (saldo) juga data-only: app menyimpan riwayat lonceng
+     * di perangkat, jadi app harus menerimanya walau sedang di belakang.
+     */
+    public function test_a_push_without_task_is_drawn_by_the_app(): void
+    {
+        $user = Task::factory()->create()->poster;
+        $message = new PushMessage('Saldo masuk', 'Isi saldo dikonfirmasi', ['type' => 'topup_confirmed']);
+        (new SendPushNotification($user->getKey(), $message))->handle($this->push);
+
+        $push = $this->push->firstTo($user);
+        $this->assertTrue($push?->drawnByApp);
+        $this->assertSame('1', $push?->data['notify'] ?? null);
+        $this->assertSame('Saldo masuk', $push?->data['title'] ?? null);
+        $this->assertArrayNotHasKey('task', $push?->data ?? []);
+    }
+
     private function deliver(User $user, Task $task, string $type): void
     {
         $message = new PushMessage('Judul', 'Isi', ['type' => $type, 'task_id' => $task->ulid]);

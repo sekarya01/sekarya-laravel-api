@@ -8,9 +8,10 @@ use App\Enums\TaskStatus;
 use App\Models\Admin;
 use App\Models\Task;
 use App\Models\User;
-use App\Models\UserNotification;
 use App\Models\UserWorker;
+use App\Support\Push\PushNotifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\FakePushNotifier;
 use Tests\TestCase;
 
 /** Task, lelang, uang, activity, penilaian — lewat HTTP. */
@@ -710,6 +711,9 @@ final class TaskLifecycleTest extends TestCase
     /** Tugas yang tayang mengabari mitra tersedia di sekitar (B13). */
     public function test_publishing_notifies_nearby_available_workers(): void
     {
+        $push = new FakePushNotifier;
+        $this->app->instance(PushNotifier::class, $push);
+
         $tetangga = $this->activeUser();
         UserWorker::factory()->create([
             'user_id' => $tetangga->getKey(),
@@ -725,10 +729,7 @@ final class TaskLifecycleTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('meta.notified_workers', 1);
 
-        $this->assertTrue(UserNotification::query()
-            ->where('user_id', $tetangga->getKey())
-            ->where('type', 'task_published')
-            ->exists());
+        $this->assertTrue($push->hasTypeTo($tetangga, 'task_published'));
     }
 
     public function test_live_location_is_reported_while_on_the_way(): void

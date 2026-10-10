@@ -13,7 +13,9 @@ use App\Models\AdminAuditLog;
 use App\Models\User;
 use App\Models\WalletTopup;
 use App\Models\WalletWithdrawal;
+use App\Support\Push\PushNotifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\FakePushNotifier;
 use Tests\TestCase;
 
 /**
@@ -121,16 +123,16 @@ final class AdminWalletApiTest extends TestCase
     /** Saldo bertambah → pengguna melihatnya di lonceng (G11). */
     public function test_confirming_a_topup_notifies_the_user(): void
     {
+        $push = new FakePushNotifier;
+        $this->app->instance(PushNotifier::class, $push);
+
         $topup = $this->pendingTopup();
 
         $this->asAdmin($this->admin)
             ->postJson(route('v1.admin.wallet.topups.confirm', $topup))
             ->assertOk();
 
-        $this->assertDatabaseHas('user_notifications', [
-            'user_id' => $this->user->getKey(),
-            'type' => 'topup_confirmed',
-        ]);
+        $this->assertTrue($push->hasTypeTo($this->user, 'topup_confirmed'));
     }
 
     /** Dan meninggalkan satu baris buku besar yang menjelaskan sebabnya. */

@@ -8,7 +8,9 @@ use App\Enums\BidStatus;
 use App\Enums\TaskStatus;
 use App\Models\Bid;
 use App\Models\Task;
+use App\Support\Push\PushNotifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\FakePushNotifier;
 use Tests\TestCase;
 
 /**
@@ -20,6 +22,9 @@ final class ExpireBiddingTest extends TestCase
 
     public function test_it_expires_only_open_tasks_whose_deadline_passed(): void
     {
+        $push = new FakePushNotifier;
+        $this->app->instance(PushNotifier::class, $push);
+
         $this->seedReference();
         $poster = $this->activeUser();
         $bidder = $this->activeUser();
@@ -51,13 +56,7 @@ final class ExpireBiddingTest extends TestCase
         // Penawaran menggantung ditutup, dan penawarnya dikabari.
         $this->assertSame(BidStatus::Expired, Bid::query()->where('task_id', $past->getKey())->value('status'));
 
-        $this->assertDatabaseHas('user_notifications', [
-            'user_id' => $poster->getKey(),
-            'type' => 'task_expired',
-        ]);
-        $this->assertDatabaseHas('user_notifications', [
-            'user_id' => $bidder->getKey(),
-            'type' => 'bid_expired',
-        ]);
+        $this->assertTrue($push->hasTypeTo($poster, 'task_expired'));
+        $this->assertTrue($push->hasTypeTo($bidder, 'bid_expired'));
     }
 }

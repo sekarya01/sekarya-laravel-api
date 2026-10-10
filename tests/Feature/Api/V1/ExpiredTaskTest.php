@@ -7,7 +7,9 @@ namespace Tests\Feature\Api\V1;
 use App\Enums\TaskStatus;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\Push\PushNotifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\FakePushNotifier;
 use Tests\TestCase;
 
 /**
@@ -61,16 +63,16 @@ final class ExpiredTaskTest extends TestCase
 
     public function test_an_open_task_past_its_start_time_expires_without_a_refund(): void
     {
+        $push = new FakePushNotifier;
+        $this->app->instance(PushNotifier::class, $push);
+
         $before = $this->balance();
         $task = $this->expiredTask();
 
         $this->assertSame(TaskStatus::Expired, $task->status);
         // Dana tetap ditahan: tugasnya masih bisa dibuka lagi.
         $this->assertSame($before - 150_000, $this->balance());
-        $this->assertDatabaseHas('user_notifications', [
-            'user_id' => $this->poster->getKey(),
-            'type' => 'task_expired',
-        ]);
+        $this->assertTrue($push->hasTypeTo($this->poster, 'task_expired'));
     }
 
     public function test_a_task_that_already_hired_someone_does_not_expire_on_its_start_time(): void

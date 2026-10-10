@@ -78,10 +78,6 @@ use App\Http\Controllers\Api\V1\Chat\StoreChatAttachmentController;
 use App\Http\Controllers\Api\V1\Chat\UpdateChatReceiptsController;
 use App\Http\Controllers\Api\V1\Chat\UpdateChatRoomController;
 use App\Http\Controllers\Api\V1\City\ListCitiesController;
-use App\Http\Controllers\Api\V1\Notification\ListNotificationsController;
-use App\Http\Controllers\Api\V1\Notification\MarkAllNotificationsReadController;
-use App\Http\Controllers\Api\V1\Notification\MarkNotificationReadController;
-use App\Http\Controllers\Api\V1\Notification\ShowUnreadNotificationCountController;
 use App\Http\Controllers\Api\V1\Payment\HoldPaymentController;
 use App\Http\Controllers\Api\V1\Payment\ShowTaskPaymentController;
 use App\Http\Controllers\Api\V1\Review\CreateReviewController;
@@ -265,20 +261,9 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         Route::delete('me/devices/{token}', ForgetDeviceController::class)
             ->name('me.devices.destroy');
 
-        // ── Kotak masuk notifikasi ─────────────────────────────────────────
-        //
-        // Riwayat yang SAMA dengan push FCM: `PushDispatcher` menulis barisnya
-        // lebih dulu, lalu mengantrekan job — jadi lonceng tetap terisi
-        // walaupun FCM mati. Membaca hanya kotak masuk sendiri; notifikasi
-        // orang lain dijawab 404 yang sama dengan id yang tidak ada.
-        Route::get('me/notifications', ListNotificationsController::class)
-            ->name('me.notifications.index');
-        Route::get('me/notifications/unread-count', ShowUnreadNotificationCountController::class)
-            ->name('me.notifications.unread-count');
-        Route::post('me/notifications/read-all', MarkAllNotificationsReadController::class)
-            ->name('me.notifications.read-all');
-        Route::post('me/notifications/{notification}/read', MarkNotificationReadController::class)
-            ->name('me.notifications.read');
+        // Notifikasi TIDAK disimpan server (keputusan produk 2026-10-10): riwayat
+        // lonceng hidup di perangkat (Room) dari push FCM — tidak ada endpoint
+        // kotak masuk.
 
         // ── Alamat tersimpan ───────────────────────────────────────────────
         //
