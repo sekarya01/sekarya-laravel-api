@@ -442,21 +442,6 @@ CREATE TABLE IF NOT EXISTS `user_blocks` (
   CONSTRAINT `user_blocks_blocker_id_foreign` FOREIGN KEY (`blocker_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `user_notifications` (
-  `id` char(26) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `user_id` bigint unsigned NOT NULL,
-  `type` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `body` varchar(500) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `data` json DEFAULT NULL,
-  `read_at` timestamp NULL DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `user_notifications_user_id_created_at_id_index` (`user_id`,`created_at`,`id`),
-  KEY `user_notifications_user_id_read_at_created_at_index` (`user_id`,`read_at`,`created_at`),
-  CONSTRAINT `user_notifications_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS `user_worker_verifications` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `user_id` bigint unsigned NOT NULL,
@@ -1320,5 +1305,6 @@ INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (67, '2026_1
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (68, '2026_10_04_000002_group_chat_rooms_for_multi_worker_tasks', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (69, '2026_10_05_000001_add_avatar_to_chat_rooms', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (70, '2026_10_06_000001_add_location_label_to_tasks_table', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (71, '2026_10_10_000001_drop_user_notifications_table', 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

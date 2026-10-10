@@ -8,7 +8,7 @@ use App\Actions\Chat\CountUnreadChatMessagesAction;
 use App\Http\Resources\Api\V1\NotificationCountResource;
 use Illuminate\Http\Request;
 
-/** Badge ikon chat — bentuknya sama dengan `me/notifications/unread-count`. */
+/** Badge ikon chat — `{data:{count}}`. */
 final class ShowUnreadChatCountController
 {
     public function __construct(private readonly CountUnreadChatMessagesAction $action) {}

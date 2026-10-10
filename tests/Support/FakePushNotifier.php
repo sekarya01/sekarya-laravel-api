@@ -60,4 +60,16 @@ final class FakePushNotifier implements PushNotifier
 
         return null;
     }
+
+    /** Ada push berjenis `data.type` [$type] untuk penerima ini? */
+    public function hasTypeTo(User $user, string $type): bool
+    {
+        foreach ($this->sent as $entry) {
+            if ($entry['user']->getKey() === $user->getKey() && ($entry['message']->data['type'] ?? null) === $type) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

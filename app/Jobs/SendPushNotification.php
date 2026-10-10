@@ -65,20 +65,24 @@ final class SendPushNotification implements ShouldQueue
      * keadaan akhir — bukan saat push dijadwalkan di tengah transaksi. Hanya
      * ke FCM: baris lonceng tetap `data` ramping.
      *
-     * Chat & sinyal senyap dilewati (punya jalurnya sendiri); tugas yang
-     * sudah terhapus = tetap digambar, tanpa snapshot.
+     * Chat & sinyal senyap dilewati (punya jalurnya sendiri); push tanpa
+     * tugas atau tugas yang sudah terhapus = tetap data-only, tanpa snapshot.
      */
     private function withTaskSnapshot(User $user): PushMessage
     {
         $data = $this->message->data;
         $taskId = $data['task_id'] ?? null;
         $type = $data['type'] ?? '';
-        if ($taskId === null || $this->message->silent || str_starts_with($type, 'chat_')) {
+        if ($this->message->silent || str_starts_with($type, 'chat_')) {
             return $this->message;
         }
 
+        // SEMUA push tampil non-chat data-only (2026-10-10), termasuk saldo &
+        // penarikan tanpa tugas: aplikasi menyimpan riwayat lonceng di
+        // perangkat, dan blok `notification` membuat Android menggambarnya
+        // sendiri saat app di belakang — onMessageReceived tak pernah dipanggil.
         $data = [...$data, 'notify' => '1', 'title' => $this->message->title, 'body' => $this->message->body];
-        $task = Task::query()->where('ulid', $taskId)->first();
+        $task = $taskId === null ? null : Task::query()->where('ulid', $taskId)->first();
         if ($task !== null) {
             $request = Request::create('/');
             $request->setUserResolver(static fn () => $user);

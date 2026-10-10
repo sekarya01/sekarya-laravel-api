@@ -12,7 +12,6 @@ use App\Models\ChatMessage;
 use App\Models\ChatRoom;
 use App\Models\Task;
 use App\Models\User;
-use App\Models\UserNotification;
 use App\Support\Push\PushNotifier;
 use App\Support\TaskStatusRecorder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -230,8 +229,6 @@ final class ChatApiTest extends TestCase
         $this->assertSame('Besok jam 8 bisa?', $pushed['caption'], 'pesan utuh ikut di data push');
         $this->assertSame($room->ulid, $pushed['room_id']);
         $this->assertSame(0, $this->push->countTo($worker), 'pengirim tidak mengabari dirinya sendiri');
-
-        $this->assertSame(0, UserNotification::query()->where('type', 'chat_message')->count(), 'chat bukan isi lonceng');
     }
 
     public function test_resending_with_the_same_client_id_does_not_duplicate(): void

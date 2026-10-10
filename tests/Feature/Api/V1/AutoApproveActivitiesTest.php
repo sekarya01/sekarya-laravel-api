@@ -20,8 +20,10 @@ use App\Models\Payment;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\WalletEntry;
+use App\Support\Push\PushNotifier;
 use App\Support\WalletLedger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\FakePushNotifier;
 use Tests\TestCase;
 
 /**
@@ -73,6 +75,9 @@ final class AutoApproveActivitiesTest extends TestCase
 
     public function test_it_auto_approves_stale_submission_and_pays_the_worker(): void
     {
+        $push = new FakePushNotifier;
+        $this->app->instance(PushNotifier::class, $push);
+
         $this->activity->forceFill(['submitted_at' => now()->subHours(25)])->save();
 
         $this->artisan('sekarya:activities:auto-approve')->assertSuccessful();
@@ -85,10 +90,7 @@ final class AutoApproveActivitiesTest extends TestCase
 
         // Upah masuk saldo pekerja, dan ia dikabari.
         $this->assertSame(100_000, (int) app(WalletLedger::class)->walletFor($this->worker->refresh())->balance);
-        $this->assertDatabaseHas('user_notifications', [
-            'user_id' => $this->worker->getKey(),
-            'type' => 'activity_approved',
-        ]);
+        $this->assertTrue($push->hasTypeTo($this->worker, 'activity_approved'));
 
         // Audit jujur: yang menyetujui tercatat sistem, bukan poster.
         $this->assertDatabaseHas('task_status_logs', [
