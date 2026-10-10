@@ -213,8 +213,8 @@ final class PushMessages
         return new PushMessage(
             title: $task->title,
             body: ($released
-                ? 'Sengketa diputuskan: upah dilepas ke mitra. '
-                : 'Sengketa diputuskan: dana dikembalikan ke pemberi kerja. ').$note,
+                ? 'Komplain ditolak: upah diteruskan ke mitra. '
+                : 'Komplain diterima: dana dikembalikan ke pemberi kerja. ').$note,
             data: self::data(PushType::DisputeResolved, $task, $activity, extra: [
                 'resolution' => $released ? 'release' : 'refund',
             ]),

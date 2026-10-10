@@ -1291,7 +1291,7 @@ paths:
         - name: q
           in: query
           required: false
-          description: Kata di `description` (mis. "#123"). `%` dan `_` dibaca harfiah.
+          description: Kata di `description` (mis. "#123") ATAU judul task rujukannya. `%` dan `_` dibaca harfiah.
           schema: { type: string, maxLength: 100 }
         - name: from
           in: query
@@ -5179,9 +5179,9 @@ paths:
       operationId: resolveDispute
       summary: Putuskan sengketa satu mitra — release/refund
       description: |
-        `release` → activity `approved`, upah mitra itu masuk saldonya.
-        `refund` → activity `refunded`, upah mitra itu kembali ke saldo pemberi
-        kerja. Mitra lain di task tidak tersentuh. Task ditutup (`completed`
+        `release` ("Tolak komplain") → activity `approved`, upah mitra itu masuk
+        saldonya. `refund` ("Terima komplain") → activity `refunded`, upah mitra
+        itu kembali ke saldo pemberi kerja. Mitra lain di task tidak tersentuh. Task ditutup (`completed`
         bila ada yang dibayar, `refunded` bila semua dikembalikan) begitu
         semua mitra diputuskan.
 
