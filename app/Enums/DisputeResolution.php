@@ -15,8 +15,8 @@ enum DisputeResolution: string
     public function label(): string
     {
         return match ($this) {
-            self::Release => 'Upah dilepas ke mitra',
-            self::Refund => 'Dana dikembalikan ke pemberi kerja',
+            self::Release => 'Komplain ditolak — upah diteruskan ke mitra',
+            self::Refund => 'Komplain diterima — dana dikembalikan ke pemberi kerja',
         };
     }
 }

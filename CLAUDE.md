@@ -220,6 +220,10 @@ penyerahan hasil); dasbor pengelola `/access/super_admin/disputes`.
 - **Satu tiket terbuka per activity dijaga indeks unique** atas kolom turunan
   `open_activity_lock`. VIRTUAL, bukan STORED seperti `super_admin_lock`: MySQL menolak
   kolom turunan STORED atas kolom ber-FK CASCADE (#1215).
+- **Label keputusan dari sisi KOMPLAIN**: `release` = "Tolak komplain" (upah ke mitra),
+  `refund` = "Terima komplain" (upah ke pemberi kerja). Label lama dari sisi hasil kerja
+  ("Tolak hasil") membuat pengelola mengembalikan dana yang maksudnya diteruskan.
+- **Chat TIDAK ditutup oleh sengketa** — sengketa bisa berlanjut sesudah diputuskan.
 - **Keputusan pengelola WAJIB berketerangan** — dikirim di push `dispute_resolved` ke
   pemberi kerja + mitra itu (hanya mereka), dan dicatat di `admin_audit_logs`
   (`dispute.released`/`dispute.refunded`) DI DALAM transaksi.

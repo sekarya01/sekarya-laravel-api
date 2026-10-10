@@ -43,7 +43,7 @@
                         @if ($d->status->isOpen())
                             @include('super_admin.partials.badge', $d->worker_responded_at ? ['text' => 'sudah', 'tone' => 'green'] : ['text' => 'belum', 'tone' => 'slate'])
                         @else
-                            @include('super_admin.partials.badge', ['text' => $d->resolution?->value, 'tone' => $d->resolution?->value === 'release' ? 'green' : 'red'])
+                            @include('super_admin.partials.badge', ['text' => $d->resolution?->value === 'release' ? 'komplain ditolak' : 'komplain diterima', 'tone' => $d->resolution?->value === 'release' ? 'green' : 'red'])
                         @endif
                     </td>
                     <td class="td-c">

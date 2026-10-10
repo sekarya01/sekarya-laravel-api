@@ -5179,9 +5179,9 @@ paths:
       operationId: resolveDispute
       summary: Putuskan sengketa satu mitra — release/refund
       description: |
-        `release` → activity `approved`, upah mitra itu masuk saldonya.
-        `refund` → activity `refunded`, upah mitra itu kembali ke saldo pemberi
-        kerja. Mitra lain di task tidak tersentuh. Task ditutup (`completed`
+        `release` ("Tolak komplain") → activity `approved`, upah mitra itu masuk
+        saldonya. `refund` ("Terima komplain") → activity `refunded`, upah mitra
+        itu kembali ke saldo pemberi kerja. Mitra lain di task tidak tersentuh. Task ditutup (`completed`
         bila ada yang dibayar, `refunded` bila semua dikembalikan) begitu
         semua mitra diputuskan.
 

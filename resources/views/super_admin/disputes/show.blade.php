@@ -98,13 +98,13 @@
     <div class="mt-3 grid gap-3 sm:grid-cols-2">
         <label class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm cursor-pointer">
             <input type="radio" name="resolution" value="release" required @checked(old('resolution') === 'release')>
-            <span class="font-bold text-emerald-800">Setujui hasil</span>
-            <span class="block mt-1 text-xs text-emerald-900">Upah {{ $activity ? $rupiah($activity->agreed_amount) : '' }} masuk saldo mitra.</span>
+            <span class="font-bold text-emerald-800">Tolak komplain</span>
+            <span class="block mt-1 text-xs text-emerald-900">Hasil mitra diterima — upah {{ $activity ? $rupiah($activity->agreed_amount) : '' }} diteruskan ke saldo mitra.</span>
         </label>
         <label class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm cursor-pointer">
             <input type="radio" name="resolution" value="refund" required @checked(old('resolution') === 'refund')>
-            <span class="font-bold text-red-800">Tolak hasil</span>
-            <span class="block mt-1 text-xs text-red-900">Upah {{ $activity ? $rupiah($activity->agreed_amount) : '' }} kembali ke saldo pemberi kerja.</span>
+            <span class="font-bold text-red-800">Terima komplain</span>
+            <span class="block mt-1 text-xs text-red-900">Hasil mitra tidak diterima — upah {{ $activity ? $rupiah($activity->agreed_amount) : '' }} dikembalikan ke saldo pemberi kerja.</span>
         </label>
     </div>
     <label class="label mt-4 block text-sm font-bold" for="note">Keterangan untuk kedua pihak</label>

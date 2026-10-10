@@ -699,8 +699,8 @@ pekerja menyerahkan hasilnya, bukan setelah yang paling cepat.
 (`purpose=proof` miliknya sendiri). Satu transaksi: activity `rejected` + tiket untuk
 pengelola. Dana tetap ditahan; mitra lain tidak tersentuh. Mitra menanggapi **sekali**
 lewat `POST /activities/{activity}/dispute/response`. Pengelola memutuskan dengan
-keterangan wajib: `release` (upah ke mitra, activity `approved`) atau `refund` (upah ke
-pemberi kerja, activity `refunded`); keterangannya ikut di push `dispute_resolved` ke
+keterangan wajib: `release` = "Tolak komplain" (upah ke mitra, activity `approved`) atau
+`refund` = "Terima komplain" (upah ke pemberi kerja, activity `refunded`); keterangannya ikut di push `dispute_resolved` ke
 kedua pihak. Keduanya membaca tiketnya di `GET /tasks/{task}/disputes`. Task tidak bisa
 dibatalkan selama ada sengketa terbuka (`task_not_cancellable`, `context.reason =
 open_dispute`).
