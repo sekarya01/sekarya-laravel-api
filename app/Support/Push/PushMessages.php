@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support\Push;
 
+use App\Enums\DisputeCategory;
 use App\Enums\PushType;
 use App\Http\Resources\Api\V1\ChatMessageResource;
 use App\Models\Activity;
@@ -115,11 +116,12 @@ final class PushMessages
     }
 
     /** Hasil ditolak pemberi kerja → pekerja. */
-    public static function activityRejected(Task $task, Activity $activity): PushMessage
+    /** Pemberi kerja menyengketakan hasil → mitra itu (bisa menanggapi). */
+    public static function activityRejected(Task $task, Activity $activity, DisputeCategory $category): PushMessage
     {
         return new PushMessage(
             title: $task->title,
-            body: 'Hasil ditolak, periksa catatannya.',
+            body: 'Hasil kerjamu disengketakan ('.mb_strtolower($category->label()).'). Kirim tanggapanmu.',
             data: self::data(PushType::ActivityRejected, $task, $activity),
         );
     }
@@ -201,15 +203,19 @@ final class PushMessages
         );
     }
 
-    /** Sengketa diputuskan → kedua pihak (G5). */
-    public static function disputeResolved(Task $task, bool $released): PushMessage
+    /**
+     * Sengketa satu mitra diputuskan → pemberi kerja & mitra itu. Keterangan
+     * pengelola ikut di isi notif: keputusan yang memindahkan uang tanpa
+     * alasan yang terbaca hanya memancing komplain berikutnya.
+     */
+    public static function disputeResolved(Task $task, Activity $activity, bool $released, string $note): PushMessage
     {
         return new PushMessage(
             title: $task->title,
-            body: $released
-                ? 'Sengketa diputuskan: dana dilepas ke pekerja.'
-                : 'Sengketa diputuskan: dana dikembalikan ke pemberi kerja.',
-            data: self::data(PushType::DisputeResolved, $task, extra: [
+            body: ($released
+                ? 'Sengketa diputuskan: upah dilepas ke mitra. '
+                : 'Sengketa diputuskan: dana dikembalikan ke pemberi kerja. ').$note,
+            data: self::data(PushType::DisputeResolved, $task, $activity, extra: [
                 'resolution' => $released ? 'release' : 'refund',
             ]),
         );

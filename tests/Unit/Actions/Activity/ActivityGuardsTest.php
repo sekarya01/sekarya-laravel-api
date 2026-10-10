@@ -5,16 +5,17 @@ declare(strict_types=1);
 namespace Tests\Unit\Actions\Activity;
 
 use App\Actions\Activity\ApproveActivityAction;
-use App\Actions\Activity\RejectActivityAction;
 use App\Actions\Activity\StartActivityAction;
 use App\Actions\Activity\SubmitActivityAction;
 use App\Data\Activity\SubmitActivityData;
 use App\Enums\PaymentStatus;
 use App\Enums\TaskStatus;
+use App\Exceptions\Domain\DisputeNotAllowedException;
 use App\Exceptions\Domain\InvalidStatusTransitionException;
 use App\Models\Activity;
 use App\Models\Payment;
 use App\Models\Task;
+use App\Models\TaskDispute;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -54,25 +55,27 @@ final class ActivityGuardsTest extends TestCase
         $this->activity = $this->openActivities($this->task, $this->poster)->sole();
     }
 
-    /** Menolak hasil yang belum diserahkan tidak boleh bisa. */
-    public function test_rejecting_an_unsubmitted_activity_is_refused(): void
+    /** Menyengketakan hasil yang belum diserahkan tidak boleh bisa. */
+    public function test_disputing_an_unsubmitted_activity_is_refused(): void
     {
         try {
-            app(RejectActivityAction::class)->handle($this->activity, $this->poster, 'belum apa-apa');
-            $this->fail('activity yang belum diserahkan seharusnya tidak bisa ditolak');
-        } catch (InvalidStatusTransitionException $e) {
-            $this->assertSame(['from' => 'open', 'to' => 'rejected'], $e->context());
+            $this->raiseDispute($this->activity, $this->poster);
+            $this->fail('activity yang belum diserahkan seharusnya tidak bisa disengketakan');
+        } catch (DisputeNotAllowedException $e) {
+            $this->assertSame(['reason' => 'wrong_status'], $e->context());
         }
+
+        $this->assertSame(0, TaskDispute::query()->count());
     }
 
-    public function test_rejecting_an_approved_activity_is_refused(): void
+    public function test_disputing_an_approved_activity_is_refused(): void
     {
         $submitted = $this->submitted();
         app(ApproveActivityAction::class)->handle($submitted, $this->poster);
 
-        $this->expectException(InvalidStatusTransitionException::class);
+        $this->expectException(DisputeNotAllowedException::class);
 
-        app(RejectActivityAction::class)->handle($submitted->refresh(), $this->poster);
+        $this->raiseDispute($submitted->refresh(), $this->poster);
     }
 
     /**

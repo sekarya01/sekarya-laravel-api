@@ -22,7 +22,9 @@ use Carbon\CarbonInterface;
  * Idempoten: hanya menyentuh activity `submitted` yang `submitted_at`-nya
  * lewat; balapan dengan poster/admin yang menekan di detik yang sama
  * dimenangkan siapa pun yang tercatat lebih dulu (pecundang mendapat
- * `DomainException` dan dilewati). Task `disputed`/final tidak disentuh.
+ * `DomainException` dan dilewati). Task final tidak disentuh. Task `disputed`
+ * TETAP disentuh: sengketa berlaku per mitra, jadi mitra lain di task yang
+ * sama yang hasilnya didiamkan tetap disetujui otomatis.
  */
 final class AutoApproveStaleActivitiesAction
 {
@@ -41,14 +43,13 @@ final class AutoApproveStaleActivitiesAction
             ->where('status', ActivityStatus::Submitted)
             ->whereNotNull('submitted_at')
             ->where('submitted_at', '<=', $cutoff)
-            // Ter-cover index (status, submitted_at); saring task yang tak
-            // boleh selesai otomatis: sengketa didahulukan, status akhir
-            // tak bisa bergerak lagi.
+            // Ter-cover index (status, submitted_at); status akhir task tak
+            // bisa bergerak lagi. Activity yang disengketakan berstatus
+            // `rejected`, jadi tidak pernah ikut tersaring di sini.
             ->whereHas('task', fn ($query) => $query->whereNotIn('status', [
                 TaskStatus::Completed,
                 TaskStatus::Expired,
                 TaskStatus::Cancelled,
-                TaskStatus::Disputed,
                 TaskStatus::Refunded,
             ]))
             ->orderBy('id')

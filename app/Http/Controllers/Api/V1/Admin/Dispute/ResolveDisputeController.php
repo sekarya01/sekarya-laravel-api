@@ -10,7 +10,7 @@ use App\Http\Requests\Api\V1\Admin\ResolveDisputeRequest;
 use App\Http\Resources\Api\V1\TaskDisputeResource;
 use App\Models\TaskDispute;
 
-/** Putuskan sengketa (G5). */
+/** Putuskan sengketa satu mitra. */
 final class ResolveDisputeController
 {
     public function __construct(private readonly ResolveDisputeAction $action) {}
@@ -21,9 +21,10 @@ final class ResolveDisputeController
             $dispute,
             $request->user(),
             DisputeResolution::from($request->string('resolution')->value()),
-            $request->filled('note') ? $request->string('note')->value() : null,
+            trim($request->string('note')->value()),
+            $request->ip(),
         );
 
-        return TaskDisputeResource::make($resolved->load(['task', 'raiser']));
+        return TaskDisputeResource::make($resolved->load(['task', 'activity']));
     }
 }

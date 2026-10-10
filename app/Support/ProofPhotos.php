@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Models\User;
+use Closure;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Http\UploadedFile;
@@ -84,6 +85,20 @@ final class ProofPhotos
         }
 
         return $this->filesystem->disk('public')->exists($path);
+    }
+
+    /**
+     * Aturan validasi untuk satu path foto: harus foto bukti milik [owner]
+     * (POST /uploads `purpose=proof`). Dipakai juga oleh foto bukti sengketa —
+     * tanpa ini, satu pihak bisa melampirkan foto milik pihak lain.
+     */
+    public function ownedRule(User $owner): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($owner): void {
+            if (! is_string($value) || ! $this->isOwnedBy($value, $owner)) {
+                $fail('Foto bukti harus diunggah sendiri lewat POST /uploads dengan purpose=proof.');
+            }
+        };
     }
 
     /** Batas bawah jumlah foto, dari config (0 = opsional). */

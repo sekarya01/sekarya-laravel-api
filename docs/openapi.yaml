@@ -2158,8 +2158,11 @@ paths:
       description: |
         Bisa dilakukan pemberi kerja maupun penerima kerja yang sudah deal.
 
-        Dana yang sudah ditahan **dikembalikan**; bila belum masuk, pembayaran
-        dibatalkan. Penawaran yang masih menggantung ditutup. Pembatalan setelah
+        **Sisa** dana yang ditahan dikembalikan — upah mitra yang sudah disetujui
+        sudah dibayar dan tidak ikut kembali; bila belum ada uang masuk,
+        pembayaran dibatalkan. Ditolak `task_not_cancellable` dengan
+        `context.reason = open_dispute` selama ada sengketa mitra yang belum
+        diputuskan. Penawaran yang masih menggantung ditutup. Pembatalan setelah
         deal dicatat sebagai sinyal risiko pada orangnya.
       requestBody:
         required: false
@@ -2943,33 +2946,93 @@ paths:
         '422':
           description: Perpindahan status tidak diizinkan.
 
-  /activities/{activity}/reject:
+  /activities/{activity}/disputes:
     parameters:
       - $ref: '#/components/parameters/ActivityUlid'
     post:
       tags: [Activity]
-      operationId: rejectActivity
-      summary: Tolak hasil — sengketa
+      operationId: raiseActivityDispute
+      summary: Sengketakan hasil satu mitra
       description: |
-        Hanya pemberi kerja. Task jadi `disputed` dan **dana tetap ditahan**.
-        Penyelesaiannya (admin memutuskan dilepas atau dikembalikan) belum
-        tersedia di API ini.
+        Hanya pemberi kerja, hanya atas hasil berstatus `submitted`. Satu
+        panggilan, satu transaksi: activity jadi `rejected` DAN tiket sengketa
+        untuk pengelola dibuat bersama. **Dana tetap ditahan.**
+
+        Sengketa berlaku **per mitra**: mitra lain di task yang sama tetap bisa
+        disetujui dan dibayar. Task jadi `disputed` begitu tak ada lagi mitra
+        yang bekerja dan masih ada sengketa terbuka.
+
+        `evidence_photos` opsional — path dari `POST /uploads` dengan
+        `purpose=proof` yang diunggah **pemberi kerja sendiri**.
+        Mitra menerima push `activity_rejected` dan bisa menanggapi lewat
+        `POST /activities/{activity}/dispute/response`.
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required: [category, reason]
               properties:
-                poster_note: { type: [string, 'null'], maxLength: 2000 }
-            example: { poster_note: Kamar mandi masih berkerak }
+                category: { $ref: '#/components/schemas/DisputeCategory' }
+                reason: { type: string, minLength: 10, maxLength: 500 }
+                evidence_photos:
+                  type: array
+                  maxItems: 5
+                  items: { type: string, maxLength: 255 }
+            example:
+              category: late
+              reason: Datang tiga jam lewat jadwal tanpa kabar.
+              evidence_photos: []
       responses:
-        '200':
-          $ref: '#/components/responses/SingleActivity'
+        '201':
+          $ref: '#/components/responses/SingleTaskDispute'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '422':
+          description: |
+            Validasi (`{message, errors}`), atau `dispute_not_allowed` dengan
+            `context.reason = wrong_status` — hasilnya tidak sedang menunggu
+            penilaian (belum diserahkan, sudah disetujui, atau sudah disengketakan).
+
+  /activities/{activity}/dispute/response:
+    parameters:
+      - $ref: '#/components/parameters/ActivityUlid'
+    post:
+      tags: [Activity]
+      operationId: respondActivityDispute
+      summary: Mitra menanggapi sengketa (sekali)
+      description: |
+        Hanya mitra pemilik activity, selama tiketnya terbuka, **satu kali** —
+        pengelola memutuskan sesudah mendengar kedua pihak.
+        `evidence_photos` opsional, `purpose=proof` milik mitra sendiri.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [response]
+              properties:
+                response: { type: string, minLength: 10, maxLength: 500 }
+                evidence_photos:
+                  type: array
+                  maxItems: 5
+                  items: { type: string, maxLength: 255 }
+            example: { response: "Macet di jalan, sudah saya kabari lewat chat." }
+      responses:
+        '200':
+          $ref: '#/components/responses/SingleTaskDispute'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          description: |
+            Validasi, atau `dispute_not_allowed` dengan `context.reason`
+            `not_open` (tidak ada tiket terbuka) / `already_responded`.
 
   # ──────────────────────────── PENILAIAN ─────────────────────────────
   /tasks/{task}/reviews:
@@ -5034,27 +5097,29 @@ paths:
   /tasks/{task}/disputes:
     parameters:
       - $ref: '#/components/parameters/TaskUlid'
-    post:
-      tags: [Task]
-      operationId: raiseTaskDispute
-      summary: Ajukan kendala atas task `disputed` (G5)
-      responses:
-        '201': { description: Tiket kendala dibuat/diperbarui. }
-        '401': { $ref: '#/components/responses/Unauthenticated' }
-        '422': { $ref: '#/components/responses/ValidationFailed' }
-
-  /tasks/{task}/dispute:
-    parameters:
-      - $ref: '#/components/parameters/TaskUlid'
     get:
       tags: [Task]
-      operationId: showTaskDispute
-      summary: Tiket kendala task ini (G5)
+      operationId: listTaskDisputes
+      summary: Sengketa task ini (per mitra)
+      description: |
+        Peserta saja. Pemberi kerja melihat semua tiket; mitra hanya tiket atas
+        hasil kerjanya sendiri. Tanpa cursor — paling banyak satu tiket terbuka
+        per mitra. Klien menempelkannya ke kartu mitra lewat `activity_id`
+        (bagian "hasil keputusan" di bawah bukti pengerjaan).
       responses:
-        '200': { description: Tiket terbaru. }
+        '200':
+          description: Tiket sengketa, terbaru dulu.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/TaskDispute' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
 
   /admin/verifications/{verification}/documents/{kind}:
     get:
@@ -5103,7 +5168,7 @@ paths:
     get:
       tags: [Admin]
       operationId: listDisputes
-      summary: Antrean sengketa (G5)
+      summary: Antrean sengketa per mitra
       responses:
         '200': { description: Cursor. }
         '401': { $ref: '#/components/responses/Unauthenticated' }
@@ -5112,14 +5177,35 @@ paths:
     post:
       tags: [Admin]
       operationId: resolveDispute
-      summary: Putuskan sengketa — release/refund (G5)
+      summary: Putuskan sengketa satu mitra — release/refund
+      description: |
+        `release` → activity `approved`, upah mitra itu masuk saldonya.
+        `refund` → activity `refunded`, upah mitra itu kembali ke saldo pemberi
+        kerja. Mitra lain di task tidak tersentuh. Task ditutup (`completed`
+        bila ada yang dibayar, `refunded` bila semua dikembalikan) begitu
+        semua mitra diputuskan.
+
+        `note` **wajib**: dikirim ke pemberi kerja dan mitra itu di isi push
+        `dispute_resolved`, dan dicatat di jejak audit
+        (`dispute.released` / `dispute.refunded`).
       parameters:
         - name: dispute
           in: path
           required: true
           schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resolution, note]
+              properties:
+                resolution: { type: string, enum: [release, refund] }
+                note: { type: string, minLength: 10, maxLength: 500 }
+            example: { resolution: refund, note: Jam tiba tercatat 3 jam lewat jadwal. }
       responses:
-        '200': { description: Sengketa diputuskan. }
+        '200': { $ref: '#/components/responses/SingleTaskDispute' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
@@ -5477,6 +5563,15 @@ components:
                   $ref: '#/components/schemas/Task'
               links: { $ref: '#/components/schemas/CursorLinks' }
               meta: { $ref: '#/components/schemas/CursorMeta' }
+    SingleTaskDispute:
+      description: Satu tiket sengketa.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/TaskDispute' }
     SingleActivity:
       description: Satu activity.
       content:
@@ -5648,10 +5743,51 @@ components:
         (`awaiting_confirmation`) → pengelola melihat mutasi lalu mengonfirmasi
         (`held`). Ditolak pengelola, tagihan kembali ke `pending` dengan
         `rejection_reason` terisi dan boleh dilaporkan ulang.
+    DisputeCategory:
+      type: string
+      enum: [not_as_agreed, late, incomplete, damage, other]
+      description: |
+        Hasil tidak sesuai, terlambat dari jadwal, tidak selesai,
+        kerusakan/kehilangan, lainnya.
+    TaskDispute:
+      type: object
+      required: [id, activity_id, category, reason, evidence_photos, worker_response,
+        worker_evidence_photos, worker_responded_at, status, resolution, admin_note,
+        created_at, resolved_at]
+      properties:
+        id: { type: string }
+        activity_id:
+          type: [string, 'null']
+          description: Mitra yang disengketakan. `null` hanya untuk tiket lama.
+        category:
+          oneOf:
+            - $ref: '#/components/schemas/DisputeCategory'
+            - type: 'null'
+        reason: { type: string }
+        evidence_photos: { type: array, items: { type: string } }
+        worker_response: { type: [string, 'null'] }
+        worker_evidence_photos: { type: array, items: { type: string } }
+        worker_responded_at: { type: [string, 'null'], format: date-time }
+        status: { type: string, enum: [open, resolved] }
+        resolution: { type: [string, 'null'], enum: [release, refund, null] }
+        admin_note:
+          type: [string, 'null']
+          description: Keterangan pengelola — wajib saat diputuskan.
+        task:
+          type: object
+          properties:
+            id: { type: string }
+            title: { type: string }
+        created_at: { type: string, format: date-time }
+        resolved_at: { type: [string, 'null'], format: date-time }
     ActivityStatus:
       type: string
-      enum: [open, on_the_way, arrived, in_progress, submitted, approved, rejected]
+      enum: [open, on_the_way, arrived, in_progress, submitted, approved, rejected, refunded]
       description: |
+        `rejected` = hasilnya **disengketakan** (tiket terbuka di pengelola);
+        keluar hanya lewat keputusan pengelola: `approved` (upah dilepas) atau
+        `refunded` (upah kembali ke pemberi kerja).
+
         Dua langkah di depan `in_progress` punya pemilik yang berbeda:
         `on_the_way` diumumkan **pekerja** (ia berangkat), `arrived` diakui
         **pemberi kerja** (ia melihat orangnya sampai). Karena itu

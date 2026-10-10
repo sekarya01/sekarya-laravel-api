@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api\V1;
 
-use App\Actions\Activity\RejectActivityAction;
 use App\Actions\Activity\StartActivityAction;
 use App\Actions\Activity\SubmitActivityAction;
 use App\Actions\Bid\AcceptBidAction;
@@ -108,10 +107,12 @@ final class AutoApproveActivitiesTest extends TestCase
         $this->assertSame(0, (int) app(WalletLedger::class)->walletFor($this->worker->refresh())->balance);
     }
 
-    public function test_it_skips_disputed_task(): void
+    /**
+     * Sengketa berlaku per mitra: mitra lain di task `disputed` yang hasilnya
+     * didiamkan tetap disetujui otomatis; yang disengketakan tidak disentuh.
+     */
+    public function test_it_approves_the_other_worker_of_a_disputed_task(): void
     {
-        // Sengketa butuh dua pekerja: satu ditolak (task disputed), yang
-        // lain tetap `submitted` — itulah yang harus dilewati sweep.
         $second = $this->activeUser();
         $task = Task::factory()->create([
             'poster_id' => $this->poster->getKey(),
@@ -138,14 +139,15 @@ final class AutoApproveActivitiesTest extends TestCase
                 ->handle(new SubmitActivityData('beres', ['p/a.jpg']), $activity->refresh());
         }
 
-        app(RejectActivityAction::class)->handle($submitted[1]->refresh(), $this->poster, 'kurang rapi');
+        $this->raiseDispute($submitted[1]->refresh(), $this->poster, 'Kurang rapi di bagian dapur.');
         $this->assertSame(TaskStatus::Disputed, $task->refresh()->status);
 
         $submitted[0]->forceFill(['submitted_at' => now()->subHours(25)])->save();
 
         $this->artisan('sekarya:activities:auto-approve')->assertSuccessful();
 
-        $this->assertSame(ActivityStatus::Submitted, $submitted[0]->refresh()->status);
+        $this->assertSame(ActivityStatus::Approved, $submitted[0]->refresh()->status);
+        $this->assertSame(ActivityStatus::Rejected, $submitted[1]->refresh()->status);
         $this->assertSame(TaskStatus::Disputed, $task->refresh()->status);
         $this->assertSame(
             PaymentStatus::Held,

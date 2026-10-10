@@ -109,6 +109,8 @@ final class AdminEnumsTest extends TestCase
             'admin.deleted',
             'worker_invite.created',
             'worker_invite.deactivated',
+            'dispute.released',
+            'dispute.refunded',
             'chat_room.deactivated',
         ], array_column(AdminAction::cases(), 'value'));
     }

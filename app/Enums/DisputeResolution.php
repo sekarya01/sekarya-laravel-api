@@ -6,9 +6,17 @@ namespace App\Enums;
 
 enum DisputeResolution: string
 {
-    /** Hasil diterima: dana dilepas ke pekerja, task `completed`. */
+    /** Hasil diterima: upah MITRA ITU dilepas ke saldonya. */
     case Release = 'release';
 
-    /** Hasil ditolak: dana kembali ke pemberi kerja, task `refunded`. */
+    /** Hasil ditolak: upah MITRA ITU kembali ke saldo pemberi kerja. */
     case Refund = 'refund';
+
+    public function label(): string
+    {
+        return match ($this) {
+            self::Release => 'Upah dilepas ke mitra',
+            self::Refund => 'Dana dikembalikan ke pemberi kerja',
+        };
+    }
 }

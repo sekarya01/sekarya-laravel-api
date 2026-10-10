@@ -4,51 +4,47 @@ declare(strict_types=1);
 
 namespace App\Actions\Admin\Dispute;
 
-use App\Enums\ActorType;
 use App\Enums\ActivityStatus;
-use App\Enums\BidStatus;
+use App\Enums\ActorType;
+use App\Enums\AdminAction;
 use App\Enums\DisputeResolution;
 use App\Enums\DisputeStatus;
-use App\Enums\PaymentStatus;
-use App\Enums\TaskStatus;
-use App\Enums\WalletEntryType;
 use App\Exceptions\Domain\DisputeAlreadyResolvedException;
 use App\Exceptions\Domain\DisputeNotAllowedException;
 use App\Models\Activity;
 use App\Models\Admin;
-use App\Models\Payment;
-use App\Models\Task;
 use App\Models\TaskDispute;
+use App\Support\AdminAuditRecorder;
 use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
-use App\Support\TaskStatusRecorder;
-use App\Support\WalletLedger;
-use App\Support\WorkerPayout;
+use App\Support\TaskSettlement;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Collection;
 
 /**
- * Putuskan sengketa (G5): dana dilepas ke pekerja, atau dikembalikan ke
- * pemberi kerja.
+ * Putuskan sengketa SATU MITRA: upahnya dilepas ke mitra itu, atau
+ * dikembalikan ke pemberi kerja. Mitra lain di task yang sama tidak tersentuh.
  *
- * Inilah jalan keluar dari status `disputed` yang sebelumnya buntu. Dua
- * keputusan, dua akibat uang yang berbeda:
+ * Keterangan WAJIB — dikirim ke pemberi kerja dan mitra itu lewat notif, dan
+ * dicatat di jejak audit DI DALAM transaksi (jejak keputusan yang
+ * dibatalkan adalah jejak yang berbohong).
  *
- *  - `release` → task `completed`; setiap pekerja menerima `agreed_amount`
- *    miliknya (dari `activities`), dan activity yang masih tertahan
- *    (mis. `rejected` oleh pemberi kerja) dinaikkan ke `approved`.
- *  - `refund`  → task `refunded`; dana yang ditahan kembali ke saldo pemberi
- *    kerja, penawaran menggantung ditolak.
+ * Uang & status task lewat TaskSettlement — jalur yang sama dengan
+ * persetujuan pemberi kerja, jadi tidak ada logika uang kedua.
  *
- * Idempotensi dijaga dua lapis: status tiket (`open` → `resolved`) dan unique
- * `(reference_type, reference_id, type)` di buku besar.
+ * Tiket lama (sebelum sengketa per mitra) yang tidak bisa dipetakan ke satu
+ * activity — `activity_id` NULL — berlaku untuk semua activity `rejected`
+ * di task-nya, seperti aturan lama.
+ *
+ * Idempotensi: status tiket (`open` → `resolved`) di bawah kunci baris, dan
+ * unique (reference_type, reference_id, type) di buku besar.
  */
 final class ResolveDisputeAction
 {
     public function __construct(
         private readonly ConnectionInterface $db,
-        private readonly WalletLedger $ledger,
-        private readonly WorkerPayout $payout,
-        private readonly TaskStatusRecorder $recorder,
+        private readonly TaskSettlement $settlement,
+        private readonly AdminAuditRecorder $audit,
         private readonly PushDispatcher $push,
     ) {}
 
@@ -56,113 +52,65 @@ final class ResolveDisputeAction
         TaskDispute $dispute,
         Admin $admin,
         DisputeResolution $resolution,
-        ?string $note = null,
+        string $note,
+        ?string $ip = null,
     ): TaskDispute {
-        return $this->db->transaction(function () use ($dispute, $admin, $resolution, $note): TaskDispute {
+        [$fresh, $activities] = $this->db->transaction(function () use ($dispute, $admin, $resolution, $note, $ip): array {
             $fresh = TaskDispute::query()->whereKey($dispute->getKey())->lockForUpdate()->firstOrFail();
 
             if (! $fresh->status->isOpen()) {
                 throw DisputeAlreadyResolvedException::make();
             }
 
-            $task = Task::query()->whereKey($fresh->task_id)->lockForUpdate()->firstOrFail();
+            $task = $this->settlement->lockTask($fresh->task);
 
-            if ($task->status !== TaskStatus::Disputed) {
-                throw DisputeNotAllowedException::becauseStatus($task->status->value);
+            /** @var Collection<int, Activity> $activities */
+            $activities = Activity::query()
+                ->where('task_id', $task->getKey())
+                ->when($fresh->activity_id !== null, fn ($q) => $q->whereKey($fresh->activity_id))
+                ->where('status', ActivityStatus::Rejected)
+                ->lockForUpdate()
+                ->get();
+
+            if ($activities->isEmpty()) {
+                throw DisputeNotAllowedException::becauseStatus($fresh->activity?->status->value ?? $task->status->value);
             }
 
-            $payment = Payment::query()->where('task_id', $task->getKey())->lockForUpdate()->first();
-            $now = now();
-
-            if ($resolution === DisputeResolution::Release) {
-                $this->release($task, $payment, $now);
-                $this->recorder->move($task, TaskStatus::Completed, ActorType::Admin, (int) $admin->getKey(), 'Sengketa: dana dilepas');
-            } else {
-                $this->refund($task, $payment, $now);
-                $this->recorder->move($task, TaskStatus::Refunded, ActorType::Admin, (int) $admin->getKey(), 'Sengketa: dana dikembalikan');
+            foreach ($activities as $activity) {
+                $resolution === DisputeResolution::Release
+                    ? $this->settlement->approve($activity)
+                    : $this->settlement->refund($activity);
             }
 
             $fresh->forceFill([
                 'status' => DisputeStatus::Resolved,
                 'resolution' => $resolution,
                 'resolved_by' => $admin->getKey(),
-                'resolved_at' => $now,
+                'resolved_at' => now(),
                 'admin_note' => $note,
             ])->save();
 
-            $this->notify($task, $resolution === DisputeResolution::Release);
-
-            return $fresh;
-        });
-    }
-
-    private function release(Task $task, ?Payment $payment, \DateTimeInterface $now): void
-    {
-        $task->forceFill(['completed_at' => $now])->save();
-
-        if ($payment !== null && $payment->status === PaymentStatus::Held) {
-            $payment->forceFill([
-                'status' => PaymentStatus::Released,
-                'released_at' => $now,
-            ])->save();
-
-            $task->activities()->with('worker')->get()->each(function (Activity $activity) use ($now): void {
-                if ($activity->agreed_amount === null) {
-                    return;
-                }
-
-                if ($activity->status !== ActivityStatus::Approved) {
-                    $activity->forceFill([
-                        'status' => ActivityStatus::Approved,
-                        'approved_at' => $now,
-                    ])->save();
-
-                    $activity->worker->workerProfileOrCreate()->increment('tasks_completed');
-                }
-
-                $this->payout->pay($activity, 'Upah sengketa task #'.$task->task_number);
-            });
-        }
-    }
-
-    private function refund(Task $task, ?Payment $payment, \DateTimeInterface $now): void
-    {
-        if ($payment !== null && $payment->status === PaymentStatus::Held) {
-            $payment->forceFill([
-                'status' => PaymentStatus::Refunded,
-                'refunded_at' => $now,
-            ])->save();
-
-            // Dana kembali ke PEMBAYAR (poster), sama seperti pembatalan.
-            $this->ledger->credit(
-                $this->ledger->walletFor($payment->payer),
-                WalletEntryType::Refund,
-                (int) $payment->amount,
-                $payment,
-                'Pengembalian dana sengketa task #'.$task->task_number,
+            $this->audit->record(
+                $admin,
+                $resolution === DisputeResolution::Release ? AdminAction::DisputeReleased : AdminAction::DisputeRefunded,
+                (int) $fresh->getKey(),
+                $note,
+                $ip,
             );
+
+            $this->settlement->sync($task, ActorType::Admin, (int) $admin->getKey(), 'Sengketa: '.$resolution->label());
+
+            return [$fresh, $activities];
+        });
+
+        // Di LUAR transaksi: pemberi kerja dan mitra yang bersengketa saja.
+        $released = $resolution === DisputeResolution::Release;
+        foreach ($activities as $activity) {
+            $message = PushMessages::disputeResolved($fresh->task, $activity->refresh(), $released, $note);
+            $this->push->send((int) $fresh->task->poster_id, $message);
+            $this->push->send($activity->worker_id, $message);
         }
 
-        $task->bids()->where('status', BidStatus::Pending)->update([
-            'status' => BidStatus::Rejected,
-            'responded_at' => $now,
-            'updated_at' => $now,
-        ]);
-    }
-
-    private function notify(Task $task, bool $released): void
-    {
-        $recipients = collect([(int) $task->poster_id])
-            ->merge(
-                $task->bids()
-                    ->where('status', BidStatus::Accepted)
-                    ->pluck('bidder_id')
-                    ->map(static fn (mixed $id): int => (int) $id),
-            )
-            ->unique();
-
-        foreach ($recipients as $userId) {
-            $this->push->send($userId, PushMessages::disputeResolved($task, $released));
-        }
+        return $fresh;
     }
 }
