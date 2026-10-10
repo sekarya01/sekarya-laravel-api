@@ -49,11 +49,29 @@ final class ListWalletEntriesAction
             // `wallet_id` sudah mempersempit lewat indeks ke riwayat SATU
             // orang, jadi yang dipindai hanya baris miliknya (lihat EXPLAIN
             // di test). `%`/`_` dari ketikan di-escape agar dibaca harfiah.
-            ->when($data->search !== null && $data->search !== '', fn ($q) => $q->where(
-                'description',
-                'like',
-                '%'.addcslashes((string) $data->search, '%_\\').'%',
-            ))
+            //
+            // Judul task ikut dicocokkan: baris riwayat di aplikasi DITAMPILKAN
+            // dengan judul task-nya (`attachTasks`), sedangkan `description`
+            // hanya "Dana tugas #123 ditahan". Tanpa ini, mengetik judul yang
+            // terlihat di layar selalu berujung kosong. Subkueri berkorelasi
+            // lewat primary key rujukan — tetap per baris milik orang ini,
+            // bukan pemindaian `tasks`.
+            ->when($data->search !== null && $data->search !== '', function ($q) use ($data): void {
+                $like = '%'.addcslashes((string) $data->search, '%_\\').'%';
+
+                $q->where(function ($q) use ($like): void {
+                    $q->where('description', 'like', $like);
+
+                    foreach (array_keys(self::taskReferences()) as $table) {
+                        $q->orWhereExists(fn ($sub) => $sub->selectRaw('1')
+                            ->from($table.' as ref')
+                            ->join('tasks as ref_task', 'ref_task.id', '=', 'ref.task_id')
+                            ->whereColumn('ref.id', 'wallet_entries.reference_id')
+                            ->where('wallet_entries.reference_type', $table)
+                            ->where('ref_task.title', 'like', $like));
+                    }
+                });
+            })
             ->latestFirst()
             ->cursorPaginate($data->page->perPage);
 
@@ -79,12 +97,7 @@ final class ListWalletEntriesAction
      */
     private function attachTasks(Collection $entries): void
     {
-        /** @var array<string, class-string<Model>> $sources */
-        $sources = [
-            (new TaskFundMovement)->getTable() => TaskFundMovement::class,
-            (new Activity)->getTable() => Activity::class,
-            (new Payment)->getTable() => Payment::class,
-        ];
+        $sources = self::taskReferences();
 
         $taskIdByReference = [];
 
@@ -128,5 +141,21 @@ final class ListWalletEntriesAction
 
             $entry->setRelation('task', $taskId === null ? null : $tasks->get($taskId));
         }
+    }
+
+    /**
+     * Jenis rujukan buku besar yang menunjuk ke task — slug tabel => model.
+     * Dipakai menamai baris (`attachTasks`) DAN mencarinya, supaya keduanya
+     * tidak bisa berbeda daftar.
+     *
+     * @return array<string, class-string<Model>>
+     */
+    private static function taskReferences(): array
+    {
+        return [
+            (new TaskFundMovement)->getTable() => TaskFundMovement::class,
+            (new Activity)->getTable() => Activity::class,
+            (new Payment)->getTable() => Payment::class,
+        ];
     }
 }

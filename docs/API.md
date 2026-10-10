@@ -2083,7 +2083,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
 | `GET` | `/me/wallet` | access | `api` | Saldo sendiri. Membacanya tidak membuat baris dompet. |
-| `GET` | `/me/wallet/entries` | access | `api` | Riwayat mutasi. Filter: `type`, `types[]` (beberapa jenis), `direction`, `q` (kata di `description`), `from`/`to` (ISO-8601 beroffset; `from` inklusif, `to` eksklusif), `min_amount`/`max_amount`. Tiap baris membawa `task: {id, task_number, title, category}` atau `null`. Cursor. |
+| `GET` | `/me/wallet/entries` | access | `api` | Riwayat mutasi. Filter: `type`, `types[]` (beberapa jenis), `direction`, `q` (kata di `description` atau judul task rujukannya), `from`/`to` (ISO-8601 beroffset; `from` inklusif, `to` eksklusif), `min_amount`/`max_amount`. Tiap baris membawa `task: {id, task_number, title, category}` atau `null`. Cursor. |
 | `GET` | `/me/wallet/summary` | access | `api` | Ringkasan dijumlahkan server: `credit_total`, `debit_total`, `entries_count`, `by_type`, `earning_total`. `types[]`/`direction` menyaring; `compare_previous=1` menambah `previous`; `group=month` menambah `by_month`. `from`/`to` berpasangan (bawaan: bulan berjalan), maks 366 hari. |
 | `GET` | `/me/wallet/config` | access | `api` | Rekening tujuan isi saldo (dari env; kosong = tak ditampilkan) + `limits` (`min_topup`, `max_topup`, `min_withdrawal`, `max_withdrawal`, `max_pending_requests`). |
 | `GET` | `/me/wallet/topups` | access | `api` | Permintaan isi saldo saya. Filter: `status`. |

@@ -133,6 +133,42 @@ final class WalletEntryTaskReferenceTest extends TestCase
         $this->assertSame('Task yang dihapus', $this->tasksByType()['refund']['title']);
     }
 
+    /**
+     * Pencarian mencocokkan judul task yang DITAMPILKAN di baris, bukan hanya
+     * `description` ("Dana ditahan") yang tidak pernah terlihat pengguna.
+     */
+    public function test_the_history_can_be_searched_by_task_title(): void
+    {
+        $wallet = $this->ledger->walletFor($this->user);
+        $this->ledger->credit($wallet, WalletEntryType::Topup, 500_000, null, 'Isi saldo');
+
+        $held = $this->task('Pindahan Lemari Lantai 2');
+        $this->ledger->debit($wallet, WalletEntryType::TaskHold, 100_000, $this->movement($held, $this->payment($held)), 'Dana ditahan');
+        $this->ledger->credit($wallet, WalletEntryType::Refund, 50_000, $this->payment($this->task('Cuci AC')), 'Refund');
+        $worked = $this->task('Rakit Meja');
+        $activity = Activity::factory()->create([
+            'task_id' => $worked->getKey(),
+            'worker_id' => $this->user->getKey(),
+            'payment_id' => $this->payment($worked)->getKey(),
+        ]);
+        $this->ledger->credit($wallet, WalletEntryType::Earning, 75_000, $activity, 'Upah');
+
+        $types = fn (string $q): array => array_column(
+            $this->asUser($this->user)
+                ->getJson(route('v1.me.wallet.entries.index', ['q' => $q]))
+                ->assertOk()
+                ->json('data'),
+            'type',
+        );
+
+        $this->assertSame(['task_hold'], $types('lemari'));
+        $this->assertSame(['refund'], $types('Cuci'));
+        $this->assertSame(['earning'], $types('meja'));
+        // `description` tetap ikut dicari.
+        $this->assertSame(['topup'], $types('Isi saldo'));
+        $this->assertSame([], $types('tidak ada'));
+    }
+
     /** Jumlah kueri tetap per halaman, tidak tumbuh per baris. */
     public function test_resolving_tasks_does_not_run_one_query_per_entry(): void
     {

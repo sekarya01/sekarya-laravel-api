@@ -1291,7 +1291,7 @@ paths:
         - name: q
           in: query
           required: false
-          description: Kata di `description` (mis. "#123"). `%` dan `_` dibaca harfiah.
+          description: Kata di `description` (mis. "#123") ATAU judul task rujukannya. `%` dan `_` dibaca harfiah.
           schema: { type: string, maxLength: 100 }
         - name: from
           in: query
