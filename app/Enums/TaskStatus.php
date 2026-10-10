@@ -30,9 +30,14 @@ enum TaskStatus: string
             self::Draft => [self::Open, self::Cancelled],
             self::Open => [self::Dealt, self::Expired, self::Cancelled],
             self::Dealt => [self::Active, self::Cancelled],
-            self::Active => [self::Submitted, self::Cancelled],
+            // Status task mengikuti agregat activity (TaskSettlement::sync).
+            // `active → disputed`: mitra terakhir menyerahkan hasil saat
+            // mitra lain sedang disengketakan.
+            self::Active => [self::Submitted, self::Disputed, self::Cancelled],
             self::Submitted => [self::Completed, self::Disputed],
-            self::Disputed => [self::Completed, self::Refunded],
+            // `disputed → submitted`: sengketa terakhir diputuskan, tapi
+            // masih ada hasil mitra lain yang menunggu dinilai pemberi kerja.
+            self::Disputed => [self::Completed, self::Refunded, self::Submitted],
             // Kedaluwarsa BUKAN akhir: pemberi kerja bisa memajukan jadwal
             // (Ubah → `open` lagi) atau membatalkan untuk menarik dananya.
             self::Expired => [self::Open, self::Cancelled],

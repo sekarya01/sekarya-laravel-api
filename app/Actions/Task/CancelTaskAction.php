@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace App\Actions\Task;
 
+use App\Enums\ActivityStatus;
 use App\Enums\ActorType;
 use App\Enums\BidStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\TaskStatus;
-use App\Enums\WalletEntryType;
 use App\Exceptions\Domain\TaskNotCancellableException;
 use App\Models\Task;
 use App\Models\User;
 use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
+use App\Support\TaskSettlement;
 use App\Support\TaskStatusRecorder;
-use App\Support\WalletLedger;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -33,7 +33,7 @@ final class CancelTaskAction
     public function __construct(
         private readonly ConnectionInterface $db,
         private readonly TaskStatusRecorder $recorder,
-        private readonly WalletLedger $ledger,
+        private readonly TaskSettlement $settlement,
         private readonly PushDispatcher $push,
     ) {}
 
@@ -56,42 +56,32 @@ final class CancelTaskAction
         }
 
         return $this->db->transaction(function () use ($task, $actor, $reason): Task {
+            // Sengketa mitra yang masih terbuka mengikat sebagian dana
+            // tagihan: membatalkan sekarang mengembalikan dana yang mungkin
+            // masih diputuskan pengelola sebagai upah mitra itu. Diperiksa di
+            // bawah kunci task — pengajuan sengketa mengambil kunci yang sama.
+            $this->settlement->lockTask($task);
+            if ($task->activities()->where('status', ActivityStatus::Rejected)->exists()) {
+                throw TaskNotCancellableException::becauseOpenDispute($task->status);
+            }
+
             $isPoster = $task->poster_id === $actor->getKey();
             $actorType = $isPoster ? ActorType::Poster : ActorType::Worker;
 
-            // Uang yang sudah ditahan wajib dikembalikan. Kalau belum masuk,
-            // pembayaran cukup dibatalkan.
+            // Uang yang sudah ditahan wajib dikembalikan — SISANYA saja.
+            // Upah mitra yang sudah disetujui sudah dibayar per mitra; kalau
+            // seluruh tagihan dikembalikan, uang yang sama keluar dua kali.
+            // Penerimanya PEMBAYAR (`payer_id`), bukan pembatalnya — pekerja
+            // juga bisa membatalkan. Kalau belum ada uang masuk, tagihan cukup
+            // dibatalkan.
             $payment = $task->payment;
-            if ($payment !== null) {
-                $wasHeld = $payment->status === PaymentStatus::Held;
-
-                $payment->forceFill(match ($payment->status) {
-                    PaymentStatus::Held => [
-                        'status' => PaymentStatus::Refunded,
-                        'refunded_at' => now(),
-                    ],
-                    PaymentStatus::Pending => [
-                        'status' => PaymentStatus::Cancelled,
-                        'cancelled_at' => now(),
-                    ],
-                    default => [],
-                })->save();
-
-                // `refunded` berhenti jadi sekadar penanda status sejak ada
-                // saldo: uang yang benar-benar diterima harus benar-benar
-                // kembali ke seseorang. Yang menerimanya PEMBAYARNYA
-                // (`payer_id`), bukan pembatalnya — pekerja juga bisa
-                // membatalkan, dan mengembalikan dana ke pembatal akan
-                // memindahkan uang pemberi kerja ke orang lain.
-                if ($wasHeld) {
-                    $this->ledger->credit(
-                        $this->ledger->walletFor($payment->payer),
-                        WalletEntryType::Refund,
-                        (int) $payment->amount,
-                        $payment,
-                        'Pengembalian dana task #'.$task->task_number,
-                    );
-                }
+            if ($payment?->status === PaymentStatus::Held) {
+                $this->settlement->closePayment($task, $payment, 'Pengembalian dana task #'.$task->task_number);
+            } elseif ($payment?->status === PaymentStatus::Pending) {
+                $payment->forceFill([
+                    'status' => PaymentStatus::Cancelled,
+                    'cancelled_at' => now(),
+                ])->save();
             }
 
             // Penawaran yang masih menggantung ditutup agar tidak muncul di daftar worker.

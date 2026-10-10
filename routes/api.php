@@ -8,7 +8,8 @@ use App\Http\Controllers\Api\V1\Activity\ConfirmArrivalController;
 use App\Http\Controllers\Api\V1\Activity\CreateActivityUpdateController;
 use App\Http\Controllers\Api\V1\Activity\DepartActivityController;
 use App\Http\Controllers\Api\V1\Activity\ListMyActivitiesController;
-use App\Http\Controllers\Api\V1\Activity\RejectActivityController;
+use App\Http\Controllers\Api\V1\Activity\RaiseActivityDisputeController;
+use App\Http\Controllers\Api\V1\Activity\RespondDisputeController;
 use App\Http\Controllers\Api\V1\Activity\ShowActivityController;
 use App\Http\Controllers\Api\V1\Activity\StartActivityController;
 use App\Http\Controllers\Api\V1\Activity\SubmitActivityController;
@@ -93,14 +94,13 @@ use App\Http\Controllers\Api\V1\Task\ListBookmarkedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListMyPostedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListMyWorkedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListOpenTasksController;
+use App\Http\Controllers\Api\V1\Task\ListTaskDisputesController;
 use App\Http\Controllers\Api\V1\Task\PublishTaskController;
-use App\Http\Controllers\Api\V1\Task\RaiseDisputeController;
 use App\Http\Controllers\Api\V1\Task\RejectTaskCancelController;
 use App\Http\Controllers\Api\V1\Task\RequestTaskCancelController;
 use App\Http\Controllers\Api\V1\Task\ShowPostedTaskCountsController;
 use App\Http\Controllers\Api\V1\Task\ShowTaskCancelRequestController;
 use App\Http\Controllers\Api\V1\Task\ShowTaskController;
-use App\Http\Controllers\Api\V1\Task\ShowTaskDisputeController;
 use App\Http\Controllers\Api\V1\Task\ShowWorkedTaskCountsController;
 use App\Http\Controllers\Api\V1\Task\StartTaskController;
 use App\Http\Controllers\Api\V1\Task\StoreBookmarkController;
@@ -379,10 +379,9 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         Route::post('tasks/{task}/approve-all', ApproveAllActivitiesController::class)
             ->can('approveAll', 'task')->name('tasks.approve-all');
 
-        // Tiket kendala (G5) — peserta task `disputed` mengajukan, admin memutuskan.
-        Route::post('tasks/{task}/disputes', RaiseDisputeController::class)
-            ->middleware('throttle:write')->name('tasks.disputes.store');
-        Route::get('tasks/{task}/dispute', ShowTaskDisputeController::class)->name('tasks.dispute.show');
+        // Sengketa per mitra — diajukan lewat `activities/{a}/disputes`.
+        Route::get('tasks/{task}/disputes', ListTaskDisputesController::class)
+            ->can('viewDisputes', 'task')->name('tasks.disputes.index');
 
         // Lelang
         Route::post('tasks/{task}/bids', PlaceBidController::class)
@@ -430,8 +429,12 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
             ->middleware('throttle:write')->can('work', 'activity')->name('activities.updates.store');
         Route::post('activities/{activity}/approve', ApproveActivityController::class)
             ->can('judge', 'activity')->name('activities.approve');
-        Route::post('activities/{activity}/reject', RejectActivityController::class)
-            ->can('judge', 'activity')->name('activities.reject');
+        // Sengketa SATU MITRA: tolak hasil + tiket pengelola dalam satu
+        // transaksi. Mitra menanggapi sekali; pengelola memutuskan.
+        Route::post('activities/{activity}/disputes', RaiseActivityDisputeController::class)
+            ->middleware('throttle:write')->can('judge', 'activity')->name('activities.disputes.store');
+        Route::post('activities/{activity}/dispute/response', RespondDisputeController::class)
+            ->middleware('throttle:write')->can('work', 'activity')->name('activities.dispute.respond');
 
         // Penilaian dua arah
         Route::post('tasks/{task}/reviews', CreateReviewController::class)

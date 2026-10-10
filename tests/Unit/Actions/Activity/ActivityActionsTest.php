@@ -6,7 +6,6 @@ namespace Tests\Unit\Actions\Activity;
 
 use App\Actions\Activity\ApproveActivityAction;
 use App\Actions\Activity\ListActivitiesAction;
-use App\Actions\Activity\RejectActivityAction;
 use App\Actions\Activity\StartActivityAction;
 use App\Actions\Activity\SubmitActivityAction;
 use App\Data\Activity\SubmitActivityData;
@@ -171,28 +170,28 @@ final class ActivityActionsTest extends TestCase
         app(ApproveActivityAction::class)->handle($this->activity, $this->poster);
     }
 
-    public function test_reject_disputes_the_task_and_keeps_money_held(): void
+    public function test_dispute_rejects_the_activity_disputes_the_task_and_keeps_money_held(): void
     {
         $submitted = $this->submitted();
 
-        $rejected = app(RejectActivityAction::class)
-            ->handle($submitted, $this->poster, 'Masih berkerak');
+        $dispute = $this->raiseDispute($submitted, $this->poster, 'Masih berkerak di sudut.');
 
+        $rejected = $submitted->refresh();
         $this->assertSame(ActivityStatus::Rejected, $rejected->status);
         $this->assertNotNull($rejected->rejected_at);
-        $this->assertSame('Masih berkerak', $rejected->poster_note);
+        $this->assertSame($rejected->getKey(), $dispute->refresh()->activity_id);
         $this->assertSame(TaskStatus::Disputed, $this->task->refresh()->status);
         // Dana TETAP ditahan.
         $this->assertSame(PaymentStatus::Held, $rejected->payment->refresh()->status);
     }
 
-    public function test_worker_can_resubmit_after_rejection(): void
+    public function test_a_disputed_result_cannot_be_resubmitted(): void
     {
         $submitted = $this->submitted();
-        app(RejectActivityAction::class)->handle($submitted, $this->poster, 'ulangi');
+        $this->raiseDispute($submitted, $this->poster);
 
-        // Task disputed tidak bisa kembali ke submitted, jadi transisi task
-        // yang menghalangi — bukan transisi activity.
+        // Keluar dari sengketa hanya lewat keputusan pengelola — "minta
+        // perbaikan" belum ada.
         $this->expectException(InvalidStatusTransitionException::class);
 
         app(SubmitActivityAction::class)

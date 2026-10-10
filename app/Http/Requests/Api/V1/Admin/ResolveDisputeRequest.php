@@ -16,7 +16,9 @@ final class ResolveDisputeRequest extends FormRequest
     {
         return [
             'resolution' => ['required', Rule::enum(DisputeResolution::class)],
-            'note' => ['sometimes', 'nullable', 'string', 'max:500'],
+            // Wajib: dikirim ke pemberi kerja & mitra lewat notif, dan jadi
+            // alasan di jejak audit (AdminAction::requiresReason).
+            'note' => ['required', 'string', 'min:10', 'max:500'],
         ];
     }
 

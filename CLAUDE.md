@@ -158,16 +158,23 @@ Yang tidak boleh "dirapikan":
   (`SEKARYA_PAYMENT_GATE`, bawaan `false`) karena mekanisme pembayaran belum dikembangkan
   (rencananya pindah ke depan: dibayar saat task dibuat). Yang dilewatinya HANYA dua
   pemeriksaan dana di atas — `StartActivityAction` dan pelepasan upah di
-  `ApproveActivityAction`. Pembukaan pekerjaan tidak bergantung padanya. Yang dilewati
+  `TaskSettlement::approve` (dipakai persetujuan pemberi kerja & keputusan sengketa). Pembukaan pekerjaan tidak bergantung padanya. Yang dilewati
   PEMERIKSAAN, bukan CATATAN: tagihan tetap `pending`, dan `pending → held` tetap
   mustahil. Suite test berjalan dengan gerbangnya HIDUP (phpunit.xml); jalur matinya
   diuji `tests/Unit/Actions/Payment/PaymentGateDisabledTest.php`.
 - **Task yang terlanjur tersangkut di `dealt` disusulkan sekali jalan** oleh migrasi
   `2026_09_19_000001_open_stuck_dealt_tasks` (`App\Support\StuckWorkBackfill`) — baris
   yang lahir sebelum aturan "deal membuka pekerjaan" ada.
-- **Status task mengikuti AGREGAT, bukan pekerja tercepat.** `submitted` hanya kalau semua
-  sudah menyerahkan; `completed` + dana dilepas hanya kalau semua disetujui. Melepas pada
-  persetujuan pertama akan mengeluarkan seluruh tagihan untuk satu orang.
+- **Status task mengikuti AGREGAT, bukan pekerja tercepat** — `App\Support\TaskSettlement::sync`,
+  satu-satunya tempat. Ada yang masih bekerja → tetap; ada sengketa terbuka → `disputed`;
+  sisanya menunggu penilaian → `submitted`; semua diputuskan → `completed` (ada yang
+  dibayar) atau `refunded` (semua dikembalikan).
+- **Upah dibayar PER MITRA saat ia disetujui** (keputusan pemilik proyek 2026-10-10,
+  menggantikan "dana dilepas saat mitra terakhir"). Tagihan tetap `held` sampai semua mitra
+  diputuskan; rinciannya di buku besar, dirujuk ke activity. Karena upah bisa sudah keluar
+  sebelum task selesai, pembatalan & penutupan tagihan hanya mengembalikan SISA
+  (`TaskSettlement::outstanding`) — mengembalikan seluruh `payments.amount` berarti uang yang
+  sama keluar dua kali.
 - **Dana tidak bisa ditahan sebelum perekrutan selesai.** Tagihan sudah ada sejak pelamar
   pertama diterima, jadi tanpa penjaga itu ia bisa ditahan untuk jumlah yang masih akan
   bertambah.
@@ -198,6 +205,34 @@ Yang tidak boleh "dirapikan":
   `cancel_request` di `GET /tasks/{task}` dan `GET /tasks/{task}/cancel-request`;
   menjawab yang sudah dijawab/ditarik = `no_pending_cancel_request` (keadaan akhir,
   bukan galat — pola yang sama dengan `review_not_allowed`).
+
+## Sengketa per mitra
+
+Tiket `task_disputes` menunjuk SATU activity. Panduan manusianya `docs/API.md` (bagian
+penyerahan hasil); dasbor pengelola `/access/super_admin/disputes`.
+
+- **Satu panggilan, satu transaksi:** `POST activities/{a}/disputes` membuat activity
+  `rejected` DAN tiketnya. Dulu dua panggilan (tolak, lalu ajukan kendala) — kalau yang
+  kedua gagal, task terkunci `disputed` tanpa tiket dan tak terlihat siapa pun.
+- **`rejected` = disengketakan**, bukan "minta perbaikan". Keluar hanya lewat pengelola:
+  `approved` (upah dilepas) atau `refunded` (upah ke pemberi kerja). Tidak ada
+  `rejected → submitted`; "minta perbaikan" DITUNDA (keputusan 2026-10-10).
+- **Satu tiket terbuka per activity dijaga indeks unique** atas kolom turunan
+  `open_activity_lock`. VIRTUAL, bukan STORED seperti `super_admin_lock`: MySQL menolak
+  kolom turunan STORED atas kolom ber-FK CASCADE (#1215).
+- **Keputusan pengelola WAJIB berketerangan** — dikirim di push `dispute_resolved` ke
+  pemberi kerja + mitra itu (hanya mereka), dan dicatat di `admin_audit_logs`
+  (`dispute.released`/`dispute.refunded`) DI DALAM transaksi.
+- **Mitra menanggapi SEKALI** (`worker_response`). Foto bukti kedua pihak memakai
+  `purpose=proof` + `ProofPhotos::ownedRule()` — tanpa itu satu pihak bisa melampirkan
+  foto milik pihak lain.
+- **Task tidak bisa dibatalkan selama ada sengketa terbuka** (`open_dispute`): dana yang
+  masih diputuskan pengelola akan ikut kembali ke pemberi kerja.
+- **Persetujuan otomatis 24 jam tetap menyentuh task `disputed`** — mitra lain yang
+  hasilnya didiamkan tetap disetujui; yang disengketakan berstatus `rejected`, jadi tak
+  pernah tersaring.
+- Tiket lama tanpa `activity_id` (task banyak mitra yang ambigu saat migrasi) diputuskan
+  untuk semua activity `rejected` task-nya.
 
 ## Profil pekerja dipisah dari akun
 
@@ -255,7 +290,7 @@ Yang tidak boleh "dirapikan":
   `config/sekarya.php` → `profile`, bukan sebagai literal di aturan validasi.
 - **Agregat reputasi tidak mass-assignable, dua lapis.** Tidak ada di aturan validasi DAN
   tidak ada di `$fillable`. Yang menulisnya hanya `AcceptBidAction`,
-  `ApproveActivityAction`, dan `CreateReviewAction` — yang terakhir menghitung ulang dari
+  `TaskSettlement::approve`, dan `CreateReviewAction` — yang terakhir menghitung ulang dari
   tabel `reviews`, bukan menambah inkremental.
 - **`User::$with = ['workerProfile']`.** Blunt, dan disengaja: hampir setiap tempat yang
   menampilkan pengguna butuh reputasinya, dan satu Action yang lupa eager-load
@@ -526,8 +561,8 @@ Yang tidak boleh "dirapikan":
   (`bank_account_not_verified`). Verifikasi identitas tidak menggantikannya.
 - **Upah dibaca dari `activities.agreed_amount`, bukan `tasks.agreed_amount`.** Yang
   terakhir TOTAL seluruh pekerja — memakainya berarti setiap orang dari task 30 orang
-  menerima seluruh tagihan. Kreditnya duduk di dalam penjaga "pekerja terakhir" yang sama
-  dengan pelepasan pembayaran, jadi berjalan sekali per task.
+  menerima seluruh tagihan. Kreditnya per mitra saat ia disetujui (`TaskSettlement::approve`);
+  satu activity paling banyak satu baris `earning` (unique buku besar).
 - **Pengembalian dana task selalu ke `payment.payer_id`, bukan ke pembatalnya.** Pekerja
   juga bisa membatalkan; mengembalikan ke pembatal memindahkan uang pemberi kerja ke
   orang lain.

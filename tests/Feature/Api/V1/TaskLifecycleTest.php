@@ -903,7 +903,9 @@ final class TaskLifecycleTest extends TestCase
         [, , $activity] = $this->submitted();
 
         $this->asUser($this->worker)->postJson(route('v1.activities.approve', $activity))->assertForbidden();
-        $this->asUser($this->worker)->postJson(route('v1.activities.reject', $activity))->assertForbidden();
+        $this->asUser($this->worker)->postJson(route('v1.activities.disputes.store', $activity), [
+            'category' => 'late', 'reason' => 'Menyengketakan diri sendiri.',
+        ])->assertForbidden();
     }
 
     public function test_approving_completes_the_task_and_releases_the_money(): void
@@ -959,20 +961,6 @@ final class TaskLifecycleTest extends TestCase
         $this->asUser($this->stranger)
             ->postJson(route('v1.tasks.approve-all', $task))
             ->assertForbidden();
-    }
-
-    public function test_rejecting_disputes_the_task_and_keeps_the_money(): void
-    {
-        [$task, , $activity] = $this->submitted();
-
-        $this->asUser($this->poster)
-            ->postJson(route('v1.activities.reject', $activity), ['poster_note' => 'Belum bersih'])
-            ->assertOk()
-            ->assertJsonPath('data.status', 'rejected')
-            ->assertJsonPath('data.task.status', 'disputed')
-            ->assertJsonPath('data.payment.status', 'held');
-
-        $this->assertNotEmpty($task);
     }
 
     public function test_my_activities_lists_only_mine(): void

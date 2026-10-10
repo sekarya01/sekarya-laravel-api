@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use App\Enums\ActivityStatus;
 use App\Enums\BidStatus;
 use App\Enums\CancelRequestStatus;
 use App\Enums\TaskStatus;
@@ -379,44 +378,6 @@ final class Task extends Model
     public function isFullyStaffed(): bool
     {
         return $this->workers_hired >= $this->workers_needed;
-    }
-
-    /**
-     * Semua pekerja sudah menyerahkan hasilnya.
-     *
-     * Status TASK mengikuti agregat, bukan pekerja yang kebetulan paling cepat.
-     * Tanpa ini, pada task 30 orang penyerahan pertama menandai seluruh task
-     * `submitted` — dan 29 penyerahan berikutnya ditolak karena task-nya sudah
-     * pindah status.
-     */
-    public function everyWorkerHasSubmitted(): bool
-    {
-        return ! $this->activities()
-            // Setiap status yang BELUM menyerahkan hasil, termasuk dua langkah
-            // perjalanan. Didaftar apa adanya, bukan "selain submitted dan
-            // approved": status baru yang lupa dimasukkan ke daftar negatif
-            // akan diam-diam terhitung sebagai sudah menyerahkan.
-            ->whereIn('status', [
-                ActivityStatus::Open,
-                ActivityStatus::OnTheWay,
-                ActivityStatus::Arrived,
-                ActivityStatus::InProgress,
-                ActivityStatus::Rejected,
-            ])
-            ->exists();
-    }
-
-    /**
-     * Semua pekerja sudah disetujui.
-     *
-     * Ini syarat pelepasan dana. Melepas pada persetujuan PERTAMA berarti
-     * seluruh dana keluar untuk satu orang, dan 29 sisanya mengerjakan
-     * pekerjaan yang tidak akan pernah dibayar.
-     */
-    public function everyWorkerIsApproved(): bool
-    {
-        return $this->activities()->exists()
-            && ! $this->activities()->where('status', '!=', ActivityStatus::Approved)->exists();
     }
 
     /**

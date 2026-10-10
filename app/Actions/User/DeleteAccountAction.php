@@ -112,6 +112,8 @@ final class DeleteAccountAction
                 ActivityStatus::Arrived,
                 ActivityStatus::InProgress,
                 ActivityStatus::Submitted,
+                // Sengketa terbuka: pengelola masih memutuskan upahnya.
+                ActivityStatus::Rejected,
             ])
             ->exists();
 

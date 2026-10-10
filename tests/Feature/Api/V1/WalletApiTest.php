@@ -630,8 +630,11 @@ final class WalletApiTest extends TestCase
         $this->assertSame(0, $poster->fresh()->walletBalance());
     }
 
-    /** Dilepas SEKALI, saat pekerja terakhir disetujui — bukan pada yang pertama. */
-    public function test_nobody_is_paid_until_every_worker_is_approved(): void
+    /**
+     * Upah dibayar per mitra saat ia disetujui — tidak menunggu mitra lain,
+     * supaya sengketa satu orang tidak menahan upah orang yang kerjanya baik.
+     */
+    public function test_each_worker_is_paid_when_they_are_approved(): void
     {
         $poster = $this->activeUser();
         $workerA = $this->activeUser();
@@ -660,7 +663,7 @@ final class WalletApiTest extends TestCase
             ->postJson(route('v1.activities.approve', $first))
             ->assertOk();
 
-        $this->assertSame(0, $workerA->fresh()->walletBalance());
+        $this->assertSame(150_000, $workerA->fresh()->walletBalance());
         $this->assertSame(0, $workerB->fresh()->walletBalance());
     }
 

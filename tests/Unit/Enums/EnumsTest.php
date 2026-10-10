@@ -134,7 +134,18 @@ final class EnumsTest extends TestCase
         $this->assertTrue(ActivityStatus::InProgress->canTransitionTo(ActivityStatus::Submitted));
         $this->assertTrue(ActivityStatus::Submitted->canTransitionTo(ActivityStatus::Approved));
         $this->assertTrue(ActivityStatus::Submitted->canTransitionTo(ActivityStatus::Rejected));
-        $this->assertTrue(ActivityStatus::Rejected->canTransitionTo(ActivityStatus::Submitted));
+        // Sengketa keluar hanya lewat keputusan pengelola — tidak ada
+        // "serahkan ulang" sampai "minta perbaikan" dibuat.
+        $this->assertTrue(ActivityStatus::Rejected->canTransitionTo(ActivityStatus::Approved));
+        $this->assertTrue(ActivityStatus::Rejected->canTransitionTo(ActivityStatus::Refunded));
+        $this->assertFalse(ActivityStatus::Rejected->canTransitionTo(ActivityStatus::Submitted));
+    }
+
+    public function test_refunded_activity_is_final(): void
+    {
+        foreach (ActivityStatus::cases() as $status) {
+            $this->assertFalse(ActivityStatus::Refunded->canTransitionTo($status), $status->value);
+        }
     }
 
     public function test_approved_activity_is_final(): void

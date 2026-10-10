@@ -52,6 +52,10 @@ enum AdminAction: string
     case WorkerInviteCreated = 'worker_invite.created';
     case WorkerInviteDeactivated = 'worker_invite.deactivated';
 
+    /** Sengketa satu mitra diputuskan: upah dilepas / dikembalikan. Uang bergerak. */
+    case DisputeReleased = 'dispute.released';
+    case DisputeRefunded = 'dispute.refunded';
+
     /** Room chat dinonaktifkan: seluruh pesan & lampirannya DIHAPUS PERMANEN. */
     case ChatRoomDeactivated = 'chat_room.deactivated';
 
@@ -90,6 +94,9 @@ enum AdminAction: string
             self::WorkerInviteCreated,
             self::WorkerInviteDeactivated => 'worker_invite_code',
 
+            self::DisputeReleased,
+            self::DisputeRefunded => 'task_dispute',
+
             self::ChatRoomDeactivated => 'chat_room',
         };
     }
@@ -120,6 +127,10 @@ enum AdminAction: string
             self::WalletWithdrawalRejected,
             self::UserSuspended,
             self::UserBanned,
+            // Keterangan keputusan dikirim ke kedua pihak — tanpa itu
+            // keputusan yang memindahkan uang tidak bisa dipahami siapa pun.
+            self::DisputeReleased,
+            self::DisputeRefunded,
             self::ChatRoomDeactivated => true,
             default => false,
         };

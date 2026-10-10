@@ -18,8 +18,11 @@ use App\Enums\TaskStatus;
  */
 final class TaskNotCancellableException extends DomainException
 {
-    private function __construct(string $message, private readonly TaskStatus $status)
-    {
+    private function __construct(
+        string $message,
+        private readonly TaskStatus $status,
+        private readonly ?string $reason = null,
+    ) {
         parent::__construct($message);
     }
 
@@ -31,6 +34,16 @@ final class TaskNotCancellableException extends DomainException
         );
     }
 
+    /** Masih ada sengketa mitra yang belum diputuskan pengelola. */
+    public static function becauseOpenDispute(TaskStatus $status): self
+    {
+        return new self(
+            'Task ini punya sengketa mitra yang belum diputuskan pengelola.',
+            $status,
+            'open_dispute',
+        );
+    }
+
     public function errorCode(): string
     {
         return 'task_not_cancellable';
@@ -39,6 +52,9 @@ final class TaskNotCancellableException extends DomainException
     /** @return array<string, mixed> */
     public function context(): array
     {
-        return ['status' => $this->status->value];
+        return array_filter(
+            ['status' => $this->status->value, 'reason' => $this->reason],
+            static fn (?string $v): bool => $v !== null,
+        );
     }
 }

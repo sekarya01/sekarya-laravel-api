@@ -58,6 +58,12 @@ final class TaskPolicy
         return $this->isPoster($user, $task) || $this->isWorker($user, $task);
     }
 
+    /** Sengketa task: peserta saja. Mitra hanya melihat miliknya (ListTaskDisputesAction). */
+    public function viewDisputes(User $user, Task $task): bool
+    {
+        return $this->isPoster($user, $task) || $this->isWorker($user, $task);
+    }
+
     /** "Konfirmasi Selesai & Rilis Dana" (B16) = pemberi kerja saja. */
     public function approveAll(User $user, Task $task): bool
     {

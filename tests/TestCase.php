@@ -6,11 +6,14 @@ namespace Tests;
 
 use App\Actions\Activity\ConfirmArrivalAction;
 use App\Actions\Activity\DepartActivityAction;
+use App\Actions\Activity\RaiseActivityDisputeAction;
 use App\Actions\Admin\Payment\ConfirmPaymentAction;
 use App\Actions\Auth\IssueVerificationCodeAction;
 use App\Actions\Payment\ReportTransferAction;
+use App\Data\Activity\RaiseActivityDisputeData;
 use App\Enums\AdminRole;
 use App\Enums\BidStatus;
+use App\Enums\DisputeCategory;
 use App\Enums\UserStatus;
 use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
@@ -22,6 +25,7 @@ use App\Models\Category;
 use App\Models\EmailVerificationCode;
 use App\Models\Skill;
 use App\Models\Task;
+use App\Models\TaskDispute;
 use App\Models\User;
 use App\Models\UserVerification;
 use App\Models\UserWorker;
@@ -342,6 +346,20 @@ abstract class TestCase extends BaseTestCase
         app(DepartActivityAction::class)->handle($activity);
 
         return app(ConfirmArrivalAction::class)->handle($activity->refresh());
+    }
+
+    /**
+     * Pemberi kerja menyengketakan hasil satu mitra — lewat Action yang sama
+     * dengan `POST activities/{a}/disputes`, jadi activity `rejected` dan
+     * tiketnya selalu lahir bersama seperti di aplikasi.
+     */
+    protected function raiseDispute(Activity $activity, User $poster, string $reason = 'Hasil tidak sesuai kesepakatan.'): TaskDispute
+    {
+        return app(RaiseActivityDisputeAction::class)->handle(
+            new RaiseActivityDisputeData(DisputeCategory::NotAsAgreed, $reason),
+            $activity,
+            $poster,
+        );
     }
 
     /**

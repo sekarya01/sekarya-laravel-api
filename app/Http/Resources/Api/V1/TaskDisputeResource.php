@@ -8,7 +8,7 @@ use App\Models\TaskDispute;
 use Illuminate\Http\Request;
 
 /**
- * Tiket kendala (G5).
+ * Sengketa atas hasil satu mitra.
  *
  * @mixin TaskDispute
  */
@@ -19,8 +19,14 @@ final class TaskDisputeResource extends BaseResource
     {
         return [
             'id' => $this->ulid,
+            // Mitra yang disengketakan (activity). NULL hanya untuk tiket lama.
+            'activity_id' => $this->activity?->ulid,
+            'category' => $this->category?->value,
             'reason' => $this->reason,
             'evidence_photos' => $this->evidence_photos ?? [],
+            'worker_response' => $this->worker_response,
+            'worker_evidence_photos' => $this->worker_evidence_photos ?? [],
+            'worker_responded_at' => $this->iso($this->worker_responded_at),
             'status' => $this->status->value,
             'resolution' => $this->resolution?->value,
             'admin_note' => $this->admin_note,

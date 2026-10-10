@@ -684,16 +684,26 @@ curl -s -X POST "$BASE/activities/$ACT/approve" -H "Authorization: Bearer $AT" \
 
 Setelah disetujui: activity `approved` dan `tasks_completed` orang itu bertambah.
 
-**Task selesai dan dana dilepas hanya ketika SELURUH pekerja disetujui.** Pada task
-banyak orang, persetujuan pertama tidak menyelesaikan apa pun di tingkat task — kalau ia
-melepas dana, seluruh tagihan keluar untuk satu orang dan pekerja lain, yang upahnya ada
-di tagihan yang sama, tidak akan pernah bisa dibayar.
+**Upah dibayar saat mitra ITU disetujui; task selesai saat SEMUA mitra diputuskan.**
+Yang dikreditkan `activities.agreed_amount` milik orang itu, langsung — tidak menunggu
+mitra terakhir, supaya mitra yang kerjanya baik tidak ikut tertahan oleh sengketa orang
+lain. Tagihan (`payments`) tetap `held` sampai semua mitra disetujui/diputuskan, lalu
+jadi `released` (sisa dana, kalau ada, kembali ke pembayar).
 
 Aturan yang sama berlaku pada penyerahan: task baru jadi `submitted` setelah semua
 pekerja menyerahkan hasilnya, bukan setelah yang paling cepat.
 
-Kalau ditolak (`/reject`), task jadi `disputed` dan **dana tetap ditahan**. Penyelesaian
-sengketa oleh admin belum tersedia di API ini.
+**Sengketa per mitra.** Pemberi kerja yang tidak puas dengan hasil SATU mitra memanggil
+`POST /activities/{activity}/disputes` — `category` (`not_as_agreed`, `late`,
+`incomplete`, `damage`, `other`), `reason` wajib (10–500), `evidence_photos` opsional
+(`purpose=proof` miliknya sendiri). Satu transaksi: activity `rejected` + tiket untuk
+pengelola. Dana tetap ditahan; mitra lain tidak tersentuh. Mitra menanggapi **sekali**
+lewat `POST /activities/{activity}/dispute/response`. Pengelola memutuskan dengan
+keterangan wajib: `release` (upah ke mitra, activity `approved`) atau `refund` (upah ke
+pemberi kerja, activity `refunded`); keterangannya ikut di push `dispute_resolved` ke
+kedua pihak. Keduanya membaca tiketnya di `GET /tasks/{task}/disputes`. Task tidak bisa
+dibatalkan selama ada sengketa terbuka (`task_not_cancellable`, `context.reason =
+open_dispute`).
 
 `proof_photos` bukan pelengkap: begitu ada dana ditahan, akan ada sengketa "pekerjaannya
 tidak beres", dan tanpa bukti berfoto keputusan admin cuma tebak-tebakan.
@@ -2092,7 +2102,8 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/activities/{activity}/approve` | access | `api` | Setujui hasil. Dana dilepas saat pekerja **terakhir** disetujui. |
 | `POST` | `/activities/{activity}/arrived` | access | `api` | **Pemberi kerja** mengakui pekerjanya sudah sampai. |
 | `POST` | `/activities/{activity}/depart` | access | `api` | Pekerja berangkat ke lokasi. |
-| `POST` | `/activities/{activity}/reject` | access | `api` | Tolak hasil. Task jadi `disputed`, dana tetap ditahan. |
+| `POST` | `/activities/{activity}/disputes` | access | `write` | Sengketakan hasil satu mitra: activity `rejected` + tiket pengelola. Dana tetap ditahan. |
+| `POST` | `/activities/{activity}/dispute/response` | access | `write` | Mitra menanggapi sengketa — sekali. |
 | `POST` | `/activities/{activity}/start` | access | `api` | Pekerja mulai bekerja. Hanya dari `arrived`. |
 | `POST` | `/activities/{activity}/submit` | access | `api` | Serahkan hasil + bukti foto. Foto **wajib** (jumlah minimum dari `config/sekarya.php`), dan path harus diunggah sendiri lewat `POST /uploads` (`purpose=proof`). |
 | `POST` | `/activities/{activity}/location` | access | `write` | Bagikan lokasi langsung selama `on_the_way` (B8). Balasan + `live: {distance_km, eta_minutes, updated_at}`. |
@@ -2163,10 +2174,9 @@ Tidak ada `POST /admin/auth/register`, dan itu disengaja: akun pengelola hanya l
 | `GET` | `/me/blocks` | access | `api` | Daftar pengguna yang saya blokir (G7). Cursor. |
 | `GET` | `/admin/reports` | admin | `admin` | Antrean laporan pengguna (G7). |
 | `POST` | `/admin/reports/{report}/review` | admin | `admin` | Tandai laporan ditinjau (G7). |
-| `POST` | `/tasks/{task}/disputes` | access | `write` | Ajukan kendala atas task `disputed` (G5). |
-| `GET` | `/tasks/{task}/dispute` | access | `api` | Tiket kendala task ini (G5). |
-| `GET` | `/admin/disputes` | admin | `admin` | Antrean sengketa (G5). |
-| `POST` | `/admin/disputes/{dispute}/resolve` | admin | `admin` | Putuskan sengketa — `release`/`refund` (G5). |
+| `GET` | `/tasks/{task}/disputes` | access | `api` | Sengketa task ini — pemberi kerja semua, mitra miliknya sendiri. |
+| `GET` | `/admin/disputes` | admin | `admin` | Antrean sengketa per mitra. |
+| `POST` | `/admin/disputes/{dispute}/resolve` | admin | `admin` | Putuskan sengketa satu mitra — `release`/`refund`, `note` wajib (dikirim ke kedua pihak). |
 
 ### Chat (G8)
 
@@ -2210,12 +2220,12 @@ Bercabanglah pada `code`, **jangan** pada `message`.
 | `payment_not_held` | 422 | Dana tidak lagi ditahan |
 | `invalid_status_transition` | 422 | Perpindahan status tidak diizinkan |
 | `task_not_editable` | 422 | Isi task tidak bisa diubah lagi (bukan `draft`/`open`) |
-| `task_not_cancellable` | 422 | Task sudah selesai/menggantung (`completed`/`expired`/`cancelled`/`refunded`/`disputed`) — tidak bisa dibatalkan lagi |
+| `task_not_cancellable` | 422 | Task sudah selesai/menggantung (`completed`/`expired`/`cancelled`/`refunded`/`disputed`) — tidak bisa dibatalkan lagi; `context.reason = open_dispute` bila masih ada sengketa mitra terbuka |
 | `verification_document_invalid` | 422 | Path dokumen identitas bukan milik pengaju (unggah lewat `POST me/verifications/documents`) |
 | `invalid_current_password` | 422 | Kata sandi saat ini salah (ganti sandi / hapus akun) |
 | `account_has_active_obligations` | 422 | Masih ada pekerjaan berjalan atau permintaan dompet menggantung; `context.reasons` menyebutnya |
-| `dispute_not_allowed` | 422 | Kendala hanya untuk peserta task berstatus `disputed` |
-| `dispute_already_resolved` | 422 | Tiket kendala sudah diputuskan |
+| `dispute_not_allowed` | 422 | `context.reason`: `wrong_status` (hasil tidak sedang menunggu penilaian), `not_open` (tidak ada tiket terbuka), `already_responded` (mitra sudah menanggapi) |
+| `dispute_already_resolved` | 422 | Sengketa sudah diputuskan |
 | `cannot_report_self` | 422 | Tidak bisa melaporkan diri sendiri |
 | `cannot_block_self` | 422 | Tidak bisa memblokir diri sendiri |
 | `user_blocked` | 422 | Ada blokir antara penawar dan pemberi kerja |
@@ -2305,8 +2315,8 @@ di luar produksi.
   pembayarnya, dan pencairan ke rekening lewat antrean pengelola (bagian 16).
 - **Isi saldo & pencairan otomatis.** Keduanya transfer manual yang dicocokkan pengelola
   di mutasi rekening. Tidak ada virtual account, tidak ada disbursement API.
-- **Penyelesaian sengketa.** `reject` membuat task `disputed` dan dana tetap ditahan;
-  belum ada jalan keluar dari status itu lewat API.
+- **Minta perbaikan.** Sengketa langsung ke pengelola; belum ada jalur "kembalikan ke
+  mitra untuk diperbaiki" tanpa pengelola (ditunda, keputusan pemilik proyek 2026-10-10).
 - **Chat realtime tanpa FCM** (WebSocket/typing indicator) — chat per task sudah ada
   (bagian 17), sinkronnya lewat push FCM + `messages?after_id`.
 - **Notifikasi**, alamat tersimpan, urut berdasarkan jarak, dan penutup lelang otomatis
