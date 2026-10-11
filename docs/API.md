@@ -2027,7 +2027,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/me/verifications` | access | `api` | Ajukan verifikasi identitas (KTP, selfie, rekening). |
 | `POST` | `/me/devices` | access | `write` | Daftarkan token perangkat FCM untuk push. Token sama = berpindah pemilik. |
 | `DELETE` | `/me/devices/{token}` | access | `api` | Lepaskan token perangkat saat logout. Idempoten. |
-| — | (dihapus 2026-10-10) `me/notifications*` | — | — | Notifikasi tidak disimpan server: riwayat lonceng milik perangkat (Room) dari push FCM. Push tugas tetap membawa `task` = tugas utuh (atau `task_gz`). |
+| — | (dihapus 2026-10-10) `me/notifications*` | — | — | Notifikasi tidak disimpan server: riwayat lonceng milik perangkat (Room) dari push FCM. Push non-chat membawa `event`: `task` → `task_update` (task dari sudut penerima TANPA `workers`/`activities`), `work` → `work_update` (satu activity + `dispute` bila ada) dan `task_status`. Versi gzip: akhiran `_gz`. Kunci lama `task` tidak dikirim lagi (2026-10-11). |
 | `GET` | `/me/address` | access | `api` | Alamat tersimpan sendiri. `{"data": null}` (200) bila belum pernah diisi. Hanya pemiliknya. |
 | `PUT` | `/me/address` | access | `api` | Simpan/ganti alamat tersimpan (ganti utuh). Koordinat wajib berpasangan. |
 | `DELETE` | `/me/address` | access | `api` | Hapus alamat tersimpan. Idempoten (204). |

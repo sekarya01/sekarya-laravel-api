@@ -262,7 +262,7 @@ final class PushMessages
     }
 
     /**
-     * SATU-SATUNYA pembentuk `data` FCM: `type` + `task_id` selalu ada,
+     * SATU-SATUNYA pembentuk `data` FCM: `type` + `event` + `task_id` selalu ada,
      * `activity_id` + `activity_status` hanya ada bila activity diberikan,
      * `bids_count` hanya ada bila jumlah penawar diberikan (event lelang ke
      * pemberi kerja, agar kartu di list tugas bisa diperbarui langsung tanpa
@@ -288,6 +288,10 @@ final class PushMessages
     ): array {
         $data = [
             'type' => $type->value,
+            // Dua event yang berdiri sendiri: `work` = status SATU pekerja
+            // berubah (ada activity), `task` = tugasnya sendiri berubah. Job
+            // push melampirkan `work_update` / `task_update` sesuai event.
+            'event' => $activity !== null ? 'work' : 'task',
             'task_id' => (string) $task->ulid,
         ];
 

@@ -275,34 +275,46 @@ final class Task extends Model
     }
 
     /**
-     * Muat relasi bentuk DETAIL (`GET tasks/{task}`) dari sudut [viewer] —
-     * SATU sumber untuk endpoint detail dan snapshot tugas di push FCM, supaya
-     * keduanya tidak pernah berbeda bentuk.
+     * Muat relasi tingkat TUGAS dari sudut [viewer] — semua bentuk detail
+     * KECUALI daftar pekerja & activity. Dipakai event push `task` (biayanya
+     * tetap berapa pun pekerjanya) dan menjadi dasar [loadDetailFor].
      *
-     * activities.worker wajib: mobile memakai worker.name untuk kartu mitra +
-     * syarat tampil stepper status pengerjaan. myBid dibatasi ke penonton
-     * persis seperti di feed — tanpa itu `my_bid` selalu null dan mitra yang
-     * membuka ulang task yang sudah ia tawar melihat "Ajukan Penawaran" hidup
-     * lagi. workers.skills: keahlian pekerja untuk layar profilnya.
-     * cancel_request pending: popup persetujuan di Detail Kerjaan.
+     * myBid dibatasi ke penonton persis seperti di feed — tanpa itu `my_bid`
+     * selalu null dan mitra yang membuka ulang task yang sudah ia tawar melihat
+     * "Ajukan Penawaran" hidup lagi. cancel_request pending: popup persetujuan
+     * di Detail Kerjaan.
      */
-    public function loadDetailFor(?User $viewer): self
+    public function loadSummaryFor(?User $viewer): self
     {
         $viewerId = $viewer?->getKey();
 
-        // Setiap pengguna yang tampil membawa `identity_verified_count`
-        // (User::withIdentityVerified) — tanpa itu detail task 500 pekerja
-        // menjalankan ±2.000 kueri `exists` untuk badge.
-        $badge = fn ($q) => $q->withIdentityVerified();
-
         return $this->load([
             'category', 'skills', 'payment',
-            'poster' => $badge,
+            // Badge dari satu subquery (User::withIdentityVerified).
+            'poster' => fn ($q) => $q->withIdentityVerified(),
+            'pendingCancelRequest.approvals',
+            'myBid' => fn ($q) => $q->where('bidder_id', $viewerId),
+        ]);
+    }
+
+    /**
+     * Muat relasi bentuk DETAIL (`GET tasks/{task}`) dari sudut [viewer]:
+     * [loadSummaryFor] + pekerja & activity.
+     *
+     * activities.worker wajib: mobile memakai worker.name untuk kartu mitra +
+     * syarat tampil stepper status pengerjaan. workers.skills: keahlian pekerja
+     * untuk layar profilnya. Setiap pengguna yang tampil membawa
+     * `identity_verified_count` — tanpa itu detail task 500 pekerja menjalankan
+     * ±2.000 kueri `exists` untuk badge.
+     */
+    public function loadDetailFor(?User $viewer): self
+    {
+        $badge = fn ($q) => $q->withIdentityVerified();
+
+        return $this->loadSummaryFor($viewer)->load([
             'workers' => $badge,
             'workers.skills',
             'activities.worker' => $badge,
-            'pendingCancelRequest.approvals',
-            'myBid' => fn ($q) => $q->where('bidder_id', $viewerId),
         ]);
     }
 
