@@ -290,8 +290,17 @@ final class Task extends Model
     {
         $viewerId = $viewer?->getKey();
 
+        // Setiap pengguna yang tampil membawa `identity_verified_count`
+        // (User::withIdentityVerified) — tanpa itu detail task 500 pekerja
+        // menjalankan ±2.000 kueri `exists` untuk badge.
+        $badge = fn ($q) => $q->withIdentityVerified();
+
         return $this->load([
-            'category', 'poster', 'workers.skills', 'skills', 'payment', 'activities.worker',
+            'category', 'skills', 'payment',
+            'poster' => $badge,
+            'workers' => $badge,
+            'workers.skills',
+            'activities.worker' => $badge,
             'pendingCancelRequest.approvals',
             'myBid' => fn ($q) => $q->where('bidder_id', $viewerId),
         ]);

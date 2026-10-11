@@ -14,7 +14,6 @@ use App\Enums\VerificationType;
 use App\Exceptions\Domain\DomainException;
 use App\Models\Admin;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -89,11 +88,7 @@ final class UserController
             // Hitungan verifikasi identitas ikut termuat: penanda "siap kerja"
             // di daftar membacanya per baris, dan tanpa ini setiap baris
             // memicu satu kueri exists() tambahan.
-            ->withCount([
-                'verifications as identity_verified_count' => fn (Builder $v) => $v
-                    ->where('type', VerificationType::Identity)
-                    ->where('status', VerificationStatus::Verified),
-            ])
+            ->withIdentityVerified()
             ->latestFirst()
             ->paginate(max(1, min($request->integer('per_page', 20), 50)))
             ->withQueryString();

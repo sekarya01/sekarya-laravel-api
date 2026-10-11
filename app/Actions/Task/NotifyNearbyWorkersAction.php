@@ -27,11 +27,15 @@ final class NotifyNearbyWorkersAction
         }
 
         $radius = (float) config('sekarya.tasks.notify_radius_km', 5);
+        $box = GeoDistance::boundingBox((float) $task->latitude, (float) $task->longitude, $radius);
 
+        // Bounding box dulu (indeks `user_workers (latitude, longitude)`),
+        // haversine kedua di PHP atas baris yang tersisa — bukan memuat semua
+        // pekerja tersedia di setiap `POST /tasks`.
         $rows = UserWorker::query()
             ->where('is_available', true)
-            ->whereNotNull('latitude')
-            ->whereNotNull('longitude')
+            ->whereBetween('latitude', $box['lat'])
+            ->whereBetween('longitude', $box['lng'])
             ->whereHas('user', fn ($q) => $q
                 ->where('status', UserStatus::Active)
                 ->where('id', '!=', $task->poster_id))

@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Actions\Review;
 
 use App\Data\Review\ReviewQueryData;
-use App\Enums\VerificationStatus;
-use App\Enums\VerificationType;
 use App\Models\Review;
 use App\Models\User;
 use App\Support\SearchTerms;
@@ -47,11 +45,7 @@ final class ListUserReviewsAction
             ->with([
                 // Badge terverifikasi penilai dari satu subquery — tanpa ini
                 // PublicUserResource menjalankan satu `exists` per baris.
-                'reviewer' => fn (Relation $q) => $q->withCount([
-                    'verifications as identity_verified_count' => fn (Builder $v) => $v
-                        ->where('type', VerificationType::Identity)
-                        ->where('status', VerificationStatus::Verified),
-                ]),
+                'reviewer' => fn (Relation $q) => $q->withIdentityVerified(),
                 'task.category',
             ])
             ->latestFirst()

@@ -31,9 +31,6 @@ final class TaskSearch
         private readonly SearchTerms $terms,
     ) {}
 
-    /** Derajat lintang per kilometer. */
-    private const float KM_PER_LAT_DEGREE = 111.045;
-
     private const float EARTH_RADIUS_KM = 6371.0;
 
     /**
@@ -82,18 +79,14 @@ final class TaskSearch
         float $longitude,
         float $radiusKm,
     ): void {
-        $latDelta = $radiusKm / self::KM_PER_LAT_DEGREE;
-        // Sepanjang garis bujur, jarak per derajat menyusut mendekati kutub.
-        $cos = max(cos(deg2rad($latitude)), 0.000001);
-        $lngDelta = $radiusKm / (self::KM_PER_LAT_DEGREE * $cos);
+        $box = GeoDistance::boundingBox($latitude, $longitude, $radiusKm);
 
         $query
             ->whereNotNull('tasks.latitude')
             ->whereNotNull('tasks.longitude')
             // Prafilter yang memakai index (latitude, longitude).
-            // Prafilter ini yang memakai index (latitude, longitude).
-            ->whereBetween('tasks.latitude', [$latitude - $latDelta, $latitude + $latDelta])
-            ->whereBetween('tasks.longitude', [$longitude - $lngDelta, $longitude + $lngDelta])
+            ->whereBetween('tasks.latitude', $box['lat'])
+            ->whereBetween('tasks.longitude', $box['lng'])
             // Jarak ikut dipilih agar bisa ditampilkan tanpa dihitung ulang di klien.
             ->selectRaw(
                 $this->haversineSql().' as distance_km',

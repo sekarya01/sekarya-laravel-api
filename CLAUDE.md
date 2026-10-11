@@ -55,7 +55,8 @@ Business logic lives **only** in Action classes. Never in Controllers, Models, R
   choice to the server default, which varies between environments.
 - Distance filtering is a bounding box on the `(latitude, longitude)` index first,
   haversine second. Never haversine alone — a computed expression cannot be indexed,
-  so it would scan the whole table.
+  so it would scan the whole table. The box comes from `GeoDistance::boundingBox()`
+  (feed search AND nearby-worker notification).
 
 ## Deploy
 
@@ -309,6 +310,10 @@ Yang tidak boleh "dirapikan":
   tidak ada di `$fillable`. Yang menulisnya hanya `AcceptBidAction`,
   `TaskSettlement::approve`, dan `CreateReviewAction` — yang terakhir menghitung ulang dari
   tabel `reviews`, bukan menambah inkremental.
+- **Badge identitas dimuat lewat `User::withIdentityVerified()`** di setiap eager load
+  pengguna yang tampil (`'poster' => fn ($q) => $q->withIdentityVerified()`). Tanpa itu
+  `isIdentityVerified()` jatuh ke kueri `exists` dua kali per orang (`readyToWork()` ikut
+  memanggilnya). Dijaga `VerificationBadgeQueriesTest`.
 - **`User::$with = ['workerProfile']`.** Blunt, dan disengaja: hampir setiap tempat yang
   menampilkan pengguna butuh reputasinya, dan satu Action yang lupa eager-load
   menghasilkan N+1 yang tidak menimbulkan galat apa pun.

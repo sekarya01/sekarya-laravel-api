@@ -78,11 +78,7 @@ final class ListWorkersAction
             // jadi 150 kueri — benar hasilnya, dan tetap tidak bisa dipakai.
             ->with(['user' => fn (Relation $q) => $q
                 ->with('skills')
-                ->withCount([
-                    'verifications as identity_verified_count' => fn (Builder $v) => $v
-                        ->where('type', VerificationType::Identity)
-                        ->where('status', VerificationStatus::Verified),
-                ])])
+                ->withIdentityVerified()])
             ->latestFirst()
             ->cursorPaginate($data->page->perPage);
     }

@@ -360,6 +360,24 @@ class User extends Authenticatable
     }
 
     /**
+     * SATU-SATUNYA definisi `identity_verified_count` — pasang di setiap kueri
+     * atau eager load pengguna yang akan ditampilkan (`'poster' => fn ($q) =>
+     * $q->withIdentityVerified()`). Tanpa itu `isIdentityVerified()` jatuh ke
+     * kueri `exists`, dua kali per orang karena `readyToWork()` ikut
+     * memanggilnya: N+1 di feed, daftar, dan detail task banyak pekerja.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeWithIdentityVerified(Builder $query): void
+    {
+        $query->withCount([
+            'verifications as identity_verified_count' => fn (Builder $v) => $v
+                ->where('type', VerificationType::Identity)
+                ->where('status', VerificationStatus::Verified),
+        ]);
+    }
+
+    /**
      * Badge "terverifikasi" dihitung, tidak disimpan sebagai boolean —
      * status verifikasi bisa dicabut dan boolean yang tertinggal akan bohong.
      */

@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Actions\Bid;
 
 use App\Data\CursorPageData;
-use App\Enums\VerificationStatus;
-use App\Enums\VerificationType;
 use App\Models\Bid;
 use App\Models\Task;
 use App\Models\User;
@@ -59,11 +57,7 @@ final class ListBidsAction
         $query = $base
             // Callback eager-load pada relasi menerima Relation, bukan Builder.
             ->with([
-                'bidder' => fn (Relation $q) => $q->withCount([
-                    'verifications as identity_verified_count' => fn (Builder $v) => $v
-                        ->where('type', VerificationType::Identity)
-                        ->where('status', VerificationStatus::Verified),
-                ]),
+                'bidder' => fn (Relation $q) => $q->withIdentityVerified(),
                 // Keahlian penawar — dibaca pemberi kerja di layar profil
                 // penawar. PublicUserResource hanya mengirimnya bila dimuat.
                 'bidder.skills',

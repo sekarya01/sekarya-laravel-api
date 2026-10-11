@@ -6,8 +6,6 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 
 use App\Actions\Admin\WorkerInvite\CreateWorkerInviteCodeAction;
 use App\Actions\Admin\WorkerInvite\DeactivateWorkerInviteCodeAction;
-use App\Enums\VerificationStatus;
-use App\Enums\VerificationType;
 use App\Models\Admin;
 use App\Models\WorkerInviteCode;
 use Carbon\Carbon;
@@ -126,11 +124,7 @@ final class WorkerInviteController
         $code->loadCount('redemptions')->load('creator');
 
         $redemptions = $code->redemptions()
-            ->with(['user' => fn ($q) => $q->withCount([
-                'verifications as identity_verified_count' => fn (Builder $v) => $v
-                    ->where('type', VerificationType::Identity)
-                    ->where('status', VerificationStatus::Verified),
-            ])])
+            ->with(['user' => fn ($q) => $q->withIdentityVerified()])
             ->orderByDesc('id')
             ->paginate(20)
             ->withQueryString();
