@@ -25,7 +25,7 @@ final class ListChatRoomsAction
     {
         return ChatRoom::query()
             ->visibleTo($user)
-            ->when($data->status !== null, fn ($q) => $q->where('status', $data->status->value))
+            ->when($data->status !== null, fn ($q) => $q->where('chat_rooms.status', $data->status->value))
             ->forViewer($user)
             ->recentFirst()
             ->cursorPaginate($data->page->perPage);
