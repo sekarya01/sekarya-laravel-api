@@ -62,9 +62,11 @@ final class DeleteAccountAction
             $this->guardAgainstObligations($id);
 
             // Task yang belum mengikat siapa pun: batalkan, dana kembali ke saldo.
+            // `expired` ikut: ia tidak me-refund otomatis, jadi tanpa ini dananya
+            // tertinggal di tagihan `held` milik akun yang sudah tidak ada.
             Task::query()
                 ->where('poster_id', $id)
-                ->whereIn('status', [TaskStatus::Draft, TaskStatus::Open])
+                ->whereIn('status', [TaskStatus::Draft, TaskStatus::Open, TaskStatus::Expired])
                 ->get()
                 ->each(fn (Task $task) => $this->cancelTask->handle($task, $user, 'Akun dihapus'));
 
@@ -108,6 +110,8 @@ final class DeleteAccountAction
         $hasActiveWork = Activity::query()
             ->where('worker_id', $id)
             ->whereIn('status', [
+                // Sudah diterima, belum berangkat: pekerjaannya tetap utang.
+                ActivityStatus::Open,
                 ActivityStatus::OnTheWay,
                 ActivityStatus::Arrived,
                 ActivityStatus::InProgress,

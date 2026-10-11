@@ -51,7 +51,7 @@ final class AdminAccountTest extends TestCase
         $this->actingAs($this->superAdmin(), 'admin_web');
 
         $this->post(route('super_admin.admins.store'), [
-            'name' => 'X',
+            'name' => '',
             'email' => 'bukan-email',
             'password' => 'pendek',
             'password_confirmation' => 'beda',
@@ -59,6 +59,25 @@ final class AdminAccountTest extends TestCase
 
         $this->assertSame('create-admin', session('open_modal'));
         $this->assertDatabaseMissing('admins', ['email' => 'bukan-email']);
+    }
+
+    /**
+     * Form web dulu hanya menuntut 12 karakter, padahal komentarnya mengaku
+     * "sama ketatnya seperti API". Sandi panjang tanpa huruf besar, angka,
+     * dan simbol harus ditolak di sini sama seperti di `POST /admin/admins`.
+     */
+    public function test_sandi_lemah_ditolak_sama_seperti_api(): void
+    {
+        $this->actingAs($this->superAdmin(), 'admin_web');
+
+        $this->post(route('super_admin.admins.store'), [
+            'name' => 'Verifikator Web',
+            'email' => 'lemah@sekarya.test',
+            'password' => 'katasandipanjangsekali',
+            'password_confirmation' => 'katasandipanjangsekali',
+        ])->assertSessionHasErrors(['password']);
+
+        $this->assertDatabaseMissing('admins', ['email' => 'lemah@sekarya.test']);
     }
 
     public function test_menghapus_admin_soft_delete(): void

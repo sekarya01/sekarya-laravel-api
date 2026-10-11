@@ -348,6 +348,39 @@ final class BidActionsTest extends TestCase
         $this->assertSame($this->worker->getKey(), (int) $page->first()->bidder_id);
     }
 
+    /**
+     * Urut rating memakai kolom dari tabel lain (LEFT join `user_workers`).
+     * Dulu kolom itu tidak ikut di-select dan bisa NULL (pekerja tanpa profil),
+     * sehingga cursor halaman 2 berisi null dan kuerinya meledak 500
+     * ("Illegal operator and value combination").
+     */
+    public function test_rating_sort_walks_every_page_including_workers_without_a_profile(): void
+    {
+        $noProfileA = $this->activeUser();
+        $noProfileB = $this->activeUser();
+        $this->worker->workerProfileOrCreate()
+            ->forceFill(['worker_rating_avg' => 4.9, 'tasks_completed' => 3])->save();
+        app(PlaceBidAction::class)->handle($this->bid(220_000), $this->task, $this->worker);
+        app(PlaceBidAction::class)->handle($this->bid(180_000), $this->task, $noProfileA);
+        app(PlaceBidAction::class)->handle($this->bid(190_000), $this->task, $noProfileB);
+
+        $seen = [];
+        $cursor = null;
+        do {
+            request()->merge(['cursor' => $cursor]);
+            $page = app(ListBidsAction::class)->forTask($this->task, new CursorPageData(1), 'rating');
+            foreach ($page->items() as $bid) {
+                $seen[] = (int) $bid->bidder_id;
+            }
+            $cursor = $page->nextCursor()?->encode();
+        } while ($cursor !== null && count($seen) < 10);
+
+        // Yang berprofil paling atas, lalu semuanya muncul tepat sekali.
+        $this->assertSame($this->worker->getKey(), $seen[0]);
+        $this->assertCount(3, $seen);
+        $this->assertCount(3, array_unique($seen));
+    }
+
     public function test_list_bids_sorted_by_newest(): void
     {
         $other = $this->activeUser();

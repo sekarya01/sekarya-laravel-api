@@ -706,7 +706,9 @@ paths:
       description: |
         Konfirmasi kata sandi wajib. Buku besar & reputasi tetap; data pribadi
         dianonimkan. Ditolak `account_has_active_obligations` bila masih ada
-        pekerjaan berjalan atau permintaan dompet menggantung.
+        pekerjaan berjalan (termasuk activity `open` — sudah diterima, belum
+        berangkat) atau permintaan dompet menggantung. Task `draft`/`open`/
+        `expired` milik akun dibatalkan dan dananya kembali ke saldo.
       responses:
         '204': { description: Akun dihapus. }
         '401': { $ref: '#/components/responses/Unauthenticated' }

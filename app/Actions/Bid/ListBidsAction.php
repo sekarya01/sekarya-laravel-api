@@ -30,8 +30,33 @@ final class ListBidsAction
         string $sort = 'amount',
         ?User $viewer = null,
     ): CursorPaginator {
-        $query = Bid::query()
-            ->where('task_id', $task->getKey())
+        $base = Bid::query()->where('bids.task_id', $task->getKey());
+
+        // Pengurutan berdasarkan rating butuh join — tidak bisa dari kolom bid sendiri.
+        //
+        // LEFT join, bukan inner: reputasi ada di `user_workers`, dan baris itu
+        // baru lahir saat orangnya pertama kali menang atau mengisi profil
+        // pekerjanya. Inner join akan MENGHILANGKAN penawaran dari pekerja
+        // baru — tanpa galat, dan justru pada urutan yang dipakai pemberi
+        // kerja untuk memilih orang.
+        //
+        // Dibungkus TABEL TURUNAN dengan COALESCE(…, 0): kolom urut cursor harus
+        // kolom sungguhan yang ikut terpilih dan tidak pernah NULL. Dulu kolom
+        // join dipakai langsung — tidak ter-select dan NULL untuk pekerja tanpa
+        // profil — sehingga cursor halaman 2 berisi null dan kuerinya meledak
+        // 500. Pekerja tanpa profil (rating 0) tetap jatuh ke bawah.
+        if ($sort === 'rating') {
+            $base = Bid::query()->fromSub(
+                $base
+                    ->leftJoin('user_workers', 'user_workers.user_id', '=', 'bids.bidder_id')
+                    ->select('bids.*')
+                    ->selectRaw('COALESCE(user_workers.worker_rating_avg, 0) AS rating_sort')
+                    ->selectRaw('COALESCE(user_workers.tasks_completed, 0) AS completed_sort'),
+                'bids',
+            );
+        }
+
+        $query = $base
             // Callback eager-load pada relasi menerima Relation, bukan Builder.
             ->with([
                 'bidder' => fn (Relation $q) => $q->withCount([
@@ -44,20 +69,8 @@ final class ListBidsAction
                 'bidder.skills',
             ]);
 
-        // Pengurutan berdasarkan rating butuh join — tidak bisa dari kolom bid sendiri.
-        //
-        // LEFT join, bukan inner: reputasi ada di `user_workers`, dan baris itu
-        // baru lahir saat orangnya pertama kali menang atau mengisi profil
-        // pekerjanya. Inner join akan MENGHILANGKAN penawaran dari pekerja
-        // baru — tanpa galat, dan justru pada urutan yang dipakai pemberi
-        // kerja untuk memilih orang. Yang belum punya profil jatuh ke bawah
-        // sendirinya: di MySQL, NULL diurutkan paling akhir pada DESC.
         if ($sort === 'rating') {
-            $query
-                ->leftJoin('user_workers', 'user_workers.user_id', '=', 'bids.bidder_id')
-                ->orderByDesc('user_workers.worker_rating_avg')
-                ->orderByDesc('user_workers.tasks_completed')
-                ->select('bids.*');
+            $query->orderByDesc('rating_sort')->orderByDesc('completed_sort');
         } elseif ($sort === 'amount') {
             $query->orderBy('bids.amount');
         } else {
@@ -73,7 +86,7 @@ final class ListBidsAction
         // (Task::showsWorkerDistanceTo). Dihitung di PHP dari profil pekerja
         // yang sudah termuat (User::$with), jadi nol kueri tambahan.
         // Nilainya atribut sementara yang tidak pernah disimpan; di jalur lain
-        // (bids/mine, my_bid, respons tawar) ia tidak pernah diisi, sehingga
+        // (my_bid, respons tawar) ia tidak pernah diisi, sehingga
         // BidResource mengeluarkan `null` di sana.
         if ($task->showsWorkerDistanceTo($viewer)) {
             foreach ($bids->items() as $bid) {
