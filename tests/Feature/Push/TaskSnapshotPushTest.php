@@ -97,6 +97,10 @@ final class TaskSnapshotPushTest extends TestCase
         $data = $this->push->firstTo($task->poster)?->data ?? [];
         $this->assertSame('work', $data['event']);
         $this->assertSame('active', $data['task_status']);
+        // Ringkasan tugas datar untuk panel kartu lonceng di aplikasi.
+        $this->assertSame($task->title, $data['task_title']);
+        $this->assertSame($task->category->name, $data['category_name']);
+        $this->assertSame((string) $task->category->icon, $data['category_icon']);
         $this->assertArrayNotHasKey('task_update', $data);
         $work = json_decode($data['work_update'], true);
         $this->assertSame($activity->ulid, $work['id']);
