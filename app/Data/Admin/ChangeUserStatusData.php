@@ -27,24 +27,31 @@ final readonly class ChangeUserStatusData
 
     public static function suspend(ModerateUserRequest $request): self
     {
-        return new self(
-            AdminAction::UserSuspended,
-            $request->string('reason')->value(),
-            $request->ip(),
-        );
+        return self::suspended($request->string('reason')->value(), $request->ip());
     }
 
     public static function ban(ModerateUserRequest $request): self
     {
-        return new self(
-            AdminAction::UserBanned,
-            $request->string('reason')->value(),
-            $request->ip(),
-        );
+        return self::banned($request->string('reason')->value(), $request->ip());
     }
 
     public static function reinstate(Request $request): self
     {
         return new self(AdminAction::UserReinstated, null, $request->ip());
+    }
+
+    /**
+     * Versi nilai-polos untuk dasbor web (validasinya sendiri, tanpa
+     * FormRequest API). Tetap konstruktor bernama: tindakannya ditentukan
+     * nama fungsi, bukan oleh pemanggil.
+     */
+    public static function suspended(string $reason, ?string $ip): self
+    {
+        return new self(AdminAction::UserSuspended, $reason, $ip);
+    }
+
+    public static function banned(string $reason, ?string $ip): self
+    {
+        return new self(AdminAction::UserBanned, $reason, $ip);
     }
 }

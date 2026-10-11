@@ -52,14 +52,10 @@ final class AdminAccountController
         /** @var Admin $actor */
         $actor = Auth::guard('admin_web')->user();
 
-        $build = \Closure::bind(
-            fn () => new CreateAdminData($validated['name'], mb_strtolower(trim($validated['email'])), $validated['password'], $request->ip()),
-            null,
-            CreateAdminData::class,
-        );
+        $data = new CreateAdminData($validated['name'], mb_strtolower(trim($validated['email'])), $validated['password'], $request->ip());
 
         try {
-            $admin = $action->handle($build(), $actor);
+            $admin = $action->handle($data, $actor);
         } catch (DomainException $e) {
             return back()->withErrors(['action' => $e->getMessage()])->withInput()->with('open_modal', 'create-admin');
         }

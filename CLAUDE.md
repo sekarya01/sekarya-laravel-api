@@ -493,6 +493,13 @@ Yang tidak boleh "dirapikan":
   unauthorized."}` tanpa kode mesin — sementara `CreateAdminAction` menolak hal yang
   sama dengan `admin_access_denied`. Satu kegagalan logis dengan dua bentuk respons
   memaksa klien bercabang pada `message`. (`->can()` tetap untuk aturan per-objek.)
+- **Kredensial pengelola diperiksa SATU Action: `VerifyAdminCredentialsAction`** — dipakai
+  login API (token) DAN login dasbor web (sesi). Login baru dicatat lewat
+  `Admin::recordLogin()` SESUDAH semua gerbang lolos (dasbor masih menolak selain
+  super_admin). Dasbor membangun DTO lewat konstruktor bernama nilai-polos
+  (`ChangeUserStatusData::suspended/banned`, `ReviewVerificationData::rejected/revoked`),
+  aturan validasinya diambil dari FormRequest API (mis. `CreateAdminRequest`) —
+  jangan pernah `Closure::bind` ke konstruktor privat atau menyalin aturan.
 - **Moderasi pengguna MENCABUT TOKEN.** Kolom status saja tidak menghentikan siapa pun:
   access token hidup delapan jam dan tidak menyimpan status di dalamnya. Tanpa
   `TokenIssuer::revokeAll()`, akun yang di-ban tetap bisa menawar sampai tokennya

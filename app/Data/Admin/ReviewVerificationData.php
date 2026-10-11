@@ -43,21 +43,22 @@ final readonly class ReviewVerificationData
 
     public static function reject(ReviewVerificationRequest $request): self
     {
-        return new self(
-            VerificationStatus::Rejected,
-            AdminAction::VerificationRejected,
-            $request->string('reason')->value(),
-            $request->ip(),
-        );
+        return self::rejected($request->string('reason')->value(), $request->ip());
     }
 
     public static function revoke(ReviewVerificationRequest $request): self
     {
-        return new self(
-            VerificationStatus::Revoked,
-            AdminAction::VerificationRevoked,
-            $request->string('reason')->value(),
-            $request->ip(),
-        );
+        return self::revoked($request->string('reason')->value(), $request->ip());
+    }
+
+    /** Versi nilai-polos untuk dasbor web — keputusan tetap dari nama fungsi. */
+    public static function rejected(string $reason, ?string $ip): self
+    {
+        return new self(VerificationStatus::Rejected, AdminAction::VerificationRejected, $reason, $ip);
+    }
+
+    public static function revoked(string $reason, ?string $ip): self
+    {
+        return new self(VerificationStatus::Revoked, AdminAction::VerificationRevoked, $reason, $ip);
     }
 }

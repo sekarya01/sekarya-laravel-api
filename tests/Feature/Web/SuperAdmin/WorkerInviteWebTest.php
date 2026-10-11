@@ -31,6 +31,34 @@ final class WorkerInviteWebTest extends TestCase
             ->assertDontSee('code_hash', false);
     }
 
+    /**
+     * Filter "bisa dipakai" & "tidak bisa dipakai" memakai scope usable() dan
+     * kebalikannya — dulu "tidak bisa dipakai" hanya `is_active = false`, jadi
+     * kode yang kuotanya habis atau kedaluwarsa tidak pernah muncul di sana.
+     */
+    public function test_filter_bisa_dipakai_mengikuti_scope_usable(): void
+    {
+        $this->actingAs($this->superAdmin(), 'admin_web');
+        WorkerInviteCode::factory()->create(['note' => 'kode-sehat']);
+        WorkerInviteCode::factory()->create(['note' => 'kode-habis', 'used_count' => 10, 'max_uses' => 10]);
+        WorkerInviteCode::factory()->create(['note' => 'kode-lewat', 'expires_at' => now()->subDay()]);
+        WorkerInviteCode::factory()->create(['note' => 'kode-mati', 'is_active' => false]);
+
+        $this->get(route('super_admin.worker_invites.index', ['usable' => '1']))
+            ->assertOk()
+            ->assertSee('kode-sehat', false)
+            ->assertDontSee('kode-habis', false)
+            ->assertDontSee('kode-lewat', false)
+            ->assertDontSee('kode-mati', false);
+
+        $this->get(route('super_admin.worker_invites.index', ['usable' => '0']))
+            ->assertOk()
+            ->assertDontSee('kode-sehat', false)
+            ->assertSee('kode-habis', false)
+            ->assertSee('kode-lewat', false)
+            ->assertSee('kode-mati', false);
+    }
+
     public function test_generate_menyimpan_dan_menampilkan_kode_terus(): void
     {
         $this->actingAs($this->superAdmin(), 'admin_web');

@@ -38,6 +38,10 @@ final class DisputeController
 
         $status = DisputeStatus::tryFrom($request->string('status')->value()) ?? DisputeStatus::Open;
 
+        // SENGAJA berbeda dari ListDisputesAction (API: semua status, terbaru
+        // dulu). Dasbor adalah ANTREAN kerja pengelola: bawaan `open`, yang
+        // paling lama menunggu di depan; yang sudah diputuskan diurut
+        // keputusan terbaru. Jangan disamakan tanpa mengubah alur kerjanya.
         $queue = TaskDispute::query()
             ->where('status', $status)
             ->with(['task.poster', 'activity.worker'])

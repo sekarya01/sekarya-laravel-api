@@ -45,16 +45,10 @@ final class WorkerInviteController
         $codes = WorkerInviteCode::query()
             ->withCount('redemptions')
             ->with('creator')
-            ->when($usable !== null, function (Builder $q) use ($usable): void {
-                $q->where('is_active', $usable);
-                if ($usable) {
-                    // Bisa dipakai = aktif DAN kuota tersisa DAN tanggal belum lewat.
-                    $q->whereColumn('used_count', '<', 'max_uses')
-                        ->where(fn (Builder $w) => $w
-                            ->whereNull('expires_at')
-                            ->orWhere('expires_at', '>', now()));
-                }
-            })
+            // "Bisa dipakai" = scope usable() (SSOT, sama dengan penukaran kode);
+            // "tidak" = kebalikannya — termasuk kuota habis & kedaluwarsa.
+            ->when($usable === true, fn (Builder $q) => $q->usable())
+            ->when($usable === false, fn (Builder $q) => $q->whereNot(fn (Builder $w) => $w->usable()))
             ->orderByDesc('id')
             ->paginate(max(1, min($request->integer('per_page', 20), 50)))
             ->withQueryString();

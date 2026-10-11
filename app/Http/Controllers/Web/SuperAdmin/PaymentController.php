@@ -85,12 +85,7 @@ final class PaymentController
         $admin = Auth::guard('admin_web')->user();
 
         try {
-            $build = \Closure::bind(
-                fn () => new RejectPaymentData($validated['reason'], $request->ip()),
-                null,
-                RejectPaymentData::class,
-            );
-            $action->handle($payment, $admin, $build());
+            $action->handle($payment, $admin, new RejectPaymentData($validated['reason'], $request->ip()));
         } catch (DomainException $e) {
             return back()->withErrors(['action' => $e->getMessage()])->withInput();
         }

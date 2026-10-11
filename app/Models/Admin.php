@@ -119,4 +119,13 @@ final class Admin extends Authenticatable
     {
         $query->orderByDesc('created_at')->orderByDesc('id');
     }
+
+    /** Catat login yang BENAR-BENAR terjadi (API maupun dasbor) — satu tempat. */
+    public function recordLogin(?string $ip): void
+    {
+        $this->forceFill([
+            'last_login_at' => now(),
+            'last_login_ip' => $ip,
+        ])->save();
+    }
 }

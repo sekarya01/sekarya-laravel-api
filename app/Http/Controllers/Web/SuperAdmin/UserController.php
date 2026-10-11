@@ -127,12 +127,7 @@ final class UserController
         $admin = Auth::guard('admin_web')->user();
 
         try {
-            $build = \Closure::bind(
-                fn () => new ChangeUserStatusData(AdminAction::UserReinstated, null, $request->ip()),
-                null,
-                ChangeUserStatusData::class,
-            );
-            $action->handle($user, $admin, $build());
+            $action->handle($user, $admin, ChangeUserStatusData::reinstate($request));
         } catch (DomainException $e) {
             return back()->withErrors(['action' => $e->getMessage()])->with('open_modal', 'reinstate');
         }
@@ -153,7 +148,9 @@ final class UserController
         // popup mana yang sedang dipakai.
         $validator = Validator::make(
             $request->all(),
-            ['reason' => ['required', 'string', 'min:10', 'max:1000']],
+            // Sama dengan ModerateUserRequest (API): jejak audit memotong alasan
+            // di 500 karakter (AdminAuditRecorder::REASON_LIMIT).
+            ['reason' => ['required', 'string', 'min:10', 'max:500']],
             ['reason.min' => 'Jelaskan minimal 10 karakter supaya tercatat jelas di jejak audit.'],
         );
 
@@ -167,12 +164,10 @@ final class UserController
         $admin = Auth::guard('admin_web')->user();
 
         try {
-            $build = \Closure::bind(
-                fn () => new ChangeUserStatusData($act, $validated['reason'], $request->ip()),
-                null,
-                ChangeUserStatusData::class,
-            );
-            $action->handle($user, $admin, $build());
+            $data = $act === AdminAction::UserBanned
+                ? ChangeUserStatusData::banned($validated['reason'], $request->ip())
+                : ChangeUserStatusData::suspended($validated['reason'], $request->ip());
+            $action->handle($user, $admin, $data);
         } catch (DomainException $e) {
             return back()->withErrors(['action' => $e->getMessage()])->withInput()->with('open_modal', $kind);
         }

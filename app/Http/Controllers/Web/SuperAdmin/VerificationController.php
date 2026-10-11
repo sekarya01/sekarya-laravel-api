@@ -7,7 +7,6 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 use App\Actions\Admin\Verification\ReviewVerificationAction;
 use App\Actions\Admin\Verification\ViewVerificationAction;
 use App\Data\Admin\ReviewVerificationData;
-use App\Enums\AdminAction;
 use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
 use App\Exceptions\Domain\DomainException;
@@ -110,12 +109,7 @@ final class VerificationController
         $admin = Auth::guard('admin_web')->user();
 
         try {
-            $action->handle($verification, $admin, $this->decision(
-                VerificationStatus::Rejected,
-                AdminAction::VerificationRejected,
-                $validated['reason'],
-                $request->ip(),
-            ));
+            $action->handle($verification, $admin, ReviewVerificationData::rejected($validated['reason'], $request->ip()));
         } catch (DomainException $e) {
             return back()->withErrors(['action' => $e->getMessage()])->withInput();
         }
@@ -137,12 +131,7 @@ final class VerificationController
         $admin = Auth::guard('admin_web')->user();
 
         try {
-            $action->handle($verification, $admin, $this->decision(
-                VerificationStatus::Revoked,
-                AdminAction::VerificationRevoked,
-                $validated['reason'],
-                $request->ip(),
-            ));
+            $action->handle($verification, $admin, ReviewVerificationData::revoked($validated['reason'], $request->ip()));
         } catch (DomainException $e) {
             return back()->withErrors(['action' => $e->getMessage()])->withInput();
         }
@@ -165,24 +154,5 @@ final class VerificationController
 
         return redirect()->route('super_admin.verifications.show', $verification)
             ->with('status', $status);
-    }
-
-    /**
-     * Bentuk DTO yang sama seperti konstruktor bernama approve()/reject()/
-     * revoke() — keputusan datang dari rute, bukan dari payload.
-     */
-    private function decision(
-        VerificationStatus $decision,
-        AdminAction $action,
-        string $reason,
-        ?string $ip,
-    ): ReviewVerificationData {
-        $build = \Closure::bind(
-            fn () => new ReviewVerificationData($decision, $action, $reason, $ip),
-            null,
-            ReviewVerificationData::class,
-        );
-
-        return $build();
     }
 }
