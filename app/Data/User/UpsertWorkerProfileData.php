@@ -36,20 +36,20 @@ final readonly class UpsertWorkerProfileData
         public array $present = [],
     ) {}
 
-    /** Nama field di payload -> nama kolom. Satu tempat, dipakai dua arah. */
-    private const array COLUMN_MAP = [
-        'display_name' => 'display_name',
-        'headline' => 'headline',
-        'contact_phone' => 'contact_phone',
-        'avatar_path' => 'avatar_path',
-        'address_line' => 'address_line',
-        'city' => 'city',
-        'province' => 'province',
-        'postal_code' => 'postal_code',
-        'latitude' => 'latitude',
-        'longitude' => 'longitude',
-        'radius_km' => 'radius_km',
-        'is_available' => 'is_available',
+    /** Field payload yang boleh dianggap "ada" — namanya sama dengan nama kolom. */
+    private const array FIELDS = [
+        'display_name',
+        'headline',
+        'contact_phone',
+        'avatar_path',
+        'address_line',
+        'city',
+        'province',
+        'postal_code',
+        'latitude',
+        'longitude',
+        'radius_km',
+        'is_available',
     ];
 
     public static function fromRequest(UpsertWorkerProfileRequest $request): self
@@ -73,7 +73,7 @@ final readonly class UpsertWorkerProfileData
             radiusKm: $request->filled('radius_km') ? (int) $request->input('radius_km') : null,
             isAvailable: $request->has('is_available') ? $request->boolean('is_available') : null,
             present: array_values(array_intersect(
-                array_keys(self::COLUMN_MAP),
+                self::FIELDS,
                 array_keys($request->all()),
             )),
         );
@@ -111,12 +111,7 @@ final readonly class UpsertWorkerProfileData
             return array_filter($values, fn (mixed $v): bool => $v !== null);
         }
 
-        $columns = array_map(
-            fn (string $field): string => self::COLUMN_MAP[$field],
-            $this->present,
-        );
-
-        return array_intersect_key($values, array_flip($columns));
+        return array_intersect_key($values, array_flip($this->present));
     }
 
     /** Klien meminta mengubah ketersediaan. */

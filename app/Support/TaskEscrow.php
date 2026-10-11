@@ -127,12 +127,6 @@ final class TaskEscrow
         return $payment;
     }
 
-    /** Apakah tugas ini dibiayai dari saldo (dananya sedang ditahan). */
-    public function isHeld(Task $task): bool
-    {
-        return $task->payment()->value('status') === PaymentStatus::Held->value;
-    }
-
     private function lockedPayment(Task $task): ?Payment
     {
         return Payment::query()

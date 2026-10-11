@@ -173,6 +173,20 @@ final class Task extends Model
     }
 
     /**
+     * DIPAKAI ROUTE BINDING, bukan kode: `tasks/{task}/cancel-requests/
+     * {cancelRequest}` memakai `->scopeBindings()`, dan Laravel menebak nama
+     * relasi ini dari parameternya untuk memastikan permintaan itu milik task
+     * tersebut. Tidak muncul di grep — jangan dihapus (pernah, 2026-10-12:
+     * seluruh approve/reject/withdraw jadi 500).
+     *
+     * @return HasMany<TaskCancelRequest, $this>
+     */
+    public function cancelRequests(): HasMany
+    {
+        return $this->hasMany(TaskCancelRequest::class);
+    }
+
+    /**
      * Penawaran yang diterima — SUMBER KEBENARAN siapa yang mengerjakan task
      * ini, berapa orang, dan masing-masing dengan harga berapa.
      *
@@ -212,12 +226,6 @@ final class Task extends Model
         return $this->hasMany(Review::class);
     }
 
-    /** @return HasMany<TaskCancelRequest, $this> */
-    public function cancelRequests(): HasMany
-    {
-        return $this->hasMany(TaskCancelRequest::class);
-    }
-
     /**
      * Permintaan pembatalan yang menunggu jawaban pekerja — nol atau satu.
      * Mobile memakainya untuk popup di Detail Kerjaan.
@@ -255,8 +263,7 @@ final class Task extends Model
      * HANYA pemberi kerja task ini — orang yang sedang memilih pelamar.
      * Pelamar lain tidak: jarak pesaingnya bukan urusannya, dan setiap angka
      * jarak yang keluar adalah satu persamaan menuju lokasi kerja orang itu.
-     * Pekerja sendiri juga tidak mendapatkannya di sini (`my_bid`,
-     * `bids/mine`): kolomnya tetap ada dengan nilai `null`, supaya bentuk
+     * Pekerja sendiri juga tidak mendapatkannya di sini (`my_bid`): kolomnya tetap ada dengan nilai `null`, supaya bentuk
      * responsnya sama untuk semua orang.
      */
     public function showsWorkerDistanceTo(?User $viewer): bool

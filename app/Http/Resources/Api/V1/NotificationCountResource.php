@@ -7,8 +7,9 @@ namespace App\Http\Resources\Api\V1;
 use Illuminate\Http\Request;
 
 /**
- * Angka kotak masuk. `unread-count` mengeluarkan `{count}` (belum dibaca);
- * `read-all` mengeluarkan `{marked}` (berapa yang baru saja ditandai).
+ * Satu angka hitungan `{count}` — kini hanya `GET chat/unread-count` (pesan
+ * chat belum dibaca). Kotak masuk notifikasi server sudah dihapus
+ * (2026-10-10), jadi namanya tinggal sejarah.
  */
 final class NotificationCountResource extends BaseResource
 {

@@ -13,8 +13,8 @@ use App\Support\Push\PushMessages;
 
 /**
  * FCM untuk chat — satu-satunya jalur realtime (tanpa WebSocket di hosting
- * bersama). Semua lewat `PushDispatcher::sendTransient`: tanpa baris lonceng,
- * sesudah commit.
+ * bersama). Semua lewat `PushDispatcher::sendTransient`: TANPA antrean
+ * (realtime, dikirim sesudah respons), sesudah commit.
  *
  *  - Pesan baru → notifikasi tampil ke peserta aktif lain yang TIDAK
  *    membisukan room; yang membisukan tetap menerima sinyal senyap supaya

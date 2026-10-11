@@ -41,7 +41,7 @@ final class UserResource extends BaseResource
             'skills' => SkillResource::collection($this->whenLoaded('skills')),
             // Terdaftar sebagai pekerja. Sejajar dengan `identity_verified`
             // di profil publik, dan sama-sama DIHITUNG — profil pekerjanya
-            // sendiri ada di GET /me/worker.
+            // sendiri diisi lewat PUT /me/worker.
             'ready_to_work' => $this->resource->readyToWork(),
             'active_mode' => $this->active_mode->value,
             'status' => $this->status->value,

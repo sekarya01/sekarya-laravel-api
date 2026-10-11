@@ -51,12 +51,6 @@ final readonly class UpdateTaskData
         return in_array($field, $this->provided, true);
     }
 
-    /** Tidak ada satu pun ruas yang dikirim — permintaan kosong. */
-    public function isEmpty(): bool
-    {
-        return $this->provided === [];
-    }
-
     public static function fromRequest(UpdateTaskRequest $request): self
     {
         /** @var list<string> $fields */

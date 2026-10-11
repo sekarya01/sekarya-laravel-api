@@ -67,10 +67,4 @@ enum ActivityStatus: string
     {
         return $this === self::Approved || $this === self::Refunded;
     }
-
-    /** Pekerjaannya sudah benar-benar berjalan di tangan pekerja. */
-    public function isUnderway(): bool
-    {
-        return $this === self::InProgress || $this === self::Submitted;
-    }
 }

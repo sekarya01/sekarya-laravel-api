@@ -11,9 +11,10 @@ use App\Models\PlatformFeeEntry;
 /**
  * SATU-SATUNYA tempat upah pekerja dibayarkan (G6).
  *
- * Dua jalur melepas dana ke pekerja — persetujuan pemberi kerja
- * (`ApproveActivityAction`) dan kemenangan sengketa (`ResolveDisputeAction`).
- * Kalau tiap jalur mengkredit sendiri, biaya layanan cepat terlupa di salah
+ * Beberapa jalur melepas dana ke pekerja — persetujuan pemberi kerja
+ * (`ApproveActivityAction`, juga dipakai persetujuan otomatis & "setujui
+ * semua") dan kemenangan sengketa (`ResolveDisputeAction`), semuanya lewat
+ * TaskSettlement. Kalau tiap jalur mengkredit sendiri, biaya layanan cepat terlupa di salah
  * satunya, dan yang tertinggal adalah pekerja menerima penuh sementara yang
  * lain dipotong.
  *

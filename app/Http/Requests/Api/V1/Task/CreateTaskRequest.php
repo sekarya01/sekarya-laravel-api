@@ -42,10 +42,9 @@ final class CreateTaskRequest extends FormRequest
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'is_remote' => ['sometimes', 'boolean'],
 
-            // Jumlah pekerja yang dibutuhkan, sekaligus kuota pelamar:
-            // task 30 orang menerima paling banyak 30 lamaran.
-            // Batas atas ada supaya satu task tidak bisa membuka ribuan slot
-            // dan mengubah kuota lamaran menjadi tak berbatas.
+            // Jumlah pekerja yang DITERIMA — bukan batas pelamar (lelang tetap
+            // terbuka, lihat CLAUDE.md). Batas atas ada supaya satu task tidak
+            // bisa membuka ribuan slot.
             'workers_needed' => ['sometimes', 'integer', 'min:1', 'max:500'],
 
             'needed_at' => ['required', 'date', 'after:now'],

@@ -49,8 +49,8 @@ final class TaskResource extends BaseResource
             ],
             'bids_count' => $this->bids_count,
 
-            // Perekrutan. `needed` sekaligus kuota pelamar: task 30 orang
-            // menerima paling banyak 30 lamaran.
+            // Perekrutan. `workers_needed` = berapa orang DITERIMA, bukan
+            // batas pelamar — siapa pun boleh menawar (lihat CLAUDE.md).
             'hiring' => [
                 'workers_needed' => $this->workers_needed,
                 'workers_hired' => $this->workers_hired,

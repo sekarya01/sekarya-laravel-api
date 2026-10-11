@@ -91,57 +91,34 @@ final class DeleteAccountAction
 
     private function guardAgainstObligations(int $id): void
     {
-        $reasons = [];
-
-        $hasActiveTasks = Task::query()
-            ->where('poster_id', $id)
-            ->whereIn('status', [
-                TaskStatus::Dealt,
-                TaskStatus::Active,
-                TaskStatus::Submitted,
-                TaskStatus::Disputed,
-            ])
-            ->exists();
-
-        if ($hasActiveTasks) {
-            $reasons[] = 'active_tasks_as_poster';
-        }
-
-        $hasActiveWork = Activity::query()
-            ->where('worker_id', $id)
-            ->whereIn('status', [
-                // Sudah diterima, belum berangkat: pekerjaannya tetap utang.
-                ActivityStatus::Open,
-                ActivityStatus::OnTheWay,
-                ActivityStatus::Arrived,
-                ActivityStatus::InProgress,
-                ActivityStatus::Submitted,
-                // Sengketa terbuka: pengelola masih memutuskan upahnya.
-                ActivityStatus::Rejected,
-            ])
-            ->exists();
-
-        if ($hasActiveWork) {
-            $reasons[] = 'active_work_as_worker';
-        }
-
-        $hasPendingTopups = WalletTopup::query()
-            ->where('user_id', $id)
-            ->where('status', WalletTopupStatus::AwaitingConfirmation)
-            ->exists();
-
-        if ($hasPendingTopups) {
-            $reasons[] = 'pending_topups';
-        }
-
-        $hasPendingWithdrawals = WalletWithdrawal::query()
-            ->where('user_id', $id)
-            ->where('status', WalletWithdrawalStatus::Requested)
-            ->exists();
-
-        if ($hasPendingWithdrawals) {
-            $reasons[] = 'pending_withdrawals';
-        }
+        // Kunci = kode alasan di `context.reasons` (kontrak API).
+        $reasons = array_keys(array_filter([
+            'active_tasks_as_poster' => Task::query()
+                ->where('poster_id', $id)
+                ->whereIn('status', [TaskStatus::Dealt, TaskStatus::Active, TaskStatus::Submitted, TaskStatus::Disputed])
+                ->exists(),
+            'active_work_as_worker' => Activity::query()
+                ->where('worker_id', $id)
+                ->whereIn('status', [
+                    // Sudah diterima, belum berangkat: pekerjaannya tetap utang.
+                    ActivityStatus::Open,
+                    ActivityStatus::OnTheWay,
+                    ActivityStatus::Arrived,
+                    ActivityStatus::InProgress,
+                    ActivityStatus::Submitted,
+                    // Sengketa terbuka: pengelola masih memutuskan upahnya.
+                    ActivityStatus::Rejected,
+                ])
+                ->exists(),
+            'pending_topups' => WalletTopup::query()
+                ->where('user_id', $id)
+                ->where('status', WalletTopupStatus::AwaitingConfirmation)
+                ->exists(),
+            'pending_withdrawals' => WalletWithdrawal::query()
+                ->where('user_id', $id)
+                ->where('status', WalletWithdrawalStatus::Requested)
+                ->exists(),
+        ]));
 
         if ($reasons !== []) {
             throw AccountHasActiveObligationsException::because($reasons);

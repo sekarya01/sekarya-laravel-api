@@ -32,7 +32,7 @@ final readonly class CreateTaskData
         public ?float $latitude = null,
         public ?float $longitude = null,
         public bool $isRemote = false,
-        /** Jumlah pekerja yang dibutuhkan; juga kuota pelamar. */
+        /** Jumlah pekerja yang DITERIMA — bukan batas pelamar. */
         public int $workersNeeded = 1,
         public ?string $biddingClosesAt = null,
         /** @var list<string> slug keahlian yang dibutuhkan */

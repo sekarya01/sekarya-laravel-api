@@ -89,32 +89,32 @@ final readonly class UpdateProfileData
             // `skills` sengaja tidak masuk: ia relasi, bukan kolom, dan
             // disinkronkan terpisah di Action-nya.
             present: array_values(array_intersect(
-                array_keys(self::COLUMN_MAP),
+                self::FIELDS,
                 array_keys($request->all()),
             )),
         );
     }
 
     /**
-     * Nama field di payload -> nama kolom. Satu tempat, dipakai dua arah:
-     * menyusun atribut, dan menentukan field mana yang boleh dianggap "ada".
+     * Field payload yang boleh dianggap "ada" — namanya sama dengan nama
+     * kolom, jadi cukup daftar (dulu peta nama→nama yang identik).
      */
-    private const array COLUMN_MAP = [
-        'name' => 'name',
-        'first_name' => 'first_name',
-        'last_name' => 'last_name',
-        'username' => 'username',
-        'phone' => 'phone',
-        'gender' => 'gender',
-        'birth_date' => 'birth_date',
-        'bio' => 'bio',
-        'avatar_path' => 'avatar_path',
-        'address_line' => 'address_line',
-        'city' => 'city',
-        'province' => 'province',
-        'postal_code' => 'postal_code',
-        'active_mode' => 'active_mode',
-        'theme' => 'theme',
+    private const array FIELDS = [
+        'name',
+        'first_name',
+        'last_name',
+        'username',
+        'phone',
+        'gender',
+        'birth_date',
+        'bio',
+        'avatar_path',
+        'address_line',
+        'city',
+        'province',
+        'postal_code',
+        'active_mode',
+        'theme',
     ];
 
     /**
@@ -147,11 +147,6 @@ final readonly class UpdateProfileData
             return array_filter($values, fn (mixed $v): bool => $v !== null);
         }
 
-        $columns = array_map(
-            fn (string $field): string => self::COLUMN_MAP[$field],
-            $this->present,
-        );
-
-        return array_intersect_key($values, array_flip($columns));
+        return array_intersect_key($values, array_flip($this->present));
     }
 }

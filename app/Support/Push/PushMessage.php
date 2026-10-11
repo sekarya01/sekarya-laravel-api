@@ -37,7 +37,7 @@ final readonly class PushMessage
 
     /**
      * Salinan dengan `data` lain — dipakai job push untuk menyisipkan
-     * snapshot per penerima (hanya ke FCM, bukan ke baris lonceng).
+     * snapshot per penerima (`task_update` / `work_update`).
      *
      * @param  array<string, string>  $data
      */
