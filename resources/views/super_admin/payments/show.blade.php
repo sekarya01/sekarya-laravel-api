@@ -18,7 +18,7 @@
 <div class="anim-rise mt-3 rounded-2xl p-5 sm:p-6 text-white relative overflow-hidden" style="background: linear-gradient(120deg, #0A1E35, #163C68 70%);">
     <div class="absolute -right-8 -top-12 w-56 h-56 rounded-full opacity-25" style="background: #F97316; filter: blur(60px);"></div>
     <p class="relative text-xs uppercase tracking-widest font-bold text-orange-200">Nominal transfer yang dilaporkan</p>
-    <p class="relative mt-1 text-3xl sm:text-4xl font-extrabold">Rp{{ number_format($payment->amount, 0, ',', '.') }}</p>
+    <p class="relative mt-1 text-3xl sm:text-4xl font-extrabold">{{ \App\Support\Rupiah::format($payment->amount) }}</p>
     <p class="relative mt-1 font-mono text-xs text-slate-400">{{ $payment->ulid }}</p>
 </div>
 
@@ -59,7 +59,7 @@
             <p class="mt-1 font-mono text-xs text-slate-300">{{ $payment->task?->task_number }} · {{ $payment->task?->status->value }}</p>
             <div class="mt-3 flex items-end justify-between border-t border-white/15 pt-3">
                 <span class="text-xs text-slate-300">Total disepakati</span>
-                <span class="text-xl font-extrabold text-orange-300">Rp{{ number_format((int) $payment->task?->agreed_amount, 0, ',', '.') }}</span>
+                <span class="text-xl font-extrabold text-orange-300">{{ \App\Support\Rupiah::format((int) $payment->task?->agreed_amount) }}</span>
             </div>
         </div>
         <div class="mt-3 flex items-center gap-3 text-sm">

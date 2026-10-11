@@ -37,7 +37,7 @@
                     </td>
                     <td class="td-c">@include('super_admin.partials.badge', ['text' => $d->category?->label() ?? '—', 'tone' => 'orange'])</td>
                     <td class="td-c whitespace-nowrap font-extrabold" style="color: #163C68;">
-                        {{ $d->activity ? 'Rp'.number_format((int) $d->activity->agreed_amount, 0, ',', '.') : '—' }}
+                        {{ $d->activity ? \App\Support\Rupiah::format((int) $d->activity->agreed_amount) : '—' }}
                     </td>
                     <td class="td-c">
                         @if ($d->status->isOpen())

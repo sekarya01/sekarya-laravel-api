@@ -776,6 +776,10 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
 - Resources are the disclosure boundary: NIK, full bank account numbers, password hashes
   and tokens never leave the API except where `CLAUDE.md` names it (verification detail).
 - Every `cursorPaginate()` query orders by `created_at` **and** `id` (use `scopeLatestFirst`).
+- Human-readable money text (push, error messages, audit reasons, dashboard) goes through
+  `App\Support\Rupiah::format()`; every email that is stored or looked up goes through
+  `App\Support\Email::normalize()`. Never inline `number_format(..)` / `mb_strtolower(trim(..))`
+  for these — two spellings of one rule drift apart silently.
 
 ## Commands
 

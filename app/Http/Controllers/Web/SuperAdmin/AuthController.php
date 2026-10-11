@@ -8,6 +8,7 @@ use App\Actions\Admin\Auth\VerifyAdminCredentialsAction;
 use App\Data\Admin\AdminLoginData;
 use App\Exceptions\Domain\AdminAccessDeniedException;
 use App\Exceptions\Domain\InvalidCredentialsException;
+use App\Support\Email;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -41,7 +42,7 @@ final class AuthController
 
         try {
             $admin = $credentials->handle(new AdminLoginData(
-                mb_strtolower(trim($validated['email'])),
+                Email::normalize($validated['email']),
                 $validated['password'],
                 $request->ip(),
             ));

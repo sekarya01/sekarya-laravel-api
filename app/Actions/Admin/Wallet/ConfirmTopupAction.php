@@ -13,6 +13,7 @@ use App\Models\WalletTopup;
 use App\Support\AdminAuditRecorder;
 use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
+use App\Support\Rupiah;
 use App\Support\WalletLedger;
 use Illuminate\Database\ConnectionInterface;
 
@@ -76,7 +77,7 @@ final class ConfirmTopupAction
                 $admin,
                 AdminAction::WalletTopupConfirmed,
                 (int) $fresh->getKey(),
-                'Rp'.number_format((float) $fresh->amount, 0, ',', '.'),
+                Rupiah::format($fresh->amount),
                 $ip,
             );
 

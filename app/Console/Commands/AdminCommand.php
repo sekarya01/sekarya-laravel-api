@@ -7,6 +7,7 @@ namespace App\Console\Commands;
 use App\Enums\AdminRole;
 use App\Enums\AdminStatus;
 use App\Models\Admin;
+use App\Support\Email;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
@@ -81,9 +82,9 @@ final class AdminCommand extends Command
             ?: ($role->isSuperAdmin() ? ($defaults['name'] ?? '') : '')
             ?: $this->ask('Nama'));
 
-        $email = mb_strtolower(trim((string) ($this->option('email')
+        $email = Email::normalize((string) ($this->option('email')
             ?: ($role->isSuperAdmin() ? ($defaults['email'] ?? '') : '')
-            ?: $this->ask('Email'))));
+            ?: $this->ask('Email')));
 
         $password = (string) ($this->option('password')
             ?: ($role->isSuperAdmin() ? ($defaults['password'] ?? '') : '')
@@ -189,7 +190,7 @@ final class AdminCommand extends Command
 
     private function setStatus(AdminStatus $status): int
     {
-        $email = mb_strtolower(trim((string) ($this->option('email') ?: $this->ask('Email'))));
+        $email = Email::normalize((string) ($this->option('email') ?: $this->ask('Email')));
 
         $admin = Admin::query()->where('email', $email)->first();
 

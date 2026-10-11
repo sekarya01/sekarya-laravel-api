@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Data\Auth;
 
 use App\Http\Requests\Api\V1\Auth\LoginRequest;
+use App\Support\Email;
 use App\Support\PhoneNumber;
 
 final readonly class LoginData
@@ -27,7 +28,7 @@ final readonly class LoginData
         return new self(
             password: $request->string('password')->value(),
             email: $request->filled('email')
-                ? mb_strtolower(trim($request->string('email')->value()))
+                ? Email::normalize($request->string('email')->value())
                 : null,
             username: $request->filled('username')
                 ? mb_strtolower(trim($request->string('username')->value()))

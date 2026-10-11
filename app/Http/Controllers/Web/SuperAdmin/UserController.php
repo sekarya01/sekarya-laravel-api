@@ -12,6 +12,7 @@ use App\Enums\UserStatus;
 use App\Exceptions\Domain\DomainException;
 use App\Models\Admin;
 use App\Models\User;
+use App\Support\Email;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -67,7 +68,7 @@ final class UserController
             ))
             ->when(
                 $request->filled('email'),
-                fn ($q) => $q->where('email', mb_strtolower(trim($request->string('email')->value()))),
+                fn ($q) => $q->where('email', Email::normalize($request->string('email')->value())),
             )
             ->when($gender !== null, fn ($q) => $q->where('gender', $gender))
             // Kesiapan mengikuti definisi ready_to_work: profil ADA dan

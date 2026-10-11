@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Models\WalletTopup;
 use App\Models\WalletWithdrawal;
 use App\Support\Chat\ChatPreview;
+use App\Support\Rupiah;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -45,9 +46,9 @@ final class PushMessages
         return new PushMessage(
             title: $task->title,
             body: sprintf(
-                '%s menawar sebesar Rp%s.',
+                '%s menawar sebesar %s.',
                 $bidder->name,
-                self::rupiah($bid->amount),
+                Rupiah::format($bid->amount),
             ),
             data: self::data(PushType::BidPlaced, $task, null, (int) $task->bids_count),
         );
@@ -228,7 +229,7 @@ final class PushMessages
     {
         return new PushMessage(
             title: 'Isi saldo dikonfirmasi',
-            body: 'Saldo Rp'.self::rupiah((int) $topup->amount).' sudah masuk.',
+            body: 'Saldo '.Rupiah::format($topup->amount).' sudah masuk.',
             data: self::walletData(PushType::TopupConfirmed, (int) $topup->getKey(), (int) $topup->amount),
         );
     }
@@ -238,7 +239,7 @@ final class PushMessages
     {
         return new PushMessage(
             title: 'Isi saldo ditolak',
-            body: 'Permintaan isi saldo Rp'.self::rupiah((int) $topup->amount).' ditolak. Periksa alasannya.',
+            body: 'Permintaan isi saldo '.Rupiah::format($topup->amount).' ditolak. Periksa alasannya.',
             data: self::walletData(PushType::TopupRejected, (int) $topup->getKey(), (int) $topup->amount),
         );
     }
@@ -248,7 +249,7 @@ final class PushMessages
     {
         return new PushMessage(
             title: 'Penarikan selesai',
-            body: 'Rp'.self::rupiah((int) $withdrawal->amount).' sudah dikirim ke rekening Anda.',
+            body: Rupiah::format($withdrawal->amount).' sudah dikirim ke rekening Anda.',
             data: self::walletData(PushType::WithdrawalCompleted, (int) $withdrawal->getKey(), (int) $withdrawal->amount),
         );
     }
@@ -258,7 +259,7 @@ final class PushMessages
     {
         return new PushMessage(
             title: 'Penarikan ditolak',
-            body: 'Rp'.self::rupiah((int) $withdrawal->amount).' dikembalikan ke saldo. Periksa alasannya.',
+            body: Rupiah::format($withdrawal->amount).' dikembalikan ke saldo. Periksa alasannya.',
             data: self::walletData(PushType::WithdrawalRejected, (int) $withdrawal->getKey(), (int) $withdrawal->amount),
         );
     }
@@ -377,12 +378,6 @@ final class PushMessages
             data: self::data($type, $task, extra: ['room_id' => (string) $room->ulid, ...$extra]),
             silent: true,
         );
-    }
-
-    /** Rupiah tanpa desimal, titik sebagai pemisah ribuan — gaya aplikasi. */
-    private static function rupiah(int $amount): string
-    {
-        return number_format((float) $amount, 0, ',', '.');
     }
 
     /**

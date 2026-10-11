@@ -10,6 +10,7 @@ use App\Data\Admin\CreateAdminData;
 use App\Exceptions\Domain\DomainException;
 use App\Http\Requests\Api\V1\Admin\CreateAdminRequest;
 use App\Models\Admin;
+use App\Support\Email;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -52,7 +53,7 @@ final class AdminAccountController
         /** @var Admin $actor */
         $actor = Auth::guard('admin_web')->user();
 
-        $data = new CreateAdminData($validated['name'], mb_strtolower(trim($validated['email'])), $validated['password'], $request->ip());
+        $data = new CreateAdminData($validated['name'], Email::normalize($validated['email']), $validated['password'], $request->ip());
 
         try {
             $admin = $action->handle($data, $actor);
