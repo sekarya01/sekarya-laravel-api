@@ -81,7 +81,7 @@ final class SubmitVerificationAction
             $pending = UserVerification::query()
                 ->where('user_id', $user->getKey())
                 ->where('type', $data->type)
-                ->whereIn('status', [VerificationStatus::Pending, VerificationStatus::InReview])
+                ->whereIn('status', VerificationStatus::awaitingReview())
                 ->first();
 
             if ($pending !== null) {

@@ -31,8 +31,6 @@ final class TaskSearch
         private readonly SearchTerms $terms,
     ) {}
 
-    private const float EARTH_RADIUS_KM = 6371.0;
-
     /**
      * Pencarian nama pekerjaan lewat indeks terbalik `task_search`.
      *
@@ -174,7 +172,7 @@ final class TaskSearch
             .'* cos(radians(tasks.longitude) - radians(?)) '
             .'+ sin(radians(?)) * sin(radians(tasks.latitude))'
             .')))',
-            self::EARTH_RADIUS_KM,
+            GeoDistance::EARTH_RADIUS_KM,
         );
     }
 }

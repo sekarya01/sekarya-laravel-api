@@ -314,6 +314,9 @@ Yang tidak boleh "dirapikan":
   pengguna yang tampil (`'poster' => fn ($q) => $q->withIdentityVerified()`). Tanpa itu
   `isIdentityVerified()` jatuh ke kueri `exists` dua kali per orang (`readyToWork()` ikut
   memanggilnya). Dijaga `VerificationBadgeQueriesTest`.
+  Saringan "terverifikasi / belum" memakai `User::whereIdentityVerified($bool)`; ketiganya
+  membaca SATU predikat `User::identityVerifiedConstraint()` — jangan menulis ulang
+  `where('type', Identity)->where('status', Verified)` di kueri mana pun.
 - **`User::$with = ['workerProfile']`.** Blunt, dan disengaja: hampir setiap tempat yang
   menampilkan pengguna butuh reputasinya, dan satu Action yang lupa eager-load
   menghasilkan N+1 yang tidak menimbulkan galat apa pun.

@@ -83,7 +83,7 @@ final class PlaceBidAction
             }
 
             $task->forceFill([
-                'bids_count' => $task->bids()->where('status', BidStatus::Pending)->count(),
+                'bids_count' => $task->pendingBidsCount(),
             ])->save();
 
             return $bid;

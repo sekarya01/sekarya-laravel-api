@@ -35,7 +35,7 @@ final class ActivityResource extends BaseResource
                         $this->task->longitude,
                     );
 
-                    $speed = max(1.0, (float) config('sekarya.activities.eta_speed_kmh', 20));
+                    $speed = max(1.0, (float) config('sekarya.activities.eta_speed_kmh'));
 
                     return [
                         'distance_km' => $distance,

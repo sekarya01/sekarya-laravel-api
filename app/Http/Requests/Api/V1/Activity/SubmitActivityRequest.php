@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1\Activity;
 
 use App\Support\ProofPhotos;
-use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class SubmitActivityRequest extends FormRequest
@@ -26,12 +25,8 @@ final class SubmitActivityRequest extends FormRequest
             'proof_photos.*' => [
                 'string', 'max:255', 'distinct',
                 // Hanya path dari `POST uploads` dengan `purpose=proof`, yang
-                // diunggah ORANG YANG SAMA. Lihat ProofPhotos.
-                function (string $attribute, mixed $value, Closure $fail) use ($proofs): void {
-                    if (! is_string($value) || ! $proofs->isOwnedBy($value, $this->user())) {
-                        $fail('Foto bukti harus diunggah sendiri lewat POST /uploads dengan purpose=proof.');
-                    }
-                },
+                // diunggah ORANG YANG SAMA — aturan bersama ProofPhotos.
+                $proofs->ownedRule($this->user()),
             ],
         ];
     }

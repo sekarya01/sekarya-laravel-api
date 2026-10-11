@@ -21,13 +21,15 @@ namespace App\Support;
  *    kekaburan yang sama dengan lokasi task sebelum deal (TaskResource).
  * 2. **Hasilnya 1 desimal** — sesuai tampilan ("1,1 km"), tidak lebih.
  *
- * Rumus haversine yang sama dengan `TaskSearch::haversineSql()` (jari-jari
- * bumi 6371 km). Yang itu berjalan di SQL untuk MENYARING feed; yang ini di
+ * Jari-jari bumi sama dengan `TaskSearch::haversineSql()` ([EARTH_RADIUS_KM];
+ * rumus SQL-nya hukum kosinus bola, hasilnya setara). Yang itu berjalan di
+ * SQL untuk MENYARING feed; yang ini di
  * PHP untuk menampilkan jarak baris yang sudah dimuat, tanpa kueri tambahan.
  */
 final class GeoDistance
 {
-    private const float EARTH_RADIUS_KM = 6371.0;
+    /** Jari-jari bumi yang SAMA untuk jarak di PHP dan di SQL (TaskSearch). */
+    public const float EARTH_RADIUS_KM = 6371.0;
 
     /** Kilometer per derajat lintang (konstan); per derajat bujur menyusut dengan cos(lintang). */
     public const float KM_PER_LAT_DEGREE = 111.045;

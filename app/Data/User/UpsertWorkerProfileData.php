@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Data\User;
 
 use App\Http\Requests\Api\V1\User\UpsertWorkerProfileRequest;
+use App\Support\PhoneNumber;
 
 /**
  * Isi profil pekerja yang dikirim klien.
@@ -60,12 +61,8 @@ final readonly class UpsertWorkerProfileData
         return new self(
             displayName: $str('display_name'),
             headline: $str('headline'),
-            contactPhone: $request->filled('contact_phone')
-                // Spasi dibuang seperti pada pendaftaran: "+62 812 ..." dan
-                // "+62812..." adalah nomor yang sama, dan hanya satu bentuk
-                // yang boleh masuk basis data.
-                ? preg_replace('/\s+/', '', $request->string('contact_phone')->value())
-                : null,
+            // Aturan & normalisasi nomor yang SAMA dengan pendaftaran (PhoneNumber).
+            contactPhone: PhoneNumber::normalize($request->input('contact_phone')),
             avatarPath: $str('avatar_path'),
             addressLine: $str('address_line'),
             city: $str('city'),

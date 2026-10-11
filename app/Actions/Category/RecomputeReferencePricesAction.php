@@ -31,7 +31,7 @@ final class RecomputeReferencePricesAction
     {
         $updated = 0;
 
-        $minSample = (int) config('sekarya.category_prices.city_min_sample', 5);
+        $minSample = (int) config('sekarya.category_prices.city_min_sample');
 
         foreach (Category::query()->cursor() as $category) {
             // Acuan per kota (U17) dihitung dari sumber yang sama.

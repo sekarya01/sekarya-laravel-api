@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Support\Push;
 
+use App\Enums\CancelRequestStatus;
 use App\Enums\DisputeCategory;
+use App\Enums\DisputeResolution;
 use App\Enums\PushType;
 use App\Http\Resources\Api\V1\ChatMessageResource;
 use App\Models\Activity;
@@ -158,7 +160,7 @@ final class PushMessages
                 : 'Permintaan pembatalan ditolak. Tugas tetap berjalan.',
             data: self::data(PushType::CancelRequestResolved, $task, extra: [
                 'cancel_request_id' => (string) $request->ulid,
-                'result' => $approved ? 'approved' : 'rejected',
+                'result' => ($approved ? CancelRequestStatus::Approved : CancelRequestStatus::Rejected)->value,
             ]),
         );
     }
@@ -216,7 +218,7 @@ final class PushMessages
                 ? 'Komplain ditolak: upah diteruskan ke mitra. '
                 : 'Komplain diterima: dana dikembalikan ke pemberi kerja. ').$note,
             data: self::data(PushType::DisputeResolved, $task, $activity, extra: [
-                'resolution' => $released ? 'release' : 'refund',
+                'resolution' => ($released ? DisputeResolution::Release : DisputeResolution::Refund)->value,
             ]),
         );
     }

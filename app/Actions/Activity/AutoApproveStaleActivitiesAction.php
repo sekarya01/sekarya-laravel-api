@@ -36,7 +36,7 @@ final class AutoApproveStaleActivitiesAction
     public function handle(?CarbonInterface $now = null): int
     {
         $now ??= now();
-        $cutoff = $now->copy()->subHours((int) config('sekarya.activities.auto_approve_hours', 24));
+        $cutoff = $now->copy()->subHours((int) config('sekarya.activities.auto_approve_hours'));
         $approved = 0;
 
         Activity::query()
@@ -44,14 +44,14 @@ final class AutoApproveStaleActivitiesAction
             ->whereNotNull('submitted_at')
             ->where('submitted_at', '<=', $cutoff)
             // Ter-cover index (status, submitted_at); status akhir task tak
-            // bisa bergerak lagi. Activity yang disengketakan berstatus
-            // `rejected`, jadi tidak pernah ikut tersaring di sini.
-            ->whereHas('task', fn ($query) => $query->whereNotIn('status', [
-                TaskStatus::Completed,
-                TaskStatus::Expired,
-                TaskStatus::Cancelled,
-                TaskStatus::Refunded,
-            ]))
+            // bisa bergerak lagi (TaskStatus::isFinal — SSOT). Activity yang
+            // disengketakan berstatus `rejected`, jadi tidak pernah ikut
+            // tersaring di sini. (`expired` bukan final dan tak punya activity:
+            // kedaluwarsa hanya menyentuh task yang belum deal.)
+            ->whereHas('task', fn ($query) => $query->whereNotIn(
+                'status',
+                array_filter(TaskStatus::cases(), static fn (TaskStatus $s): bool => $s->isFinal()),
+            ))
             ->orderBy('id')
             ->chunkById(100, function ($activities) use (&$approved): void {
                 foreach ($activities as $activity) {

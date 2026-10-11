@@ -26,7 +26,7 @@ final class NotifyNearbyWorkersAction
             return 0;
         }
 
-        $radius = (float) config('sekarya.tasks.notify_radius_km', 5);
+        $radius = (float) config('sekarya.tasks.notify_radius_km');
         $box = GeoDistance::boundingBox((float) $task->latitude, (float) $task->longitude, $radius);
 
         // Bounding box dulu (indeks `user_workers (latitude, longitude)`),
@@ -59,7 +59,7 @@ final class NotifyNearbyWorkersAction
         $ids = array_slice(
             array_values(array_unique($ids)),
             0,
-            (int) config('sekarya.tasks.notify_max_workers', 50),
+            (int) config('sekarya.tasks.notify_max_workers'),
         );
 
         if ($ids !== []) {

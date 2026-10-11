@@ -82,11 +82,7 @@ final class CancelTaskAction
             }
 
             // Penawaran yang masih menggantung ditutup agar tidak muncul di daftar worker.
-            $task->bids()->where('status', BidStatus::Pending)->update([
-                'status' => BidStatus::Rejected,
-                'responded_at' => now(),
-                'updated_at' => now(),
-            ]);
+            $task->closePendingBids(BidStatus::Rejected);
 
             $task->forceFill([
                 'cancelled_at' => now(),

@@ -104,7 +104,7 @@ final class ProofPhotos
     /** Batas bawah jumlah foto, dari config (0 = opsional). */
     public function minimum(): int
     {
-        return max(0, (int) $this->config->get('sekarya.activities.min_proof_photos', 1));
+        return max(0, (int) $this->config->get('sekarya.activities.min_proof_photos'));
     }
 
     private function ownerTag(User $owner): string

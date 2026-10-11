@@ -89,13 +89,7 @@ final class ExpireBiddingAction
                             ->map(static fn (mixed $id): int => (int) $id)
                             ->unique();
 
-                        $task->bids()
-                            ->where('status', BidStatus::Pending)
-                            ->update([
-                                'status' => BidStatus::Expired,
-                                'responded_at' => now(),
-                                'updated_at' => now(),
-                            ]);
+                        $task->closePendingBids(BidStatus::Expired);
 
                         return $bidders;
                     });

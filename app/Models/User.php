@@ -13,6 +13,7 @@ use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
 use App\Models\Concerns\HasUlid;
 use App\Notifications\ResetPasswordNotification;
+use Closure;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -370,11 +371,32 @@ class User extends Authenticatable
      */
     public function scopeWithIdentityVerified(Builder $query): void
     {
-        $query->withCount([
-            'verifications as identity_verified_count' => fn (Builder $v) => $v
-                ->where('type', VerificationType::Identity)
-                ->where('status', VerificationStatus::Verified),
-        ]);
+        $query->withCount(['verifications as identity_verified_count' => self::identityVerifiedConstraint()]);
+    }
+
+    /**
+     * Saring pengguna yang identitasnya terverifikasi (atau, `false`, yang
+     * BELUM) — separuh syarat `ready_to_work`, dipakai direktori pekerja API
+     * maupun dasbor. Predikatnya dari [identityVerifiedConstraint].
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeWhereIdentityVerified(Builder $query, bool $verified = true): void
+    {
+        $verified
+            ? $query->whereHas('verifications', self::identityVerifiedConstraint())
+            : $query->whereDoesntHave('verifications', self::identityVerifiedConstraint());
+    }
+
+    /**
+     * SATU definisi "verifikasi identitas yang sah" untuk kueri — dibaca
+     * withCount, whereHas, whereDoesntHave. Versi di memori: isIdentityVerified().
+     */
+    public static function identityVerifiedConstraint(): Closure
+    {
+        return static fn (Builder $v) => $v
+            ->where('type', VerificationType::Identity)
+            ->where('status', VerificationStatus::Verified);
     }
 
     /**

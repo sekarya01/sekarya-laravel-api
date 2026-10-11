@@ -9,8 +9,6 @@ use App\Data\Admin\ChangeUserStatusData;
 use App\Enums\AdminAction;
 use App\Enums\Gender;
 use App\Enums\UserStatus;
-use App\Enums\VerificationStatus;
-use App\Enums\VerificationType;
 use App\Exceptions\Domain\DomainException;
 use App\Models\Admin;
 use App\Models\User;
@@ -76,15 +74,11 @@ final class UserController
             // identitas terverifikasi. "Belum" berarti salah satunya tidak ada.
             ->when($ready === 'yes', fn ($q) => $q
                 ->whereHas('workerProfile')
-                ->whereHas('verifications', fn ($v) => $v
-                    ->where('type', VerificationType::Identity)
-                    ->where('status', VerificationStatus::Verified)))
+                ->whereIdentityVerified())
             ->when($ready === 'no', fn ($q) => $q
                 ->where(fn ($w) => $w
                     ->whereDoesntHave('workerProfile')
-                    ->orWhereDoesntHave('verifications', fn ($v) => $v
-                        ->where('type', VerificationType::Identity)
-                        ->where('status', VerificationStatus::Verified))))
+                    ->orWhere(fn ($o) => $o->whereIdentityVerified(false))))
             // Hitungan verifikasi identitas ikut termuat: penanda "siap kerja"
             // di daftar membacanya per baris, dan tanpa ini setiap baris
             // memicu satu kueri exists() tambahan.

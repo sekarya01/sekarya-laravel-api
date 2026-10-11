@@ -29,10 +29,7 @@ final class ListVerificationQueueAction
                 fn ($q) => $q->where('status', $data->status),
                 // Bawaan: yang masih menunggu keputusan. whereIn atas dua
                 // nilai tetap memakai indeks (status, submitted_at).
-                fn ($q) => $q->whereIn('status', [
-                    VerificationStatus::Pending,
-                    VerificationStatus::InReview,
-                ]),
+                fn ($q) => $q->whereIn('status', VerificationStatus::awaitingReview()),
             )
             ->when($data->type !== null, fn ($q) => $q->where('type', $data->type))
             // Nama pengajunya ikut ditampilkan di daftar; tanpa eager load,

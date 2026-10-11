@@ -53,10 +53,7 @@ final class VerificationController
             ->when(
                 $status !== null,
                 fn ($q) => $q->where('status', $status),
-                fn ($q) => $q->whereIn('status', [
-                    VerificationStatus::Pending,
-                    VerificationStatus::InReview,
-                ]),
+                fn ($q) => $q->whereIn('status', VerificationStatus::awaitingReview()),
             )
             ->when($type !== null, fn ($q) => $q->where('type', $type))
             ->with('user')

@@ -40,7 +40,7 @@ final class ChatRoom extends Model
     }
 
     /** Status bawaan tanpa lewat mass assignment. */
-    protected $attributes = ['status' => 'active'];
+    protected $attributes = ['status' => ChatRoomStatus::Active->value];
 
     /** @return BelongsTo<Task, $this> */
     public function task(): BelongsTo

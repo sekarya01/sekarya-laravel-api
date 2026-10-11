@@ -7,7 +7,6 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 use App\Actions\Admin\Verification\ViewVerificationAction;
 use App\Enums\Gender;
 use App\Enums\UserStatus;
-use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
 use App\Models\Admin;
 use App\Models\UserWorker;
@@ -53,13 +52,7 @@ final class WorkerController
 
                 // Penanda, bukan gerbang: hanya berlaku kalau diminta.
                 if ($readyToWork !== null) {
-                    $readyToWork
-                        ? $u->whereHas('verifications', fn (Builder $v) => $v
-                            ->where('type', VerificationType::Identity)
-                            ->where('status', VerificationStatus::Verified))
-                        : $u->whereDoesntHave('verifications', fn (Builder $v) => $v
-                            ->where('type', VerificationType::Identity)
-                            ->where('status', VerificationStatus::Verified));
+                    $u->whereIdentityVerified($readyToWork);
                 }
 
                 if ($gender !== null) {

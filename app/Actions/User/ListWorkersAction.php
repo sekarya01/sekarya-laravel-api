@@ -6,8 +6,6 @@ namespace App\Actions\User;
 
 use App\Data\User\ListWorkersData;
 use App\Enums\UserStatus;
-use App\Enums\VerificationStatus;
-use App\Enums\VerificationType;
 use App\Models\UserWorker;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -61,13 +59,7 @@ final class ListWorkersAction
                 // tidak punya cara mendapat pekerjaan pertamanya.
                 //
                 // Penyaringnya OPSIONAL, dan hanya berlaku kalau diminta.
-                ->when($data->readyToWork !== null, fn (Builder $r) => $data->readyToWork
-                    ? $r->whereHas('verifications', fn (Builder $v) => $v
-                        ->where('type', VerificationType::Identity)
-                        ->where('status', VerificationStatus::Verified))
-                    : $r->whereDoesntHave('verifications', fn (Builder $v) => $v
-                        ->where('type', VerificationType::Identity)
-                        ->where('status', VerificationStatus::Verified))))
+                ->when($data->readyToWork !== null, fn (Builder $r) => $r->whereIdentityVerified($data->readyToWork)))
             // Ketersediaan (U13) ada di baris profil sendiri — kesetaraan pada
             // indeks (is_available, created_at, id), urutannya tetap cursor.
             ->when($data->available !== null, fn (Builder $q) => $q->where('user_workers.is_available', $data->available))

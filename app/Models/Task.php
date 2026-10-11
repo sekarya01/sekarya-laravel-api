@@ -419,4 +419,24 @@ final class Task extends Model
     {
         $query->orderByDesc('created_at')->orderByDesc('id');
     }
+
+    /** Jumlah penawaran yang masih menunggu — SATU definisi kolom `bids_count`. */
+    public function pendingBidsCount(): int
+    {
+        return $this->bids()->where('status', BidStatus::Pending)->count();
+    }
+
+    /**
+     * Tutup semua penawaran yang masih menunggu sebagai [as] (`rejected` saat
+     * lelang ditutup/dibatalkan, `expired` saat kedaluwarsa) — supaya tidak
+     * menggantung di daftar pelamar.
+     */
+    public function closePendingBids(BidStatus $as): int
+    {
+        return $this->bids()->where('status', BidStatus::Pending)->update([
+            'status' => $as,
+            'responded_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
 }

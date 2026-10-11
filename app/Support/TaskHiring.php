@@ -46,7 +46,7 @@ final class TaskHiring
             // satu orang. Harga per orang tetap di penawaran masing-masing dan
             // disalin ke activity-nya saat dana ditahan.
             'agreed_amount' => (int) $accepted->sum('amount'),
-            'bids_count' => $task->bids()->where('status', BidStatus::Pending)->count(),
+            'bids_count' => $task->pendingBidsCount(),
         ])->save();
 
         // Satu tagihan per task, sebesar jumlah seluruh penawaran yang
@@ -83,13 +83,7 @@ final class TaskHiring
      */
     public function close(Task $task, User $poster, string $reason): void
     {
-        $task->bids()
-            ->where('status', BidStatus::Pending)
-            ->update([
-                'status' => BidStatus::Rejected,
-                'responded_at' => now(),
-                'updated_at' => now(),
-            ]);
+        $task->closePendingBids(BidStatus::Rejected);
 
         $task->forceFill(['dealt_at' => now(), 'bids_count' => 0])->save();
 

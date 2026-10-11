@@ -42,8 +42,7 @@ final class WalletTopupController
         $queue = WalletTopup::query()
             ->where('status', $status)
             ->with('user')
-            ->orderBy('created_at')
-            ->orderBy('id')
+            ->queueOrder()
             ->paginate(max(1, min($request->integer('per_page', 20), 50)))
             ->withQueryString();
 

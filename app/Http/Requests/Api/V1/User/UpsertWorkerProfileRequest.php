@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\User;
 
+use App\Support\PhoneNumber;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -34,7 +35,7 @@ final class UpsertWorkerProfileRequest extends FormRequest
             'headline' => ['sometimes', 'nullable', 'string', 'max:60'],
             'contact_phone' => [
                 'sometimes', 'nullable', 'string', 'max:20',
-                'regex:/^\+?[0-9]{9,19}$/',
+                'regex:'.PhoneNumber::PATTERN,
             ],
             'avatar_path' => ['sometimes', 'nullable', 'string', 'max:255'],
 
