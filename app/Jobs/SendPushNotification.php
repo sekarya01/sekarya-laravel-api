@@ -130,10 +130,20 @@ final class SendPushNotification implements ShouldQueue
         }
 
         // Status task ikut berubah oleh agregat (TaskSettlement::sync), jadi
-        // dibawa sebagai kunci tersendiri — bukan task bersarang.
-        $taskStatus = Task::query()->whereKey($activity->task_id)->value('status');
-        if ($taskStatus !== null) {
-            $data['task_status'] = $taskStatus instanceof TaskStatus ? $taskStatus->value : (string) $taskStatus;
+        // dibawa sebagai kunci tersendiri — bukan task bersarang. Judul &
+        // kategori ikut (kunci datar, beberapa byte) agar kartu lonceng di
+        // aplikasi tetap bisa menggambar panel tugas tanpa memanggil API.
+        $task = Task::query()
+            ->whereKey($activity->task_id)
+            ->with('category:id,name,icon')
+            ->first(['id', 'category_id', 'title', 'status']);
+        if ($task !== null) {
+            $data['task_status'] = $task->status instanceof TaskStatus ? $task->status->value : (string) $task->status;
+            $data['task_title'] = (string) $task->title;
+            if ($task->category !== null) {
+                $data['category_name'] = (string) $task->category->name;
+                $data['category_icon'] = (string) $task->category->icon;
+            }
         }
 
         $work = ActivityResource::make($activity)->resolve($request);
