@@ -9,7 +9,9 @@ use App\Models\EmailVerificationCode;
 use App\Models\User;
 use App\Notifications\VerificationCodeNotification;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Throwable;
 
 /**
  * Terbitkan kode verifikasi dan kirim ke email.
@@ -58,10 +60,19 @@ final class IssueVerificationCodeAction
                 'request_ip' => $ip,
             ]);
 
-            $user->notify(new VerificationCodeNotification(
-                $code,
-                (int) config('sekarya.verification.ttl_minutes'),
-            ));
+            // SESUDAH commit (termasuk transaksi pendaftaran di luar ini): SMTP
+            // yang lambat tidak boleh menahan kunci baris selama round-trip,
+            // dan SMTP yang gagal tidak boleh me-rollback akun yang sudah sah.
+            // Galatnya dilaporkan (log/Axiom) — pengguna sudah berada di layar
+            // verifikasi dan bisa memakai "kirim ulang kode".
+            $minutes = (int) config('sekarya.verification.ttl_minutes');
+            DB::afterCommit(static function () use ($user, $code, $minutes): void {
+                try {
+                    $user->notify(new VerificationCodeNotification($code, $minutes));
+                } catch (Throwable $e) {
+                    report($e);
+                }
+            });
 
             return $record;
         });
