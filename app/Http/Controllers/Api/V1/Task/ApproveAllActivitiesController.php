@@ -7,7 +7,6 @@ namespace App\Http\Controllers\Api\V1\Task;
 use App\Actions\Task\ApproveAllActivitiesAction;
 use App\Http\Resources\Api\V1\TaskResource;
 use App\Models\Task;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 
 /**
@@ -23,10 +22,8 @@ final class ApproveAllActivitiesController
     {
         $this->action->handle($task, $request->user());
 
-        return TaskResource::make($task->load([
-            'category', 'poster', 'workers.skills', 'skills', 'payment', 'activities.worker',
-            'pendingCancelRequest.approvals',
-            'myBid' => fn (Relation $q) => $q->where('bidder_id', $request->user()?->getKey()),
-        ]));
+        // Bentuk detail dari SATU sumber (Task::loadDetailFor) — sama dengan
+        // GET tasks/{task}, termasuk badge identitas tanpa N+1.
+        return TaskResource::make($task->refresh()->loadDetailFor($request->user()));
     }
 }

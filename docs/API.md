@@ -2203,6 +2203,7 @@ Bercabanglah pada `code`, **jangan** pada `message`.
 | `invalid_verification_code` | 422 | Kode salah, kedaluwarsa, atau percobaan habis |
 | `resend_too_soon` | 429 | Cooldown kirim ulang |
 | `task_not_found` | 404 | Tidak ada, **atau** bukan milik Anda |
+| `not_found` | 404 | Id/rute tidak dikenal (route model binding, rute salah) — bukan galat domain; pesan tidak menyebut kelas internal |
 | `task_not_biddable` | 422 | Tidak menerima penawaran / lelang tutup |
 | `cannot_bid_own_task` | 403 | Menawar task sendiri |
 | `bid_below_minimum` | 422 | Di bawah `budget_min` |

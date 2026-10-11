@@ -18,6 +18,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -110,5 +111,17 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => 'Token tidak valid atau sudah kedaluwarsa.',
                 'code' => 'unauthenticated',
             ], Response::HTTP_UNAUTHORIZED)
+            : null);
+
+        // Semua 404 API (route model binding, firstOrFail, abort(404), rute tak
+        // dikenal) berbentuk `{message, code}` seperti galat bisnis — klien
+        // bercabang pada `code`. Pesan bawaan Laravel juga membocorkan nama
+        // kelas model ("No query results for model [App\Models\User]").
+        // Galat domain *_not_found (task/chat) punya kodenya sendiri di atas.
+        $exceptions->render(fn (NotFoundHttpException $e, Request $request) => $request->is('api/*')
+            ? new JsonResponse([
+                'message' => 'Data tidak ditemukan.',
+                'code' => 'not_found',
+            ], Response::HTTP_NOT_FOUND)
             : null);
     })->create();

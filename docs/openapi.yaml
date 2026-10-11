@@ -5472,15 +5472,20 @@ components:
             properties:
               message: { type: string }
     NotFound:
-      description: Tidak ditemukan — atau ada tapi bukan milik Anda.
+      description: |
+        Tidak ditemukan — atau ada tapi bukan milik Anda. Galat domain memakai
+        kodenya sendiri (`task_not_found`, `chat_room_not_found`, …); selain itu
+        (id salah, rute tak dikenal) `not_found`.
       headers:
         X-Request-Id: { $ref: '#/components/headers/RequestId' }
       content:
         application/json:
           schema:
             type: object
+            required: [message, code]
             properties:
               message: { type: string }
+              code: { type: string, examples: [not_found] }
     ValidationFailed:
       description: Bentuk request tidak sah.
       headers:

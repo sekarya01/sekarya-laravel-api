@@ -810,6 +810,11 @@ Add a route without documenting it and the suite names it.
 - Validation failures return `{message, errors}`; business failures return
   `{message, code, context?}`. The two shapes stay disjoint so clients branch on `code`,
   never on `message`.
+- Every API 404 is `{message, code}`: domain errors keep their own code
+  (`task_not_found`, `chat_room_not_found`, …); everything else — route model binding,
+  `firstOrFail()`, unknown route — is `not_found` (rendered once in `bootstrap/app.php`;
+  Laravel's default message leaked model class names). Policy 403s stay code-less
+  (documented in Pengelola).
 
 ## Scaffold a new feature slice
 
