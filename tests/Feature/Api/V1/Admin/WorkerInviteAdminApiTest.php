@@ -136,4 +136,37 @@ final class WorkerInviteAdminApiTest extends TestCase
             ->assertJsonPath('data.0.email', $user->email)
             ->assertJsonPath('data.0.identity_verified', false);
     }
+
+    /**
+     * Kontrak (OpenAPI) menjanjikan cursor + `per_page`; dulu kodenya
+     * `paginate(20)` — `per_page` diabaikan dan `meta` berbentuk lain.
+     */
+    public function test_daftar_kode_memakai_cursor_dan_per_page(): void
+    {
+        WorkerInviteCode::factory()->count(3)->create();
+
+        $first = $this->asAdmin($this->admin)
+            ->getJson(route('v1.admin.worker-invites.index', ['per_page' => 2]))
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonStructure(['meta' => ['next_cursor', 'per_page']]);
+
+        $second = $this->asAdmin($this->admin)
+            ->getJson(route('v1.admin.worker-invites.index', ['per_page' => 2, 'cursor' => $first->json('meta.next_cursor')]))
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+
+        $ids = [...array_column($first->json('data'), 'id'), ...array_column($second->json('data'), 'id')];
+        $this->assertCount(3, array_unique($ids));
+    }
+
+    public function test_daftar_pemakai_memakai_cursor(): void
+    {
+        $code = WorkerInviteCode::factory()->create();
+
+        $this->asAdmin($this->admin)
+            ->getJson(route('v1.admin.worker-invites.redemptions.index', [$code->getKey(), 'per_page' => 5]))
+            ->assertOk()
+            ->assertJsonStructure(['meta' => ['next_cursor', 'per_page']]);
+    }
 }

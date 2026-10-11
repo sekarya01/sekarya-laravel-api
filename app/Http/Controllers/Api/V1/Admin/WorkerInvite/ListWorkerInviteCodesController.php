@@ -4,22 +4,17 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Admin\WorkerInvite;
 
+use App\Actions\Admin\WorkerInvite\ListWorkerInvitesAction;
+use App\Http\Requests\Api\V1\Admin\WorkerInvitePageRequest;
 use App\Http\Resources\Api\V1\Admin\AdminWorkerInviteCodeResource;
-use App\Models\WorkerInviteCode;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class ListWorkerInviteCodesController
 {
-    public function __invoke(Request $request): AnonymousResourceCollection
-    {
-        $codes = WorkerInviteCode::query()
-            ->withCount('redemptions')
-            ->with('creator')
-            ->latest('id')
-            ->paginate(20)
-            ->withQueryString();
+    public function __construct(private readonly ListWorkerInvitesAction $action) {}
 
-        return AdminWorkerInviteCodeResource::collection($codes);
+    public function __invoke(WorkerInvitePageRequest $request): AnonymousResourceCollection
+    {
+        return AdminWorkerInviteCodeResource::collection($this->action->codes($request->page()));
     }
 }

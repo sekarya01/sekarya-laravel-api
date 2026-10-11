@@ -4,27 +4,18 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Admin\WorkerInvite;
 
+use App\Actions\Admin\WorkerInvite\ListWorkerInvitesAction;
+use App\Http\Requests\Api\V1\Admin\WorkerInvitePageRequest;
 use App\Http\Resources\Api\V1\Admin\AdminWorkerInviteRedemptionResource;
 use App\Models\WorkerInviteCode;
-use App\Models\WorkerInviteRedemption;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class ListWorkerInviteRedemptionsController
 {
-    /**
-     * Siapa saja yang memakai kode ini — dasar meja verifikasi: pengelola
-     * melihat pekerja yang masuk lewat kode, lalu memverifikasi identitasnya
-     * di antrean verifikasi seperti biasa.
-     */
-    public function __invoke(WorkerInviteCode $code): AnonymousResourceCollection
-    {
-        $redemptions = WorkerInviteRedemption::query()
-            ->where('invite_code_id', $code->getKey())
-            ->with(['user.verifications'])
-            ->orderByDesc('id')
-            ->paginate(20)
-            ->withQueryString();
+    public function __construct(private readonly ListWorkerInvitesAction $action) {}
 
-        return AdminWorkerInviteRedemptionResource::collection($redemptions);
+    public function __invoke(WorkerInvitePageRequest $request, WorkerInviteCode $code): AnonymousResourceCollection
+    {
+        return AdminWorkerInviteRedemptionResource::collection($this->action->redemptions($code, $request->page()));
     }
 }

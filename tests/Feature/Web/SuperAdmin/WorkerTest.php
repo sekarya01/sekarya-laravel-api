@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\UserVerification;
 use App\Models\UserWorker;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -27,8 +28,19 @@ final class WorkerTest extends TestCase
         $user->email_verified_at = now();
         $user->save();
         $this->verifyIdentity($user);
+        $this->giveUniqueName($user);
 
         return $user->refresh();
+    }
+
+    /**
+     * Nama pasti-unik untuk assertSee/assertDontSee. Nama acak faker dulu
+     * sesekali muncul juga di bagian lain halaman (mis. nama pengelola), dan
+     * assertDontSee gagal tanpa ada yang salah di kodenya.
+     */
+    private function giveUniqueName(User $user): void
+    {
+        $user->workerProfile->forceFill(['display_name' => 'Pekerja-'.Str::upper(Str::random(10))])->save();
     }
 
     public function test_direktori_menampilkan_pekerja_siap(): void
@@ -49,6 +61,7 @@ final class WorkerTest extends TestCase
         $notReady->status = UserStatus::Active;
         $notReady->email_verified_at = now();
         $notReady->save();
+        $this->giveUniqueName($notReady);
 
         $response = $this->get(route('super_admin.workers.index', ['ready_to_work' => '0']))
             ->assertOk();

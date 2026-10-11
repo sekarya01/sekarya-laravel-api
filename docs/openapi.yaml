@@ -4238,6 +4238,7 @@ paths:
         `plain_code` hanya ada di respons pembuatan, tidak di sini.
       parameters:
         - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
           description: Satu halaman kode.
@@ -4409,6 +4410,7 @@ paths:
         kode hanya membuka pintu, bukan menyatakan lolos.
       parameters:
         - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
           description: Satu halaman jejak redeem, terbaru dulu.
