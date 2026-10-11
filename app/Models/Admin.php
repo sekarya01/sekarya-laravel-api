@@ -13,7 +13,6 @@ use App\Models\Concerns\HasUlid;
 use Database\Factories\AdminFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -121,9 +120,12 @@ final class Admin extends Authenticatable
         $query->orderByDesc('created_at')->orderByDesc('id');
     }
 
-    /** @return HasMany<AdminAuditLog, $this> */
-    public function auditLogs(): HasMany
+    /** Catat login yang BENAR-BENAR terjadi (API maupun dasbor) — satu tempat. */
+    public function recordLogin(?string $ip): void
     {
-        return $this->hasMany(AdminAuditLog::class);
+        $this->forceFill([
+            'last_login_at' => now(),
+            'last_login_ip' => $ip,
+        ])->save();
     }
 }

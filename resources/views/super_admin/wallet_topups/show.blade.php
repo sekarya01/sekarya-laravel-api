@@ -18,7 +18,7 @@
 <div class="anim-rise mt-3 rounded-2xl p-5 sm:p-6 text-white relative overflow-hidden" style="background: linear-gradient(120deg, #0A1E35, #163C68 70%);">
     <div class="absolute -right-8 -top-12 w-56 h-56 rounded-full opacity-25" style="background: #F97316; filter: blur(60px);"></div>
     <p class="relative text-xs uppercase tracking-widest font-bold text-orange-200">Nominal isi saldo yang dilaporkan</p>
-    <p class="relative mt-1 text-3xl sm:text-4xl font-extrabold">Rp{{ number_format($topup->amount, 0, ',', '.') }}</p>
+    <p class="relative mt-1 text-3xl sm:text-4xl font-extrabold">{{ \App\Support\Rupiah::format($topup->amount) }}</p>
     <p class="relative mt-1 font-mono text-xs text-slate-400">{{ $topup->ulid }}</p>
 </div>
 
@@ -68,11 +68,11 @@
             <p class="mt-1 font-bold leading-snug">{{ $topup->sender_note ?? '—' }}</p>
             <div class="mt-3 flex items-end justify-between border-t border-white/15 pt-3">
                 <span class="text-xs text-slate-300">Saldo pengguna saat ini</span>
-                <span class="text-xl font-extrabold text-orange-300">Rp{{ number_format($balance, 0, ',', '.') }}</span>
+                <span class="text-xl font-extrabold text-orange-300">{{ \App\Support\Rupiah::format($balance) }}</span>
             </div>
         </div>
         <p class="mt-3 text-xs leading-relaxed text-slate-500 rounded-xl bg-orange-50 border border-orange-100 p-3">
-            Konfirmasi hanya kalau mutasi rekening sejumlah <strong>Rp{{ number_format($topup->amount, 0, ',', '.') }}</strong> benar-benar sudah masuk. Saldo yang dikonfirmasi bisa langsung dipakai memasang tugas atau ditarik.
+            Konfirmasi hanya kalau mutasi rekening sejumlah <strong>{{ \App\Support\Rupiah::format($topup->amount) }}</strong> benar-benar sudah masuk. Saldo yang dikonfirmasi bisa langsung dipakai memasang tugas atau ditarik.
         </p>
     </div>
 </div>
@@ -82,7 +82,7 @@
     <form method="POST" action="{{ route('super_admin.wallet_topups.confirm', $topup->ulid) }}" class="anim-rise ad-2 card card-lift p-5 sm:p-6" style="border-top: 4px solid #059669;">
         @csrf
         <h4 class="font-extrabold text-emerald-800">Konfirmasi — mutasi cocok</h4>
-        <p class="mt-1 text-sm text-slate-500">Saldo pengguna bertambah <strong>Rp{{ number_format($topup->amount, 0, ',', '.') }}</strong> dan tercatat di riwayat dompetnya.</p>
+        <p class="mt-1 text-sm text-slate-500">Saldo pengguna bertambah <strong>{{ \App\Support\Rupiah::format($topup->amount) }}</strong> dan tercatat di riwayat dompetnya.</p>
         <button class="btn btn-success w-full mt-4">✓ Konfirmasi & tambah saldo</button>
     </form>
     <form method="POST" action="{{ route('super_admin.wallet_topups.reject', $topup->ulid) }}" class="anim-rise ad-3 card card-lift p-5 sm:p-6" style="border-top: 4px solid #DC2626;">

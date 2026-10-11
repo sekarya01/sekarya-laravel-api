@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 use App\Actions\Admin\Payment\ConfirmPaymentAction;
 use App\Actions\Admin\Payment\RejectPaymentAction;
 use App\Data\Admin\RejectPaymentData;
+use App\Data\CursorPageData;
 use App\Enums\PaymentStatus;
 use App\Exceptions\Domain\DomainException;
 use App\Models\Admin;
@@ -43,7 +44,7 @@ final class PaymentController
             ->with(['task.category', 'payer'])
             ->orderBy('reported_at')
             ->orderBy('id')
-            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->paginate(CursorPageData::fromRequest($request)->perPage)
             ->withQueryString();
 
         return view('super_admin.payments.index', [
@@ -85,12 +86,7 @@ final class PaymentController
         $admin = Auth::guard('admin_web')->user();
 
         try {
-            $build = \Closure::bind(
-                fn () => new RejectPaymentData($validated['reason'], $request->ip()),
-                null,
-                RejectPaymentData::class,
-            );
-            $action->handle($payment, $admin, $build());
+            $action->handle($payment, $admin, new RejectPaymentData($validated['reason'], $request->ip()));
         } catch (DomainException $e) {
             return back()->withErrors(['action' => $e->getMessage()])->withInput();
         }

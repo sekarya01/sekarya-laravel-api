@@ -9,6 +9,7 @@ use App\Enums\BidStatus;
 use App\Exceptions\Domain\BidBelowMinimumException;
 use App\Exceptions\Domain\BlockedUserException;
 use App\Exceptions\Domain\CannotBidOwnTaskException;
+use App\Exceptions\Domain\InvalidStatusTransitionException;
 use App\Exceptions\Domain\TaskNotBiddableException;
 use App\Models\Bid;
 use App\Models\Task;
@@ -35,8 +36,26 @@ final class PlaceBidAction
 
     public function handle(PlaceBidData $data, Task $task, User $bidder): Bid
     {
-        $bid = $this->db->transaction(function () use ($data, $task, $bidder): Bid {
+        $bid = $this->db->transaction(function () use ($data, &$task, $bidder): Bid {
+            // Status task dibaca dari baris yang dikunci: penerimaan atau
+            // penutupan lelang bisa sudah commit sejak task ini dimuat.
+            $task = Task::query()->whereKey($task->getKey())->lockForUpdate()->firstOrFail();
             $this->assertBiddable($task, $bidder, $data->amount);
+
+            // Pekerja yang SUDAH diterima tidak boleh menawar ulang:
+            // `updateOrCreate` di bawah akan mengembalikan bid-nya ke `pending`
+            // sementara `workers_hired` & escrow masih menghitungnya diterima.
+            $existing = Bid::query()
+                ->where('task_id', $task->getKey())
+                ->where('bidder_id', $bidder->getKey())
+                ->lockForUpdate()
+                ->first();
+            if ($existing?->status === BidStatus::Accepted) {
+                throw InvalidStatusTransitionException::between(
+                    BidStatus::Accepted->value,
+                    BidStatus::Pending->value,
+                );
+            }
 
             // Satu orang satu penawaran: mengubah tawaran = update baris yang sama,
             // bukan menambah baris baru. Unique (task_id, bidder_id) menjaganya.
@@ -64,7 +83,7 @@ final class PlaceBidAction
             }
 
             $task->forceFill([
-                'bids_count' => $task->bids()->where('status', BidStatus::Pending)->count(),
+                'bids_count' => $task->pendingBidsCount(),
             ])->save();
 
             return $bid;

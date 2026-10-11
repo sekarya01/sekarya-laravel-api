@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace App\Actions\Bid;
 
 use App\Data\CursorPageData;
-use App\Enums\VerificationStatus;
-use App\Enums\VerificationType;
 use App\Models\Bid;
 use App\Models\Task;
 use App\Models\User;
@@ -30,19 +28,7 @@ final class ListBidsAction
         string $sort = 'amount',
         ?User $viewer = null,
     ): CursorPaginator {
-        $query = Bid::query()
-            ->where('task_id', $task->getKey())
-            // Callback eager-load pada relasi menerima Relation, bukan Builder.
-            ->with([
-                'bidder' => fn (Relation $q) => $q->withCount([
-                    'verifications as identity_verified_count' => fn (Builder $v) => $v
-                        ->where('type', VerificationType::Identity)
-                        ->where('status', VerificationStatus::Verified),
-                ]),
-                // Keahlian penawar — dibaca pemberi kerja di layar profil
-                // penawar. PublicUserResource hanya mengirimnya bila dimuat.
-                'bidder.skills',
-            ]);
+        $base = Bid::query()->where('bids.task_id', $task->getKey());
 
         // Pengurutan berdasarkan rating butuh join — tidak bisa dari kolom bid sendiri.
         //
@@ -50,14 +36,35 @@ final class ListBidsAction
         // baru lahir saat orangnya pertama kali menang atau mengisi profil
         // pekerjanya. Inner join akan MENGHILANGKAN penawaran dari pekerja
         // baru — tanpa galat, dan justru pada urutan yang dipakai pemberi
-        // kerja untuk memilih orang. Yang belum punya profil jatuh ke bawah
-        // sendirinya: di MySQL, NULL diurutkan paling akhir pada DESC.
+        // kerja untuk memilih orang.
+        //
+        // Dibungkus TABEL TURUNAN dengan COALESCE(…, 0): kolom urut cursor harus
+        // kolom sungguhan yang ikut terpilih dan tidak pernah NULL. Dulu kolom
+        // join dipakai langsung — tidak ter-select dan NULL untuk pekerja tanpa
+        // profil — sehingga cursor halaman 2 berisi null dan kuerinya meledak
+        // 500. Pekerja tanpa profil (rating 0) tetap jatuh ke bawah.
         if ($sort === 'rating') {
-            $query
-                ->leftJoin('user_workers', 'user_workers.user_id', '=', 'bids.bidder_id')
-                ->orderByDesc('user_workers.worker_rating_avg')
-                ->orderByDesc('user_workers.tasks_completed')
-                ->select('bids.*');
+            $base = Bid::query()->fromSub(
+                $base
+                    ->leftJoin('user_workers', 'user_workers.user_id', '=', 'bids.bidder_id')
+                    ->select('bids.*')
+                    ->selectRaw('COALESCE(user_workers.worker_rating_avg, 0) AS rating_sort')
+                    ->selectRaw('COALESCE(user_workers.tasks_completed, 0) AS completed_sort'),
+                'bids',
+            );
+        }
+
+        $query = $base
+            // Callback eager-load pada relasi menerima Relation, bukan Builder.
+            ->with([
+                'bidder' => fn (Relation $q) => $q->withIdentityVerified(),
+                // Keahlian penawar — dibaca pemberi kerja di layar profil
+                // penawar. PublicUserResource hanya mengirimnya bila dimuat.
+                'bidder.skills',
+            ]);
+
+        if ($sort === 'rating') {
+            $query->orderByDesc('rating_sort')->orderByDesc('completed_sort');
         } elseif ($sort === 'amount') {
             $query->orderBy('bids.amount');
         } else {
@@ -73,7 +80,7 @@ final class ListBidsAction
         // (Task::showsWorkerDistanceTo). Dihitung di PHP dari profil pekerja
         // yang sudah termuat (User::$with), jadi nol kueri tambahan.
         // Nilainya atribut sementara yang tidak pernah disimpan; di jalur lain
-        // (bids/mine, my_bid, respons tawar) ia tidak pernah diisi, sehingga
+        // (my_bid, respons tawar) ia tidak pernah diisi, sehingga
         // BidResource mengeluarkan `null` di sana.
         if ($task->showsWorkerDistanceTo($viewer)) {
             foreach ($bids->items() as $bid) {
@@ -85,24 +92,5 @@ final class ListBidsAction
         }
 
         return $bids;
-    }
-
-    /**
-     * Penawaran yang diikuti seseorang.
-     *
-     * @return CursorPaginator<int, Bid>
-     */
-    public function byBidder(User $bidder, CursorPageData $page): CursorPaginator
-    {
-        return Bid::query()
-            ->where('bidder_id', $bidder->getKey())
-            ->with([
-                'task.category',
-                // Penentu lokasi presisi (Task::revealsLocationTo) dibaca dari
-                // sini — tanpa ini setiap baris memicu satu kueri `exists`.
-                'task.myBid' => fn (Relation $q) => $q->where('bidder_id', $bidder->getKey()),
-            ])
-            ->latestFirst()
-            ->cursorPaginate($page->perPage);
     }
 }

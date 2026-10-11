@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Notifications\VerificationCodeNotification;
 use App\Support\TokenIssuer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
@@ -39,6 +40,26 @@ final class AuthFlowTest extends TestCase
             ->assertJsonPath('data.status', UserStatus::PendingVerification->value)
             ->assertJsonPath('data.email', 'budi@sekarya.test')
             ->assertJsonStructure(['message', 'data' => ['email', 'status', 'code_expires_in_minutes', 'next_step']]);
+    }
+
+    /**
+     * Email dikirim SESUDAH commit: SMTP yang lambat tidak menahan kunci baris
+     * pendaftaran, dan SMTP yang gagal tidak menghapus akunnya (dulu seluruh
+     * pendaftaran di-rollback → 500, lalu daftar ulang pun bisa berbenturan).
+     * Galatnya dilaporkan; pengguna memakai "kirim ulang kode".
+     */
+    public function test_a_mail_failure_keeps_the_account_and_is_reported(): void
+    {
+        Exceptions::fake();
+        Notification::shouldReceive('send')->andThrow(new \RuntimeException('SMTP mati'));
+
+        $this->postJson(route('v1.auth.register'), self::PAYLOAD)->assertAccepted();
+
+        $this->assertDatabaseHas('users', ['email' => 'budi@sekarya.test']);
+        $this->assertDatabaseHas('email_verification_codes', [
+            'user_id' => User::query()->where('email', 'budi@sekarya.test')->value('id'),
+        ]);
+        Exceptions::assertReported(fn (\RuntimeException $e): bool => $e->getMessage() === 'SMTP mati');
     }
 
     /** Mengembalikan token di sini akan membuat verifikasi tanpa arti. */

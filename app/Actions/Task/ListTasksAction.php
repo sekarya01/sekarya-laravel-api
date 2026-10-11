@@ -53,10 +53,7 @@ final class ListTasksAction
                     fn (Builder $b) => $b->where('bidder_id', $actor->getKey()),
                 ),
             )
-            ->with(['myBid' => fn (Relation $q) => $q->where('bidder_id', $actor->getKey())])
-            // Apakah tugas ini disimpan orang ini (B11) — satu subquery per
-            // halaman, bukan satu kueri per kartu.
-            ->withExists(['bookmarks as bookmarked' => fn (Builder $q) => $q->where('user_id', $actor->getKey())]);
+            ->with(['myBid' => fn (Relation $q) => $q->where('bidder_id', $actor->getKey())]);
 
         $this->applySkills($query, $data, $actor);
 
@@ -76,7 +73,10 @@ final class ListTasksAction
             // Pemberi kerja melihat status pekerja tiap tugas yang sedang
             // dikerjakan dari daftar — tanpa ini kartu hanya bisa menulis
             // "Dikerjakan" dan berselisih dengan Detail.
-            ->with('activities.worker', 'activities.latestUpdate')
+            ->with([
+                'activities.worker' => fn (Relation $q) => $q->withIdentityVerified(),
+                'activities.latestUpdate',
+            ])
             ->cursorPaginate($data->page->perPage);
     }
 
@@ -103,7 +103,10 @@ final class ListTasksAction
             ->when($data->statuses !== [], fn (Builder $q) => $this->applyStatuses($q, $data->statuses))
             // Mitra melihat status pekerjaannya sendiri dari daftar (mis.
             // "Sudah sampai"), bukan hanya "Dikerjakan".
-            ->with('activities.worker', 'activities.latestUpdate')
+            ->with([
+                'activities.worker' => fn (Relation $q) => $q->withIdentityVerified(),
+                'activities.latestUpdate',
+            ])
             // Penawarannya sendiri — juga yang dibaca Task::revealsLocationTo
             // tanpa satu kueri per baris.
             ->with(['myBid' => fn (Relation $q) => $q->where('bidder_id', $worker->getKey())])
@@ -118,7 +121,9 @@ final class ListTasksAction
         // memakai join ke users — tanpa kualifikasi, kolomnya bisa ambigu.
         $query = Task::query()
             ->select('tasks.*')
-            ->with(['category', 'poster', 'skills'])
+            // Badge poster dari satu subquery (User::withIdentityVerified), bukan
+            // `exists` per kartu.
+            ->with(['category', 'skills', 'poster' => fn (Relation $q) => $q->withIdentityVerified()])
             // Satu kategori tetap `=`, beberapa `IN` — keduanya rentang pada
             // indeks (category_id, status, created_at).
             ->when(count($data->categoryIds) === 1, fn (Builder $q) => $q->where('tasks.category_id', $data->categoryIds[0]))

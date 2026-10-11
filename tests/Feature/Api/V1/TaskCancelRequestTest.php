@@ -134,10 +134,11 @@ final class TaskCancelRequestTest extends TestCase
             // Penyetuju BUKAN pembatal: tercatat atas nama pemberi kerja.
             ->assertJsonPath('data.cancelled_by', 'poster');
 
+        // Tidak ada lagi permintaan yang menunggu di detail task.
         $this->asUser($this->worker)
-            ->getJson(route('v1.tasks.cancel-request.show', $task))
-            ->assertUnprocessable()
-            ->assertJsonPath('code', 'no_pending_cancel_request');
+            ->getJson(route('v1.tasks.show', $task))
+            ->assertOk()
+            ->assertJsonPath('data.cancel_request', null);
     }
 
     public function test_worker_rejects_and_the_task_continues(): void

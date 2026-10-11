@@ -6,6 +6,7 @@ namespace App\Actions\Auth;
 
 use App\Exceptions\Domain\InvalidPasswordResetTokenException;
 use App\Models\User;
+use App\Support\Email;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Facades\Hash;
@@ -24,7 +25,7 @@ final class ResetPasswordAction
     public function handle(string $email, string $token, string $password): void
     {
         $status = Password::reset(
-            ['email' => mb_strtolower(trim($email)), 'password' => $password, 'token' => $token],
+            ['email' => Email::normalize($email), 'password' => $password, 'token' => $token],
             function (User $user) use ($password): void {
                 $this->db->transaction(function () use ($user, $password): void {
                     $user->forceFill([
@@ -47,7 +48,7 @@ final class ResetPasswordAction
     /** Tautan masih hidup: token ada, cocok, dan belum lewat 60 menit. */
     public function tokenIsValid(string $email, string $token): bool
     {
-        $user = User::query()->where('email', mb_strtolower(trim($email)))->first();
+        $user = User::query()->where('email', Email::normalize($email))->first();
 
         if (! $user instanceof User) {
             return false;

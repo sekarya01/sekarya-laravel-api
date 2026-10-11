@@ -12,6 +12,7 @@ use App\Models\WalletWithdrawal;
 use App\Support\AdminAuditRecorder;
 use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
+use App\Support\Rupiah;
 use Illuminate\Database\ConnectionInterface;
 
 /**
@@ -62,8 +63,8 @@ final class CompleteWithdrawalAction
                 AdminAction::WalletWithdrawalCompleted,
                 (int) $fresh->getKey(),
                 sprintf(
-                    'Rp%s%s',
-                    number_format((float) $fresh->amount, 0, ',', '.'),
+                    '%s%s',
+                    Rupiah::format($fresh->amount),
                     $transferReference === null ? '' : ', ref '.$transferReference,
                 ),
                 $ip,

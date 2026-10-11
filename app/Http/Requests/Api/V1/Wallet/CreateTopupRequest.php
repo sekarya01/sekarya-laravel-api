@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Wallet;
 
+use App\Support\Rupiah;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -34,12 +35,8 @@ final class CreateTopupRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'amount.min' => 'Minimum isi saldo Rp'.number_format(
-                (float) config('sekarya.wallet.min_topup'), 0, ',', '.'
-            ).'.',
-            'amount.max' => 'Maksimum isi saldo per permintaan Rp'.number_format(
-                (float) config('sekarya.wallet.max_topup'), 0, ',', '.'
-            ).'.',
+            'amount.min' => 'Minimum isi saldo '.Rupiah::format(config('sekarya.wallet.min_topup')).'.',
+            'amount.max' => 'Maksimum isi saldo per permintaan '.Rupiah::format(config('sekarya.wallet.max_topup')).'.',
         ];
     }
 }

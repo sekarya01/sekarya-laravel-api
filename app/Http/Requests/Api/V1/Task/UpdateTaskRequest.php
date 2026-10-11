@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1\Task;
 
 use App\Enums\TaskStatus;
+use App\Http\Requests\Api\V1\Concerns\RequiresCoordinatePair;
 use App\Models\Task;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -27,6 +28,8 @@ use Illuminate\Support\Carbon;
  */
 final class UpdateTaskRequest extends FormRequest
 {
+    use RequiresCoordinatePair;
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
@@ -85,6 +88,16 @@ final class UpdateTaskRequest extends FormRequest
                         'Budget maksimum tidak boleh lebih kecil dari budget minimum.',
                     );
                 }
+            }
+
+            // Berpasangan atas nilai EFEKTIF (yang dikirim, kalau tidak yang
+            // tersimpan) — penyuntingan parsial boleh mengirim satu ruas saja.
+            if ($this->has('latitude') || $this->has('longitude')) {
+                $this->checkCoordinatePair(
+                    $validator,
+                    $this->has('latitude') ? $this->input('latitude') : $task->latitude,
+                    $this->has('longitude') ? $this->input('longitude') : $task->longitude,
+                );
             }
 
             // Tugas kedaluwarsa dibuka lagi lewat jadwal mulai BARU. Tanpa itu

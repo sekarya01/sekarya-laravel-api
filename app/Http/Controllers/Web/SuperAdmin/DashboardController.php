@@ -8,7 +8,6 @@ use App\Enums\PaymentStatus;
 use App\Enums\TaskStatus;
 use App\Enums\UserStatus;
 use App\Enums\VerificationStatus;
-use App\Enums\VerificationType;
 use App\Enums\WalletTopupStatus;
 use App\Models\Admin;
 use App\Models\AdminAuditLog;
@@ -33,7 +32,7 @@ final class DashboardController
     public function __invoke(): View
     {
         $pendingVerifications = UserVerification::query()
-            ->whereIn('status', [VerificationStatus::Pending, VerificationStatus::InReview])
+            ->whereIn('status', VerificationStatus::awaitingReview())
             ->count();
 
         $awaitingPayments = Payment::query()
@@ -47,15 +46,8 @@ final class DashboardController
         $activeUsers = User::query()->where('status', UserStatus::Active)->count();
         $totalAdmins = Admin::query()->count();
 
-        // Kode undangan yang masih bisa dipakai: aktif, kuota tersisa,
-        // tanggal belum lewat.
-        $activeInviteCodes = WorkerInviteCode::query()
-            ->where('is_active', true)
-            ->whereColumn('used_count', '<', 'max_uses')
-            ->where(fn (Builder $q) => $q
-                ->whereNull('expires_at')
-                ->orWhere('expires_at', '>', now()))
-            ->count();
+        // Kode undangan yang masih bisa dipakai (scope usable, SSOT).
+        $activeInviteCodes = WorkerInviteCode::query()->usable()->count();
 
         $recentAudits = AdminAuditLog::query()
             ->with('admin')
@@ -71,9 +63,7 @@ final class DashboardController
         $readyWorkers = UserWorker::query()
             ->whereHas('user', fn (Builder $q) => $q
                 ->where('status', UserStatus::Active)
-                ->whereHas('verifications', fn (Builder $v) => $v
-                    ->where('type', VerificationType::Identity)
-                    ->where('status', VerificationStatus::Verified)))
+                ->whereIdentityVerified())
             ->count();
 
         return view('super_admin.dashboard', [

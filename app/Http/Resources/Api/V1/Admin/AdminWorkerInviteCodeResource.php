@@ -19,6 +19,21 @@ use Illuminate\Http\Request;
  */
 final class AdminWorkerInviteCodeResource extends BaseResource
 {
+    /** Hanya di respons pembuatan — lihat [created]. */
+    private ?string $plainCode = null;
+
+    /**
+     * Respons penerbitan: `plain_code` ikut supaya pembuatnya langsung bisa
+     * menyalin (kodenya juga tampil terus di daftar/detail lewat `code`).
+     */
+    public static function created(WorkerInviteCode $code, string $plain): self
+    {
+        $resource = new self($code);
+        $resource->plainCode = $plain;
+
+        return $resource;
+    }
+
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
@@ -46,6 +61,7 @@ final class AdminWorkerInviteCodeResource extends BaseResource
                 ? $this->resource->creator?->email
                 : null,
             'created_at' => $this->iso($this->resource->created_at),
+            'plain_code' => $this->when($this->plainCode !== null, $this->plainCode),
         ];
     }
 }

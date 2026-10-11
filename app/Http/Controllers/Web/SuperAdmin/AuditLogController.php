@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Web\SuperAdmin;
 
+use App\Data\CursorPageData;
 use App\Enums\AdminAction;
 use App\Models\AdminAuditLog;
 use Illuminate\Http\Request;
@@ -24,7 +25,7 @@ final class AuditLogController
             'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:50'],
         ]);
 
-        $perPage = max(1, min($request->integer('per_page', 20), 50));
+        $perPage = CursorPageData::fromRequest($request)->perPage;
         $filterAction = $request->string('action')->value() ?: '';
 
         $logs = AdminAuditLog::query()

@@ -706,7 +706,9 @@ paths:
       description: |
         Konfirmasi kata sandi wajib. Buku besar & reputasi tetap; data pribadi
         dianonimkan. Ditolak `account_has_active_obligations` bila masih ada
-        pekerjaan berjalan atau permintaan dompet menggantung.
+        pekerjaan berjalan (termasuk activity `open` — sudah diterima, belum
+        berangkat) atau permintaan dompet menggantung. Task `draft`/`open`/
+        `expired` milik akun dibatalkan dan dananya kembali ke saldo.
       responses:
         '204': { description: Akun dihapus. }
         '401': { $ref: '#/components/responses/Unauthenticated' }
@@ -790,41 +792,6 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
 
   /me/worker:
-    get:
-      tags: [Akun]
-      operationId: showWorkerProfile
-      summary: Profil pekerja sendiri
-      description: |
-        Sisi **pekerja** dari akun — tabel sendiri (`user_workers`), satu baris
-        per orang.
-
-        **Membaca tidak membuat baris.** Yang belum pernah mengisi apa pun tetap
-        mendapat profil utuh, seluruhnya diwarisi dari akun, dengan
-        `configured: false` sebagai penandanya.
-
-        Responsnya punya dua lapis, dan keduanya diperlukan untuk membangun
-        formulir sunting yang benar:
-
-        - Di tingkat atas: nilai **terpakai**, sudah diresolusi.
-        - Di `own`: nilai yang benar-benar **diisi sendiri**, `null` kalau
-          diwarisi dari akun.
-
-        Tanpa lapis kedua, formulir tidak bisa membedakan "nama pekerja saya
-        memang Budi" dari "saya belum mengisinya, itu nama akun saya" — dan
-        sekali formulir itu disimpan kembali, seluruh nilai warisan berubah jadi
-        nilai yang diisi sendiri.
-      responses:
-        '200':
-          description: Profil pekerja, sudah diresolusi.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    $ref: '#/components/schemas/WorkerProfile'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
     put:
       tags: [Akun]
       operationId: upsertWorkerProfile
@@ -1843,12 +1810,17 @@ paths:
         `budget_min` wajib. **`budget_max` opsional** — biarkan kosong untuk
         menyatakan tidak ada batas atas.
 
-        Bila `publish_now` bernilai true, task langsung `open` dan menerima
-        penawaran; bila tidak, task tersimpan sebagai `draft` sampai
-        `POST /tasks/{task}/publish`.
+        Task **selalu langsung `open`** dan dananya ditahan dari saldo
+        (TaskEscrow). Alur draf + `POST /tasks/{task}/publish` dibuang
+        2026-10-11; `publish_now` masih diterima tapi diabaikan.
 
         Harga referensi kategori **disalin** ke task saat dibuat, agar sengketa
         bisa dinilai dengan angka yang berlaku waktu itu.
+
+        `latitude` dan `longitude` wajib **berpasangan** (satu tanpa yang lain →
+        `422` pada ruas yang kosong) — aturan yang sama dengan alamat tersimpan,
+        profil pekerja, dan `PUT /tasks/{task}` (dibandingkan dengan nilai
+        tersimpan).
       requestBody:
         required: true
         content:
@@ -1895,7 +1867,7 @@ paths:
         '201':
           description: |
             Task dibuat. `meta.notified_workers` = berapa mitra tersedia di
-            sekitar yang dikabari `task_published` (B13); 0 untuk draf.
+            sekitar yang dikabari `task_published` (B13).
           content:
             application/json:
               schema:
@@ -1986,49 +1958,6 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthenticated'
 
-  /tasks/bookmarked:
-    get:
-      tags: [Task]
-      operationId: listBookmarkedTasks
-      summary: Tugas yang saya simpan
-      description: Tugas yang disimpan (B11), terbaru dulu. Selalu milik pemanggil.
-      parameters:
-        - $ref: '#/components/parameters/PerPage'
-        - $ref: '#/components/parameters/Cursor'
-      responses:
-        '200':
-          $ref: '#/components/responses/TaskPage'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-
-  /tasks/{task}/bookmark:
-    parameters:
-      - $ref: '#/components/parameters/TaskUlid'
-    put:
-      tags: [Task]
-      operationId: storeTaskBookmark
-      summary: Simpan tugas
-      description: Idempoten — menyimpan dua kali tidak menambah baris kedua.
-      responses:
-        '204':
-          description: Tersimpan (atau memang sudah).
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-    delete:
-      tags: [Task]
-      operationId: destroyTaskBookmark
-      summary: Lepas simpanan tugas
-      description: Idempoten — tidak ada simpanan bukan galat.
-      responses:
-        '204':
-          description: Terlepas.
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
   /tasks/{task}:
     parameters:
       - $ref: '#/components/parameters/TaskUlid'
@@ -2108,46 +2037,6 @@ paths:
         '429':
           $ref: '#/components/responses/RateLimited'
 
-  /tasks/{task}/publish:
-    parameters:
-      - $ref: '#/components/parameters/TaskUlid'
-    post:
-      tags: [Task]
-      operationId: publishTask
-      summary: Terbitkan task draft
-      description: |
-        Hanya pemilik task. `draft` → `open`, mulai menerima penawaran. Mitra
-        tersedia di sekitar dikabari `task_published` (B13).
-      responses:
-        '200':
-          description: Task tayang. `meta.notified_workers` = jumlah mitra yang dikabari.
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [data, meta]
-                properties:
-                  data: { $ref: '#/components/schemas/Task' }
-                  meta:
-                    type: object
-                    required: [notified_workers]
-                    properties:
-                      notified_workers: { type: integer, minimum: 0 }
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '422':
-          description: Perpindahan status tidak diizinkan.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DomainError'
-              example:
-                message: Tidak bisa berpindah dari completed ke open.
-                code: invalid_status_transition
-                context: { from: completed, to: open }
-
   /tasks/{task}/cancel:
     parameters:
       - $ref: '#/components/parameters/TaskUlid'
@@ -2208,24 +2097,6 @@ paths:
             example: { reason: Jadwal berubah }
       responses:
         '201':
-          $ref: '#/components/responses/SingleCancelRequest'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-
-  /tasks/{task}/cancel-request:
-    parameters:
-      - $ref: '#/components/parameters/TaskUlid'
-    get:
-      tags: [Task]
-      operationId: showTaskCancelRequest
-      summary: Baca permintaan pembatalan yang menunggu
-      description: |
-        Yang di-poll mobile untuk popup persetujuan. Tanpa yang pending =
-        `no_pending_cancel_request` (keadaan akhir, bukan galat).
-      responses:
-        '200':
           $ref: '#/components/responses/SingleCancelRequest'
         '401':
           $ref: '#/components/responses/Unauthenticated'
@@ -2370,7 +2241,9 @@ paths:
         Penerima kerja menyertakan **budget-nya sendiri**.
 
         Satu orang **satu** penawaran per task: mengirim lagi akan **mengubah**
-        penawaran yang ada (balasan `200`, bukan `201`).
+        penawaran yang ada (balasan `200`, bukan `201`) — kecuali penawaran yang
+        sudah **diterima**: ditolak `422 invalid_status_transition`
+        (`accepted → pending`), karena kursinya sudah terhitung di task.
 
         `budget_min` adalah batas keras. **`budget_max` tidak divalidasi** —
         pemberi kerja diberi kebebasan penuh memilih, termasuk tawaran di atas
@@ -2483,31 +2356,6 @@ paths:
           $ref: '#/components/responses/Unauthenticated'
         '403':
           $ref: '#/components/responses/Forbidden'
-
-  /bids/mine:
-    get:
-      tags: [Lelang]
-      operationId: listMyBids
-      summary: Penawaran yang saya ikuti
-      parameters:
-        - $ref: '#/components/parameters/PerPage'
-        - $ref: '#/components/parameters/Cursor'
-      responses:
-        '200':
-          description: Halaman penawaran saya.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Bid'
-                  links: { $ref: '#/components/schemas/CursorLinks' }
-                  meta: { $ref: '#/components/schemas/CursorMeta' }
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
 
   /bids/{bid}/withdraw:
     parameters:
@@ -2695,22 +2543,6 @@ paths:
                   meta: { $ref: '#/components/schemas/CursorMeta' }
         '401':
           $ref: '#/components/responses/Unauthenticated'
-
-  /activities/{activity}:
-    parameters:
-      - $ref: '#/components/parameters/ActivityUlid'
-    get:
-      tags: [Activity]
-      operationId: showActivity
-      summary: Detail activity
-      description: Bisa dilihat penerima kerja maupun pemberi kerja.
-      responses:
-        '200':
-          $ref: '#/components/responses/SingleActivity'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '403':
-          $ref: '#/components/responses/Forbidden'
 
   /activities/{activity}/depart:
     parameters:
@@ -3515,7 +3347,8 @@ paths:
       description: |
         Id pesan TERAKHIR yang sudah sampai / dibaca di perangkat; semua sebelum id itu
         ikut tertandai. Penanda hanya maju. Dibaca selalu berarti sudah sampai.
-        Berubah → push senyap `chat_receipt` ke peserta lain.
+        Berubah → push senyap `chat_receipt` HANYA ke pengirim pesan yang statusnya
+        berubah (centang hanya berarti bagi pengirimnya; dulu ke semua peserta).
       requestBody:
         required: true
         content:
@@ -4411,6 +4244,7 @@ paths:
         `plain_code` hanya ada di respons pembuatan, tidak di sini.
       parameters:
         - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
           description: Satu halaman kode.
@@ -4582,6 +4416,7 @@ paths:
         kode hanya membuka pintu, bukan menyatakan lolos.
       parameters:
         - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
           description: Satu halaman jejak redeem, terbaru dulu.
@@ -5643,15 +5478,20 @@ components:
             properties:
               message: { type: string }
     NotFound:
-      description: Tidak ditemukan — atau ada tapi bukan milik Anda.
+      description: |
+        Tidak ditemukan — atau ada tapi bukan milik Anda. Galat domain memakai
+        kodenya sendiri (`task_not_found`, `chat_room_not_found`, …); selain itu
+        (id salah, rute tak dikenal) `not_found`.
       headers:
         X-Request-Id: { $ref: '#/components/headers/RequestId' }
       content:
         application/json:
           schema:
             type: object
+            required: [message, code]
             properties:
               message: { type: string }
+              code: { type: string, examples: [not_found] }
     ValidationFailed:
       description: Bentuk request tidak sah.
       headers:
@@ -5707,7 +5547,8 @@ components:
       type: string
       enum: [draft, open, dealt, active, submitted, completed, expired, cancelled, disputed, refunded]
       description: |
-        Alur: `draft → open → dealt → active → submitted → completed`.
+        Alur: `open → dealt → active → submitted → completed`. `draft` hanya
+        ada pada baris lama — task baru selalu langsung `open` (2026-10-11).
         Cabang: `open → expired`, `submitted → disputed → refunded`,
         pembatalan dari `open`/`dealt`/`active` → `cancelled`.
         `completed`, `expired`, `cancelled`, `refunded` bersifat akhir.
@@ -6347,8 +6188,8 @@ components:
           description: |
             **Batas pengungkapan.** Lokasi presisi hanya untuk pemberi kerja
             dan pekerja yang SUDAH deal (penawaran `accepted`) pada task ini
-            — di setiap endpoint yang memuat task (feed, detail, `bids/mine`,
-            `activities`, dst.). Untuk selainnya — termasuk pelamar yang masih
+            — di setiap endpoint yang memuat task (feed, detail, `tasks/posted`,
+            `tasks/worked`, `activities/mine`, dst.). Untuk selainnya — termasuk pelamar yang masih
             menunggu atau ditolak — `text` `null`, koordinat dibulatkan 3
             desimal (±110 m), dan `is_precise: false`.
           properties:
@@ -6433,9 +6274,6 @@ components:
           oneOf:
             - $ref: '#/components/schemas/Bid'
             - type: 'null'
-        is_bookmarked:
-          type: boolean
-          description: 'Apakah saya menyimpan tugas ini (B11). Selalu ada; `false` bila tidak dimuat.'
         payment:
           description: Satu tagihan untuk seluruh task, sebesar `agreed_amount`.
           $ref: '#/components/schemas/Payment'
@@ -6492,7 +6330,7 @@ components:
           description: |
             Jarak (km, 1 desimal) dari lokasi task ke lokasi kerja pelamar, dihitung
             server. **Hanya terisi di `GET /tasks/{task}/bids`** (pemberi kerja task
-            itu); `null` di jalur lain (`bids/mine`, `my_bid`, respons menawar) dan
+            itu); `null` di jalur lain (`my_bid`, respons menawar) dan
             bila salah satu koordinat kosong. Koordinat pelamar tidak pernah keluar,
             dan dibulatkan 3 desimal (±110 m) sebelum dihitung.
         bidder: { $ref: '#/components/schemas/PublicUser' }
@@ -7001,15 +6839,13 @@ components:
         bidding_closes_at: { type: [string, 'null'], format: date-time }
         publish_now:
           type: boolean
-          default: false
-          description: '`true` → langsung `open`. `false` → `draft`.'
+          deprecated: true
+          description: 'DIABAIKAN sejak 2026-10-11 — task selalu langsung `open`. Tetap diterima supaya klien lama (yang mengirim `true`) tidak ditolak.'
       additionalProperties: false
     UpdateTaskRequest:
       type: object
       description: |
-        Semua ruas opsional — yang tidak dikirim tidak disentuh. Tidak ada
-        `publish_now` di sini: menerbitkan draft tetap lewat
-        `POST /tasks/{task}/publish`.
+        Semua ruas opsional — yang tidak dikirim tidak disentuh.
       properties:
         category_id: { type: integer }
         title: { type: string, maxLength: 180 }

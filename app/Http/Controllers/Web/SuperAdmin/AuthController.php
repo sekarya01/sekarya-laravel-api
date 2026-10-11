@@ -4,19 +4,23 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Web\SuperAdmin;
 
-use App\Models\Admin;
+use App\Actions\Admin\Auth\VerifyAdminCredentialsAction;
+use App\Data\Admin\AdminLoginData;
+use App\Exceptions\Domain\AdminAccessDeniedException;
+use App\Exceptions\Domain\InvalidCredentialsException;
+use App\Support\Email;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
 
 /**
  * Masuk/keluar dasbor super_admin (sesi, bukan token API).
  *
- * Aturannya sama seperti AdminLoginAction: hash dummy saat alamat tidak ada
- * ( anti enumeration timing ), status diperiksa SETELAH sandi benar, dan
- * hanya peran super_admin yang boleh masuk — admin biasa tetap lewat API.
+ * Kredensial diperiksa VerifyAdminCredentialsAction — pemeriksa yang SAMA
+ * dengan login API (hash dummy anti-enumerasi, status SETELAH sandi benar).
+ * Di atasnya hanya peran super_admin yang boleh masuk — admin biasa tetap
+ * lewat API.
  */
 final class AuthController
 {
@@ -29,23 +33,22 @@ final class AuthController
         return view('super_admin.login');
     }
 
-    public function login(Request $request): RedirectResponse
+    public function login(Request $request, VerifyAdminCredentialsAction $credentials): RedirectResponse
     {
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:255'],
             'password' => ['required', 'string'],
         ]);
 
-        $email = mb_strtolower(trim($validated['email']));
-        $admin = Admin::query()->where('email', $email)->first();
-
-        $hash = $admin?->password ?? '$2y$12$'.str_repeat('x', 53);
-
-        if (! Hash::check($validated['password'], $hash) || ! $admin instanceof Admin) {
+        try {
+            $admin = $credentials->handle(new AdminLoginData(
+                Email::normalize($validated['email']),
+                $validated['password'],
+                $request->ip(),
+            ));
+        } catch (InvalidCredentialsException) {
             return back()->withErrors(['email' => 'Email atau kata sandi salah.'])->onlyInput('email');
-        }
-
-        if (! $admin->status->isActive()) {
+        } catch (AdminAccessDeniedException) {
             return back()->withErrors(['email' => 'Akun pengelola ini dinonaktifkan.'])->onlyInput('email');
         }
 
@@ -53,10 +56,7 @@ final class AuthController
             return back()->withErrors(['email' => 'Dasbor ini hanya untuk super_admin.'])->onlyInput('email');
         }
 
-        $admin->forceFill([
-            'last_login_at' => now(),
-            'last_login_ip' => $request->ip(),
-        ])->save();
+        $admin->recordLogin($request->ip());
 
         Auth::guard('admin_web')->login($admin, remember: false);
         $request->session()->regenerate();

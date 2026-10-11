@@ -6,13 +6,11 @@ namespace Tests\Unit\Actions\Task;
 
 use App\Actions\Task\CancelTaskAction;
 use App\Actions\Task\CreateTaskAction;
-use App\Actions\Task\PublishTaskAction;
 use App\Data\Task\CreateTaskData;
 use App\Enums\ActorType;
 use App\Enums\BidStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\TaskStatus;
-use App\Exceptions\Domain\InvalidStatusTransitionException;
 use App\Models\Bid;
 use App\Models\Payment;
 use App\Models\Task;
@@ -44,26 +42,18 @@ final class TaskActionsTest extends TestCase
             budgetMax: $override['budgetMax'] ?? null,
             options: $override['options'] ?? [],
             skillSlugs: $override['skillSlugs'] ?? [],
-            publishNow: $override['publishNow'] ?? false,
         );
     }
 
-    public function test_it_creates_a_draft_by_default(): void
+    /** Tidak ada lagi alur draf: setiap task baru langsung tayang dan dibiayai. */
+    public function test_it_opens_and_funds_the_task_immediately(): void
     {
         $poster = $this->activeUser();
 
         $task = app(CreateTaskAction::class)->handle($this->data(), $poster);
 
-        $this->assertSame(TaskStatus::Draft, $task->status);
-    }
-
-    public function test_publish_now_opens_the_task_immediately(): void
-    {
-        $poster = $this->activeUser();
-
-        $task = app(CreateTaskAction::class)->handle($this->data(['publishNow' => true]), $poster);
-
         $this->assertSame(TaskStatus::Open, $task->status);
+        $this->assertSame(PaymentStatus::Held, $task->payment()->firstOrFail()->status);
     }
 
     /** budget_max opsional: null berarti tanpa batas atas, bukan nol. */
@@ -118,7 +108,7 @@ final class TaskActionsTest extends TestCase
     {
         $poster = $this->activeUser();
 
-        $task = app(CreateTaskAction::class)->handle($this->data(['publishNow' => true]), $poster);
+        $task = app(CreateTaskAction::class)->handle($this->data(), $poster);
 
         $log = TaskStatusLog::query()->where('task_id', $task->getKey())->firstOrFail();
         $this->assertNull($log->from_status);
@@ -137,36 +127,10 @@ final class TaskActionsTest extends TestCase
         $this->assertSame(1, $poster->refresh()->tasks_posted);
     }
 
-    public function test_publish_moves_draft_to_open_and_logs_it(): void
-    {
-        $poster = $this->activeUser();
-        $task = app(CreateTaskAction::class)->handle($this->data(), $poster);
-
-        $published = app(PublishTaskAction::class)->handle($task, $poster);
-
-        $this->assertSame(TaskStatus::Open, $published->status);
-        $this->assertSame(2, TaskStatusLog::query()->where('task_id', $task->getKey())->count());
-    }
-
-    public function test_publishing_a_completed_task_is_rejected(): void
-    {
-        $poster = $this->activeUser();
-        $task = app(CreateTaskAction::class)->handle($this->data(), $poster);
-        $task->forceFill(['status' => TaskStatus::Completed])->save();
-
-        try {
-            app(PublishTaskAction::class)->handle($task, $poster);
-            $this->fail('perpindahan status seharusnya ditolak');
-        } catch (InvalidStatusTransitionException $e) {
-            $this->assertSame('invalid_status_transition', $e->errorCode());
-            $this->assertSame(['from' => 'completed', 'to' => 'open'], $e->context());
-        }
-    }
-
     public function test_cancel_refunds_held_money(): void
     {
         $poster = $this->activeUser();
-        $task = app(CreateTaskAction::class)->handle($this->data(['publishNow' => true]), $poster);
+        $task = app(CreateTaskAction::class)->handle($this->data(), $poster);
         // Dana ditahan dari saldo saat tugas dipasang (TaskEscrow).
         $payment = $task->payment()->firstOrFail();
         $this->assertSame(PaymentStatus::Held, $payment->status);
@@ -183,9 +147,9 @@ final class TaskActionsTest extends TestCase
     public function test_cancel_cancels_a_pending_payment_instead(): void
     {
         $poster = $this->activeUser();
-        // Tagihan `pending` hanya ada pada tugas yang belum dibiayai (draf /
-        // tugas lama) — tugas yang tayang langsung ditahan dananya.
-        $task = app(CreateTaskAction::class)->handle($this->data(['publishNow' => false]), $poster);
+        // Tagihan `pending` hanya ada pada tugas lama (sebelum TaskEscrow) —
+        // tugas yang dibuat sekarang langsung ditahan dananya.
+        $task = Task::factory()->create(['poster_id' => $poster->getKey(), 'status' => TaskStatus::Open]);
         $payment = Payment::factory()->create([
             'task_id' => $task->getKey(),
             'payer_id' => $poster->getKey(),
@@ -201,7 +165,7 @@ final class TaskActionsTest extends TestCase
     {
         $poster = $this->activeUser();
         $worker = $this->activeUser();
-        $task = app(CreateTaskAction::class)->handle($this->data(['publishNow' => true]), $poster);
+        $task = app(CreateTaskAction::class)->handle($this->data(), $poster);
         $bid = Bid::factory()->create([
             'task_id' => $task->getKey(),
             'bidder_id' => $worker->getKey(),
@@ -216,7 +180,7 @@ final class TaskActionsTest extends TestCase
     public function test_cancel_records_who_and_why(): void
     {
         $poster = $this->activeUser();
-        $task = app(CreateTaskAction::class)->handle($this->data(['publishNow' => true]), $poster);
+        $task = app(CreateTaskAction::class)->handle($this->data(), $poster);
 
         $cancelled = app(CancelTaskAction::class)->handle($task, $poster, 'tidak perlu lagi');
 
@@ -231,7 +195,7 @@ final class TaskActionsTest extends TestCase
     {
         $poster = $this->activeUser();
         $worker = $this->activeUser();
-        $task = app(CreateTaskAction::class)->handle($this->data(['publishNow' => true]), $poster);
+        $task = app(CreateTaskAction::class)->handle($this->data(), $poster);
         $task->forceFill([
             'status' => TaskStatus::Dealt,
             'dealt_at' => now(),
@@ -246,7 +210,7 @@ final class TaskActionsTest extends TestCase
     public function test_cancelling_before_a_deal_does_not_count(): void
     {
         $poster = $this->activeUser();
-        $task = app(CreateTaskAction::class)->handle($this->data(['publishNow' => true]), $poster);
+        $task = app(CreateTaskAction::class)->handle($this->data(), $poster);
 
         app(CancelTaskAction::class)->handle($task, $poster);
 
@@ -257,7 +221,7 @@ final class TaskActionsTest extends TestCase
     {
         $poster = $this->activeUser();
         $worker = $this->activeUser();
-        $task = app(CreateTaskAction::class)->handle($this->data(['publishNow' => true]), $poster);
+        $task = app(CreateTaskAction::class)->handle($this->data(), $poster);
         $this->hireWorker($task, $worker);
 
         $cancelled = app(CancelTaskAction::class)->handle($task, $worker);

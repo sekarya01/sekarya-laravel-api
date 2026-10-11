@@ -82,8 +82,8 @@ final class RequestTaskCancelAction
 
             // Setiap penjawab ditanya LANGSUNG (U12) — tanpa ini popup di
             // Detail Kerjaan baru muncul kalau pekerjanya kebetulan membuka
-            // layar itu. Di dalam transaksi: baris kotak masuk ikut batal bila
-            // permintaannya batal; push-nya sendiri berangkat sesudah commit.
+            // layar itu. Push-nya berangkat SESUDAH commit (PushDispatcher), jadi
+            // permintaan yang batal tidak pernah mengirim apa pun.
             foreach ($workerIds as $workerId) {
                 $this->push->send($workerId, PushMessages::cancelRequested($task, $created));
             }

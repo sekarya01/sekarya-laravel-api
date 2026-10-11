@@ -18,6 +18,11 @@
 > (keputusan produk 2026-09-26: aplikasi tanpa fitur telepon) — route,
 > controller, action, resource, policy, test, dan dokumennya dibuang;
 > kolom/profil `contact_phone` tetap ada sebagai field profil sendiri.
+>
+> **Update 2026-10-11 (audit API vs mobile):** **B11** (bookmark server) DIBUANG —
+> mobile menyimpan bookmark di perangkat. Endpoint `tasks/bookmarked`,
+> `PUT/DELETE tasks/{task}/bookmark`, tabel `task_bookmarks` dan field
+> `is_bookmarked` dihapus. Baris B11 di tabel bawah adalah catatan sejarah.
 > **X1/X2** ("level"/"Poin
 > Sekarya") tetap tidak ada dan tidak akan dibangun dari sisi mobile.
 >

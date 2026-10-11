@@ -19,7 +19,7 @@ final class ServiceFee
 
     public function percent(): float
     {
-        return max(0.0, (float) $this->config->get('sekarya.fees.service_percent', 0));
+        return max(0.0, (float) $this->config->get('sekarya.fees.service_percent'));
     }
 
     /** Tarif dalam basis poin (500 = 5,00%) — disimpan apa adanya di baris fee. */

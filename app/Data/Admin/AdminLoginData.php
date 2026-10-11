@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Data\Admin;
 
 use App\Http\Requests\Api\V1\Admin\AdminLoginRequest;
+use App\Support\Email;
 
 /**
  * Login pengelola. Hanya email — pengelola tidak masuk lewat nomor HP.
@@ -22,7 +23,7 @@ final readonly class AdminLoginData
         return new self(
             // Dinormalkan sama seperti saat akunnya dibuat, kalau tidak
             // "Admin@x.test" tidak akan pernah cocok dengan barisnya.
-            email: mb_strtolower(trim($request->string('email')->value())),
+            email: Email::normalize($request->string('email')->value()),
             password: $request->string('password')->value(),
             ip: $request->ip(),
         );

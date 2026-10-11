@@ -5,11 +5,8 @@ declare(strict_types=1);
 namespace App\Actions\User;
 
 use App\Enums\UserStatus;
-use App\Enums\VerificationStatus;
-use App\Enums\VerificationType;
 use App\Models\User;
 use App\Models\UserBlock;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
@@ -38,11 +35,7 @@ final class ShowPublicUserAction
             ->with('skills')
             // Badge terverifikasi dari satu subquery, bukan kueri terpisah
             // yang dipanggil dua kali (identity_verified dan ready_to_work).
-            ->withCount([
-                'verifications as identity_verified_count' => fn (Builder $v) => $v
-                    ->where('type', VerificationType::Identity)
-                    ->where('status', VerificationStatus::Verified),
-            ])
+            ->withIdentityVerified()
             ->firstOrFail();
 
         // Blokir (G7): profil pihak yang diblokir tampil seperti ULID yang

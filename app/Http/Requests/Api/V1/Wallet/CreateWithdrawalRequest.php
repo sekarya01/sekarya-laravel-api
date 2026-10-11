@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Wallet;
 
+use App\Support\Rupiah;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -33,12 +34,8 @@ final class CreateWithdrawalRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'amount.min' => 'Minimum penarikan Rp'.number_format(
-                (float) config('sekarya.wallet.min_withdrawal'), 0, ',', '.'
-            ).'.',
-            'amount.max' => 'Maksimum penarikan per permintaan Rp'.number_format(
-                (float) config('sekarya.wallet.max_withdrawal'), 0, ',', '.'
-            ).'.',
+            'amount.min' => 'Minimum penarikan '.Rupiah::format(config('sekarya.wallet.min_withdrawal')).'.',
+            'amount.max' => 'Maksimum penarikan per permintaan '.Rupiah::format(config('sekarya.wallet.max_withdrawal')).'.',
         ];
     }
 }

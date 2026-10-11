@@ -21,13 +21,18 @@ namespace App\Support;
  *    kekaburan yang sama dengan lokasi task sebelum deal (TaskResource).
  * 2. **Hasilnya 1 desimal** — sesuai tampilan ("1,1 km"), tidak lebih.
  *
- * Rumus haversine yang sama dengan `TaskSearch::haversineSql()` (jari-jari
- * bumi 6371 km). Yang itu berjalan di SQL untuk MENYARING feed; yang ini di
+ * Jari-jari bumi sama dengan `TaskSearch::haversineSql()` ([EARTH_RADIUS_KM];
+ * rumus SQL-nya hukum kosinus bola, hasilnya setara). Yang itu berjalan di
+ * SQL untuk MENYARING feed; yang ini di
  * PHP untuk menampilkan jarak baris yang sudah dimuat, tanpa kueri tambahan.
  */
 final class GeoDistance
 {
-    private const float EARTH_RADIUS_KM = 6371.0;
+    /** Jari-jari bumi yang SAMA untuk jarak di PHP dan di SQL (TaskSearch). */
+    public const float EARTH_RADIUS_KM = 6371.0;
+
+    /** Kilometer per derajat lintang (konstan); per derajat bujur menyusut dengan cos(lintang). */
+    public const float KM_PER_LAT_DEGREE = 111.045;
 
     /** Kekaburan koordinat pekerja — sama dengan lokasi task sebelum deal. */
     public const int WORKER_COORDINATE_DECIMALS = 3;
@@ -81,5 +86,26 @@ final class GeoDistance
 
         // min(): pembulatan floating point bisa membuat $a sedikit di atas 1.
         return 2 * self::EARTH_RADIUS_KM * asin(min(1.0, sqrt($a)));
+    }
+
+    /**
+     * Kotak lintang/bujur yang memuat lingkaran berjari-jari `$radiusKm` —
+     * prafilter yang bisa memakai indeks (latitude, longitude) sebelum jarak
+     * sebenarnya dihitung. SATU rumus untuk feed (TaskSearch) dan pencarian
+     * mitra sekitar (NotifyNearbyWorkersAction).
+     *
+     * @return array{lat: array{float, float}, lng: array{float, float}}
+     */
+    public static function boundingBox(float $latitude, float $longitude, float $radiusKm): array
+    {
+        $latDelta = $radiusKm / self::KM_PER_LAT_DEGREE;
+        // Sepanjang garis bujur, jarak per derajat menyusut mendekati kutub.
+        $cos = max(cos(deg2rad($latitude)), 0.000001);
+        $lngDelta = $radiusKm / (self::KM_PER_LAT_DEGREE * $cos);
+
+        return [
+            'lat' => [$latitude - $latDelta, $latitude + $latDelta],
+            'lng' => [$longitude - $lngDelta, $longitude + $lngDelta],
+        ];
     }
 }

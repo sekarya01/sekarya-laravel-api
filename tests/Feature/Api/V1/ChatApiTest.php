@@ -420,6 +420,30 @@ final class ChatApiTest extends TestCase
             ->assertUnprocessable();
     }
 
+    /**
+     * Tanda baca/terima penting bagi PENGIRIM pesannya saja. Dulu setiap
+     * laporan diteruskan ke SEMUA peserta: satu pesan di grup 30 orang
+     * menghasilkan ±1.700 push senyap (29 laporan × 29 penerima, dua kali).
+     */
+    public function test_a_receipt_only_signals_the_senders_of_the_affected_messages(): void
+    {
+        $reader = $this->activeUser();
+        $bystander = $this->activeUser();
+        $room = $this->roomOf($this->dealtTask([$reader, $bystander]));
+        $id = $this->sendText($this->poster, $room, 'Mulai jam 8 ya')->assertCreated()->json('data.id');
+        $this->push->sent = [];
+
+        $this->asUser($reader)->postJson(route('v1.chat.rooms.receipts', $room->ulid), ['read_message_id' => $id])->assertOk();
+
+        $receiptsTo = fn (User $u): int => count(array_filter(
+            $this->push->sent,
+            static fn (array $e): bool => $e['user']->getKey() === $u->getKey() && ($e['message']->data['type'] ?? null) === 'chat_receipt',
+        ));
+        $this->assertSame(1, $receiptsTo($this->poster), 'pengirim pesan diberi tahu');
+        $this->assertSame(0, $receiptsTo($bystander), 'peserta lain tidak');
+        $this->assertSame(0, $receiptsTo($reader), 'yang membaca tidak');
+    }
+
     private function messageStatus(User $as, ChatRoom $room, string $id): string
     {
         return collect($this->asUser($as)->getJson(route('v1.chat.rooms.messages.index', $room->ulid))->json('data'))

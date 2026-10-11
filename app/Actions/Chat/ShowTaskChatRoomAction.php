@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Actions\Chat;
 
-use App\Enums\ChatRoomStatus;
 use App\Models\ChatRoom;
 use App\Models\Task;
 use App\Models\User;
@@ -21,8 +20,7 @@ final class ShowTaskChatRoomAction
     public function handle(Task $task, User $user): ?ChatRoom
     {
         return ChatRoom::query()
-            ->where('task_id', $task->getKey())
-            ->where('status', '!=', ChatRoomStatus::Deactivated->value)
+            ->where('chat_rooms.task_id', $task->getKey())
             ->visibleTo($user)
             ->forViewer($user)
             ->first();

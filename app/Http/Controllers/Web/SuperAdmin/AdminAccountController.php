@@ -7,8 +7,11 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 use App\Actions\Admin\Access\CreateAdminAction;
 use App\Actions\Admin\Access\DeleteAdminAction;
 use App\Data\Admin\CreateAdminData;
+use App\Data\CursorPageData;
 use App\Exceptions\Domain\DomainException;
+use App\Http\Requests\Api\V1\Admin\CreateAdminRequest;
 use App\Models\Admin;
+use App\Support\Email;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,7 +30,7 @@ final class AdminAccountController
         // Pagination BERNOMOR; urutannya sama seperti ListAdminsAction.
         $admins = Admin::query()
             ->latestFirst()
-            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->paginate(CursorPageData::fromRequest($request)->perPage)
             ->withQueryString();
 
         return view('super_admin.admins.index', ['admins' => $admins]);
@@ -36,12 +39,11 @@ final class AdminAccountController
     public function store(Request $request, CreateAdminAction $action): RedirectResponse
     {
         // Validasi manual agar drawer kanan terbuka lagi beserta galatnya.
-        $validator = Validator::make($request->all(), [
-            'name' => ['required', 'string', 'min:3', 'max:100'],
-            'email' => ['required', 'email', 'max:255', 'unique:admins,email'],
-            // Sama ketatnya seperti API: 12+, campur huruf/angka/simbol.
-            'password' => ['required', 'string', 'min:12', 'confirmed'],
-        ]);
+        // Aturannya DIAMBIL dari CreateAdminRequest, bukan disalin: dulu salinan
+        // web hanya menuntut 12 karakter sementara API menuntut huruf besar,
+        // angka, simbol, dan cek kebocoran — untuk akun yang sama.
+        $rules = new CreateAdminRequest;
+        $validator = Validator::make($request->all(), $rules->rules(), $rules->messages());
 
         if ($validator->fails()) {
             return back()->withErrors($validator)->withInput()->with('open_modal', 'create-admin');
@@ -52,14 +54,10 @@ final class AdminAccountController
         /** @var Admin $actor */
         $actor = Auth::guard('admin_web')->user();
 
-        $build = \Closure::bind(
-            fn () => new CreateAdminData($validated['name'], mb_strtolower(trim($validated['email'])), $validated['password'], $request->ip()),
-            null,
-            CreateAdminData::class,
-        );
+        $data = new CreateAdminData($validated['name'], Email::normalize($validated['email']), $validated['password'], $request->ip());
 
         try {
-            $admin = $action->handle($build(), $actor);
+            $admin = $action->handle($data, $actor);
         } catch (DomainException $e) {
             return back()->withErrors(['action' => $e->getMessage()])->withInput()->with('open_modal', 'create-admin');
         }

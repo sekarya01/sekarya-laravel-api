@@ -33,6 +33,17 @@ enum VerificationStatus: string
     }
 
     /**
+     * Daftar untuk `whereIn` — antrean pengelola & "pengajuan menggantung".
+     * Diturunkan dari [awaitsReview], bukan ditulis ulang di tiap kueri.
+     *
+     * @return list<self>
+     */
+    public static function awaitingReview(): array
+    {
+        return array_values(array_filter(self::cases(), static fn (self $s): bool => $s->awaitsReview()));
+    }
+
+    /**
      * Perpindahan status yang boleh dilakukan pengelola.
      *
      * `isFinal()` menjawab pertanyaan lain — "apakah pengajuan ini sudah

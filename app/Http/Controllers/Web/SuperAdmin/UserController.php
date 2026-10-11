@@ -6,15 +6,14 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 
 use App\Actions\Admin\User\ChangeUserStatusAction;
 use App\Data\Admin\ChangeUserStatusData;
+use App\Data\CursorPageData;
 use App\Enums\AdminAction;
 use App\Enums\Gender;
 use App\Enums\UserStatus;
-use App\Enums\VerificationStatus;
-use App\Enums\VerificationType;
 use App\Exceptions\Domain\DomainException;
 use App\Models\Admin;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
+use App\Support\Email;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -70,32 +69,24 @@ final class UserController
             ))
             ->when(
                 $request->filled('email'),
-                fn ($q) => $q->where('email', mb_strtolower(trim($request->string('email')->value()))),
+                fn ($q) => $q->where('email', Email::normalize($request->string('email')->value())),
             )
             ->when($gender !== null, fn ($q) => $q->where('gender', $gender))
             // Kesiapan mengikuti definisi ready_to_work: profil ADA dan
             // identitas terverifikasi. "Belum" berarti salah satunya tidak ada.
             ->when($ready === 'yes', fn ($q) => $q
                 ->whereHas('workerProfile')
-                ->whereHas('verifications', fn ($v) => $v
-                    ->where('type', VerificationType::Identity)
-                    ->where('status', VerificationStatus::Verified)))
+                ->whereIdentityVerified())
             ->when($ready === 'no', fn ($q) => $q
                 ->where(fn ($w) => $w
                     ->whereDoesntHave('workerProfile')
-                    ->orWhereDoesntHave('verifications', fn ($v) => $v
-                        ->where('type', VerificationType::Identity)
-                        ->where('status', VerificationStatus::Verified))))
+                    ->orWhere(fn ($o) => $o->whereIdentityVerified(false))))
             // Hitungan verifikasi identitas ikut termuat: penanda "siap kerja"
             // di daftar membacanya per baris, dan tanpa ini setiap baris
             // memicu satu kueri exists() tambahan.
-            ->withCount([
-                'verifications as identity_verified_count' => fn (Builder $v) => $v
-                    ->where('type', VerificationType::Identity)
-                    ->where('status', VerificationStatus::Verified),
-            ])
+            ->withIdentityVerified()
             ->latestFirst()
-            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->paginate(CursorPageData::fromRequest($request)->perPage)
             ->withQueryString();
 
         return view('super_admin.users.index', [
@@ -132,12 +123,7 @@ final class UserController
         $admin = Auth::guard('admin_web')->user();
 
         try {
-            $build = \Closure::bind(
-                fn () => new ChangeUserStatusData(AdminAction::UserReinstated, null, $request->ip()),
-                null,
-                ChangeUserStatusData::class,
-            );
-            $action->handle($user, $admin, $build());
+            $action->handle($user, $admin, ChangeUserStatusData::reinstate($request));
         } catch (DomainException $e) {
             return back()->withErrors(['action' => $e->getMessage()])->with('open_modal', 'reinstate');
         }
@@ -158,7 +144,9 @@ final class UserController
         // popup mana yang sedang dipakai.
         $validator = Validator::make(
             $request->all(),
-            ['reason' => ['required', 'string', 'min:10', 'max:1000']],
+            // Sama dengan ModerateUserRequest (API): jejak audit memotong alasan
+            // di 500 karakter (AdminAuditRecorder::REASON_LIMIT).
+            ['reason' => ['required', 'string', 'min:10', 'max:500']],
             ['reason.min' => 'Jelaskan minimal 10 karakter supaya tercatat jelas di jejak audit.'],
         );
 
@@ -172,12 +160,10 @@ final class UserController
         $admin = Auth::guard('admin_web')->user();
 
         try {
-            $build = \Closure::bind(
-                fn () => new ChangeUserStatusData($act, $validated['reason'], $request->ip()),
-                null,
-                ChangeUserStatusData::class,
-            );
-            $action->handle($user, $admin, $build());
+            $data = $act === AdminAction::UserBanned
+                ? ChangeUserStatusData::banned($validated['reason'], $request->ip())
+                : ChangeUserStatusData::suspended($validated['reason'], $request->ip());
+            $action->handle($user, $admin, $data);
         } catch (DomainException $e) {
             return back()->withErrors(['action' => $e->getMessage()])->withInput()->with('open_modal', $kind);
         }

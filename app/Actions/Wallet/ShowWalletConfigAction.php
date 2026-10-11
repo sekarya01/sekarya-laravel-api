@@ -19,7 +19,7 @@ final class ShowWalletConfigAction
     public function handle(): WalletConfig
     {
         /** @var list<array<string, mixed>> $accounts */
-        $accounts = (array) config('sekarya.wallet.topup_accounts', []);
+        $accounts = (array) config('sekarya.wallet.topup_accounts');
 
         return new WalletConfig(
             topupAccounts: array_map(

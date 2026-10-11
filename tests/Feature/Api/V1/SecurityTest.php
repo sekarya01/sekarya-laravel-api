@@ -335,4 +335,26 @@ final class SecurityTest extends TestCase
 
         $this->assertStringNotContainsString('gateway_payload', $body);
     }
+
+    /**
+     * Setiap 404 API berbentuk `{message, code}` seperti galat bisnis lain —
+     * klien bercabang pada `code`, bukan `message`. Dulu route model binding
+     * & firstOrFail mengembalikan pesan bawaan Laravel tanpa `code`, yang
+     * juga membocorkan nama kelas model ("No query results for model
+     * [App\\Models\\User]").
+     */
+    public function test_a_missing_record_is_a_coded_404_without_internals(): void
+    {
+        $user = $this->activeUser();
+
+        foreach ([
+            route('v1.tasks.show', '01JZZZZZZZZZZZZZZZZZZZZZZZ'),
+            route('v1.users.show', '01JZZZZZZZZZZZZZZZZZZZZZZZ'),
+        ] as $url) {
+            $response = $this->asUser($user)->getJson($url)
+                ->assertNotFound()
+                ->assertJsonPath('code', 'not_found');
+            $this->assertStringNotContainsString('App\\Models', (string) $response->getContent());
+        }
+    }
 }

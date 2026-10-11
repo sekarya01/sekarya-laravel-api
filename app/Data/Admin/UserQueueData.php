@@ -7,6 +7,7 @@ namespace App\Data\Admin;
 use App\Data\CursorPageData;
 use App\Enums\UserStatus;
 use App\Http\Requests\Api\V1\Admin\UserQueueRequest;
+use App\Support\Email;
 
 /**
  * Penyaring daftar pengguna untuk moderasi.
@@ -35,7 +36,7 @@ final readonly class UserQueueData
                 ? UserStatus::from($request->string('status')->value())
                 : null,
             email: $request->filled('email')
-                ? mb_strtolower(trim($request->string('email')->value()))
+                ? Email::normalize($request->string('email')->value())
                 : null,
         );
     }

@@ -12,8 +12,8 @@ use Tests\TestCase;
 /**
  * Masuk dasbor super_admin: sesi `admin_web`, bukan token API.
  *
- * Aturannya sama seperti AdminLoginAction — dan test ini menjaganya dari
- * sisi web: hash dummy anti-enumeration tidak bisa diuji dari luar, tapi
+ * Kredensialnya diperiksa VerifyAdminCredentialsAction — pemeriksa yang sama
+ * dengan login API — dan test ini menjaganya dari sisi web: hash dummy anti-enumeration tidak bisa diuji dari luar, tapi
  * penolakan admin biasa dan akun suspended bisa.
  */
 final class AuthTest extends TestCase
@@ -64,6 +64,35 @@ final class AuthTest extends TestCase
         ])->assertRedirect()->assertSessionHasErrors('email');
 
         $this->assertGuest('admin_web');
+    }
+
+    /**
+     * Kredensial diperiksa VerifyAdminCredentialsAction (sama dengan API),
+     * tapi login baru DICATAT bila dasbor menerimanya — admin biasa yang
+     * ditolak gerbang peran tidak tercatat seolah sudah masuk.
+     */
+    public function test_admin_biasa_yang_ditolak_tidak_tercatat_login(): void
+    {
+        $admin = $this->activeAdmin();
+
+        $this->post(route('super_admin.login.attempt'), [
+            'email' => $admin->email,
+            'password' => 'password',
+        ])->assertSessionHasErrors('email');
+
+        $this->assertNull($admin->fresh()->last_login_at);
+    }
+
+    public function test_login_super_admin_tercatat(): void
+    {
+        $admin = $this->superAdmin();
+
+        $this->post(route('super_admin.login.attempt'), [
+            'email' => $admin->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertNotNull($admin->fresh()->last_login_at);
     }
 
     public function test_admin_biasa_ditolak(): void

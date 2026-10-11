@@ -22,7 +22,7 @@ final class PurgeExpiredChatRoomsAction
 
     public function handle(): int
     {
-        $days = (int) $this->config->get('sekarya.chat.purge_after_days', 0);
+        $days = (int) $this->config->get('sekarya.chat.purge_after_days');
         if ($days <= 0) {
             return 0;
         }

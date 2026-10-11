@@ -48,12 +48,6 @@ final class TaskCancelRequest extends Model
         return $this->belongsTo(User::class, 'requested_by');
     }
 
-    /** @return BelongsTo<User, $this> */
-    public function decider(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'decided_by');
-    }
-
     /**
      * Suara tiap pekerja. Dibuat sekaligus saat permintaan lahir, jadi
      * jumlah barisnya = jumlah orang yang harus setuju.
@@ -63,10 +57,5 @@ final class TaskCancelRequest extends Model
     public function approvals(): HasMany
     {
         return $this->hasMany(TaskCancelApproval::class, 'cancel_request_id');
-    }
-
-    public function isPending(): bool
-    {
-        return $this->status === CancelRequestStatus::Pending;
     }
 }

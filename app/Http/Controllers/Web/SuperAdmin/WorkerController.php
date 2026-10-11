@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Web\SuperAdmin;
 
 use App\Actions\Admin\Verification\ViewVerificationAction;
+use App\Data\CursorPageData;
 use App\Enums\Gender;
 use App\Enums\UserStatus;
-use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
 use App\Models\Admin;
 use App\Models\UserWorker;
@@ -53,13 +53,7 @@ final class WorkerController
 
                 // Penanda, bukan gerbang: hanya berlaku kalau diminta.
                 if ($readyToWork !== null) {
-                    $readyToWork
-                        ? $u->whereHas('verifications', fn (Builder $v) => $v
-                            ->where('type', VerificationType::Identity)
-                            ->where('status', VerificationStatus::Verified))
-                        : $u->whereDoesntHave('verifications', fn (Builder $v) => $v
-                            ->where('type', VerificationType::Identity)
-                            ->where('status', VerificationStatus::Verified));
+                    $u->whereIdentityVerified($readyToWork);
                 }
 
                 if ($gender !== null) {
@@ -76,13 +70,9 @@ final class WorkerController
             )
             ->with(['user' => fn (Relation $q) => $q
                 ->with('skills')
-                ->withCount([
-                    'verifications as identity_verified_count' => fn (Builder $v) => $v
-                        ->where('type', VerificationType::Identity)
-                        ->where('status', VerificationStatus::Verified),
-                ])])
+                ->withIdentityVerified()])
             ->latestFirst()
-            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->paginate(CursorPageData::fromRequest($request)->perPage)
             ->withQueryString();
 
         return view('super_admin.workers.index', [

@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Task;
 
+use App\Http\Requests\Api\V1\Concerns\RequiresCoordinatePair;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 final class CreateTaskRequest extends FormRequest
 {
+    use RequiresCoordinatePair;
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
@@ -38,10 +42,9 @@ final class CreateTaskRequest extends FormRequest
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'is_remote' => ['sometimes', 'boolean'],
 
-            // Jumlah pekerja yang dibutuhkan, sekaligus kuota pelamar:
-            // task 30 orang menerima paling banyak 30 lamaran.
-            // Batas atas ada supaya satu task tidak bisa membuka ribuan slot
-            // dan mengubah kuota lamaran menjadi tak berbatas.
+            // Jumlah pekerja yang DITERIMA — bukan batas pelamar (lelang tetap
+            // terbuka, lihat CLAUDE.md). Batas atas ada supaya satu task tidak
+            // bisa membuka ribuan slot.
             'workers_needed' => ['sometimes', 'integer', 'min:1', 'max:500'],
 
             'needed_at' => ['required', 'date', 'after:now'],
@@ -54,7 +57,6 @@ final class CreateTaskRequest extends FormRequest
             'skills' => ['sometimes', 'array', 'max:10'],
             'skills.*' => ['string', 'exists:skills,slug'],
 
-            'publish_now' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -67,5 +69,10 @@ final class CreateTaskRequest extends FormRequest
             'workers_needed.min' => 'Jumlah pekerja minimal 1 orang.',
             'workers_needed.max' => 'Jumlah pekerja maksimal 500 orang untuk satu pekerjaan.',
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(fn (Validator $v) => $this->checkCoordinatePair($v, $this->input('latitude'), $this->input('longitude')));
     }
 }

@@ -13,6 +13,7 @@ use App\Models\Activity;
 use App\Models\Admin;
 use App\Models\Payment;
 use App\Support\AdminAuditRecorder;
+use App\Support\Rupiah;
 use App\Support\WorkOpening;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Collection;
@@ -104,7 +105,7 @@ final class ConfirmPaymentAction
                 $admin,
                 AdminAction::PaymentConfirmed,
                 (int) $fresh->getKey(),
-                sprintf('Rp%s, %d activity', number_format((float) $fresh->amount, 0, ',', '.'), $activities->count()),
+                sprintf('%s, %d activity', Rupiah::format($fresh->amount), $activities->count()),
                 $ip,
             );
 

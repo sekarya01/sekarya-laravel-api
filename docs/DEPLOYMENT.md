@@ -390,7 +390,10 @@ seperti `/opt/cpanel/ea-php84/root/usr/bin/php`.
 > salinan hasil unggah/clone di dalamnya). Cron yang menunjuk salinan tetap "berhasil"
 > tapi memakai kode dan `.env` yang salah — jadwal tampak tidak pernah jalan.
 > Penentunya: Cara A → Document Root domain (`<folder>/public`); Cara B → baris
-> `require __DIR__.'/../<folder>/vendor/autoload.php';` di `public_html/index.php`.
+> `require __DIR__.'/../<folder>/vendor/autoload.php';` di `public_html/index.php`
+> (berkas di SERVER, bukan di repo). Server produksi saat ini memakai Cara B dengan
+> `../sekarya/` (dikonfirmasi 2026-10-09). Path `cd` yang salah ketik juga gagal diam-diam
+> (`cd` gagal → artisan tak pernah dipanggil) — selalu cek log sesudah memasang/mengubah cron.
 
 **Penjadwal Laravel**, setiap menit (log ke berkas, bukan dibuang — cron yang gagal itu diam):
 
@@ -421,7 +424,7 @@ pernah ada dua pekerja berebut antrean yang sama.
 Yang memakai keduanya:
 
 - **Antrean** — push notifikasi lonceng (penawaran, status tugas, dompet) lewat job
-  `SendPushNotification`. Tanpa cron pekerja di atas, job menumpuk di tabel `jobs` dan push
+  `SendPushNotification`, dan `NotifyNearbyWorkersJob`. Tanpa cron pekerja di atas, job menumpuk di tabel `jobs` dan push
   tidak pernah terkirim. **Push chat TIDAK lewat antrean** — ia dikirim sesudah respons
   (`PushDispatcher::sendTransient`) supaya pesan sampai realtime, bukan menunggu cron menit
   berikutnya. Axiom memakai antrean hanya bila `AXIOM_DELIVERY=queue`; untuk shared hosting
@@ -431,6 +434,13 @@ Yang memakai keduanya:
   pekerja → `expired`), `sekarya:activities:auto-approve` per jam (setujui hasil yang melewati tenggang
   `activities.auto_approve_hours`, 24 jam bawaan), dan `sekarya:chat:purge-expired` harian
   03:30 (hapus isi chat room yang sudah lama berakhir, `chat.purge_after_days`).
+
+**Cek cepat bahwa cron hidup:**
+
+- `schedule.log` memuat `sekarya:tasks:expire-bidding` setiap 5 menit → penjadwal hidup.
+- Task `open` yang `needed_at`-nya lewat tanpa pekerja masih `open` lebih dari 5 menit →
+  cron mati, menunjuk folder yang salah, atau kode di folder live belum memuat aturan
+  `needed_at` (cari `needed_at` di `app/Actions/Task/ExpireBiddingAction.php`).
 
 ---
 

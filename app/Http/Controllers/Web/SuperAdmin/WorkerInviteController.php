@@ -6,11 +6,10 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 
 use App\Actions\Admin\WorkerInvite\CreateWorkerInviteCodeAction;
 use App\Actions\Admin\WorkerInvite\DeactivateWorkerInviteCodeAction;
-use App\Enums\VerificationStatus;
-use App\Enums\VerificationType;
+use App\Data\Admin\CreateWorkerInviteCodeData;
+use App\Data\CursorPageData;
 use App\Models\Admin;
 use App\Models\WorkerInviteCode;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -47,18 +46,12 @@ final class WorkerInviteController
         $codes = WorkerInviteCode::query()
             ->withCount('redemptions')
             ->with('creator')
-            ->when($usable !== null, function (Builder $q) use ($usable): void {
-                $q->where('is_active', $usable);
-                if ($usable) {
-                    // Bisa dipakai = aktif DAN kuota tersisa DAN tanggal belum lewat.
-                    $q->whereColumn('used_count', '<', 'max_uses')
-                        ->where(fn (Builder $w) => $w
-                            ->whereNull('expires_at')
-                            ->orWhere('expires_at', '>', now()));
-                }
-            })
+            // "Bisa dipakai" = scope usable() (SSOT, sama dengan penukaran kode);
+            // "tidak" = kebalikannya — termasuk kuota habis & kedaluwarsa.
+            ->when($usable === true, fn (Builder $q) => $q->usable())
+            ->when($usable === false, fn (Builder $q) => $q->whereNot(fn (Builder $w) => $w->usable()))
             ->orderByDesc('id')
-            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->paginate(CursorPageData::fromRequest($request)->perPage)
             ->withQueryString();
 
         return view('super_admin.worker_invites.index', [
@@ -99,17 +92,7 @@ final class WorkerInviteController
         $admin = Auth::guard('admin_web')->user();
 
         try {
-            $result = $action->handle(
-                (int) $validated['max_uses'],
-                isset($validated['expires_at']) && $validated['expires_at'] !== null
-                    ? Carbon::parse($validated['expires_at'])
-                    : null,
-                isset($validated['note']) && $validated['note'] !== '' ? trim($validated['note']) : null,
-                $admin,
-                $request->ip(),
-                $validated['city'] ?? null,
-                $validated['province'] ?? null,
-            );
+            $result = $action->handle(CreateWorkerInviteCodeData::fromValues($validated, $request->ip()), $admin);
         } catch (\Throwable $e) {
             report($e);
 
@@ -126,11 +109,7 @@ final class WorkerInviteController
         $code->loadCount('redemptions')->load('creator');
 
         $redemptions = $code->redemptions()
-            ->with(['user' => fn ($q) => $q->withCount([
-                'verifications as identity_verified_count' => fn (Builder $v) => $v
-                    ->where('type', VerificationType::Identity)
-                    ->where('status', VerificationStatus::Verified),
-            ])])
+            ->with(['user' => fn ($q) => $q->withIdentityVerified()])
             ->orderByDesc('id')
             ->paginate(20)
             ->withQueryString();

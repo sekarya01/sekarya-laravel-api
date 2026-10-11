@@ -72,12 +72,6 @@ final class WalletWithdrawal extends Model
         return $this->belongsTo(UserVerification::class, 'verification_id');
     }
 
-    /** @return BelongsTo<Admin, $this> */
-    public function processor(): BelongsTo
-    {
-        return $this->belongsTo(Admin::class, 'processed_by');
-    }
-
     /** @param  Builder<$this>  $query */
     public function scopeQueueOrder(Builder $query): void
     {

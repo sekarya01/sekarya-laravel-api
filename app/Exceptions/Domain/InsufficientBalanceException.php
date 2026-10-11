@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Exceptions\Domain;
 
+use App\Support\Rupiah;
+
 /**
  * Saldo tidak cukup untuk pemotongan yang diminta.
  *
@@ -20,9 +22,9 @@ final class InsufficientBalanceException extends DomainException
         private readonly int $requested,
     ) {
         parent::__construct(sprintf(
-            'Saldo tidak cukup. Tersedia Rp%s, diminta Rp%s.',
-            number_format((float) $balance, 0, ',', '.'),
-            number_format((float) $requested, 0, ',', '.'),
+            'Saldo tidak cukup. Tersedia %s, diminta %s.',
+            Rupiah::format($balance),
+            Rupiah::format($requested),
         ));
     }
 

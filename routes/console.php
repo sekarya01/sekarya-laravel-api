@@ -1,12 +1,7 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
-
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
 
 /*
  * Ketiga jadwal dijalankan DI DALAM proses `schedule:run` (`Schedule::call` +
@@ -31,6 +26,9 @@ $inProcess = static function (string $command): Closure {
 // `needed_at`-nya lewat tanpa pekerja diterima (`workers_hired` = 0).
 Schedule::call($inProcess('sekarya:tasks:expire-bidding'))
     ->name('sekarya:tasks:expire-bidding')
+    // Dua sweep yang tumpang tindih (yang lama belum selesai saat cron
+    // menit berikutnya menyala) memproses task yang sama dua kali.
+    ->withoutOverlapping()
     ->everyFiveMinutes();
 
 // Chat: room `expired` yang melewati masa simpan dihapus isinya permanen.

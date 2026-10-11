@@ -42,7 +42,7 @@
                         <p class="font-medium"><span class="marq" title="{{ $p->user?->name }}"><span class="marq-in">{{ $p->user?->name }}</span></span></p>
                         <p class="text-xs text-slate-400"><span class="marq" title="{{ $p->user?->email }}"><span class="marq-in">{{ $p->user?->email }}</span></span></p>
                     </td>
-                    <td class="td-c whitespace-nowrap font-extrabold" style="color: #163C68;">Rp{{ number_format($p->amount, 0, ',', '.') }}</td>
+                    <td class="td-c whitespace-nowrap font-extrabold" style="color: #163C68;">{{ \App\Support\Rupiah::format($p->amount) }}</td>
                     <td class="td-c text-xs text-slate-500"><span class="marq" title="{{ $p->sender_note }}"><span class="marq-in">{{ $p->sender_note ?? '—' }}</span></span></td>
                     <td class="td-c">@include('super_admin.partials.badge', ['text' => $p->status->value, 'tone' => $tone])</td>
                     <td class="td-c">

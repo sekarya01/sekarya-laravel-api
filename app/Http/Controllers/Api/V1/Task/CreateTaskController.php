@@ -23,8 +23,8 @@ final class CreateTaskController
     {
         $task = $this->action->handle(CreateTaskData::fromRequest($request), $request->user());
 
-        // Tugas yang langsung tayang mengabari mitra sekitar (B13). Draf tidak.
-        $notified = $request->boolean('publish_now') ? $this->notify->handle($task) : 0;
+        // Tugas tayang mengabari mitra sekitar (B13).
+        $notified = $this->notify->handle($task);
 
         return TaskResource::make($task->load(['category', 'poster', 'skills']))
             ->additional(['meta' => ['notified_workers' => $notified]])

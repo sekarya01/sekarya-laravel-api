@@ -161,18 +161,6 @@ final class Task extends Model
     }
 
     /**
-     * Simpanan (bookmark) orang-orang. Untuk `is_bookmarked` di feed dipakai
-     * dengan `withExists` yang dibatasi `user_id` — satu subquery per halaman,
-     * bukan satu kueri per baris.
-     *
-     * @return HasMany<TaskBookmark, $this>
-     */
-    public function bookmarks(): HasMany
-    {
-        return $this->hasMany(TaskBookmark::class);
-    }
-
-    /**
      * Tawaran milik satu orang pada task ini. Selalu dipakai dengan batasan
      * bidder_id di eager-load — ada supaya feed bisa menandai "sudah dilamar"
      * tanpa panggilan API kedua.
@@ -185,6 +173,20 @@ final class Task extends Model
     }
 
     /**
+     * DIPAKAI ROUTE BINDING, bukan kode: `tasks/{task}/cancel-requests/
+     * {cancelRequest}` memakai `->scopeBindings()`, dan Laravel menebak nama
+     * relasi ini dari parameternya untuk memastikan permintaan itu milik task
+     * tersebut. Tidak muncul di grep — jangan dihapus (pernah, 2026-10-12:
+     * seluruh approve/reject/withdraw jadi 500).
+     *
+     * @return HasMany<TaskCancelRequest, $this>
+     */
+    public function cancelRequests(): HasMany
+    {
+        return $this->hasMany(TaskCancelRequest::class);
+    }
+
+    /**
      * Penawaran yang diterima — SUMBER KEBENARAN siapa yang mengerjakan task
      * ini, berapa orang, dan masing-masing dengan harga berapa.
      *
@@ -193,6 +195,12 @@ final class Task extends Model
     public function acceptedBids(): HasMany
     {
         return $this->hasMany(Bid::class)->where('status', BidStatus::Accepted);
+    }
+
+    /** Apakah [user] pekerja yang sudah DEAL di task ini — SATU definisi untuk policy. */
+    public function hasAcceptedWorker(User $user): bool
+    {
+        return $this->acceptedBids()->where('bidder_id', $user->getKey())->exists();
     }
 
     /** @return HasOne<Payment, $this> */
@@ -216,12 +224,6 @@ final class Task extends Model
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class);
-    }
-
-    /** @return HasMany<TaskCancelRequest, $this> */
-    public function cancelRequests(): HasMany
-    {
-        return $this->hasMany(TaskCancelRequest::class);
     }
 
     /**
@@ -261,8 +263,7 @@ final class Task extends Model
      * HANYA pemberi kerja task ini — orang yang sedang memilih pelamar.
      * Pelamar lain tidak: jarak pesaingnya bukan urusannya, dan setiap angka
      * jarak yang keluar adalah satu persamaan menuju lokasi kerja orang itu.
-     * Pekerja sendiri juga tidak mendapatkannya di sini (`my_bid`,
-     * `bids/mine`): kolomnya tetap ada dengan nilai `null`, supaya bentuk
+     * Pekerja sendiri juga tidak mendapatkannya di sini (`my_bid`): kolomnya tetap ada dengan nilai `null`, supaya bentuk
      * responsnya sama untuk semua orang.
      */
     public function showsWorkerDistanceTo(?User $viewer): bool
@@ -287,28 +288,46 @@ final class Task extends Model
     }
 
     /**
-     * Muat relasi bentuk DETAIL (`GET tasks/{task}`) dari sudut [viewer] —
-     * SATU sumber untuk endpoint detail dan snapshot tugas di push FCM, supaya
-     * keduanya tidak pernah berbeda bentuk.
+     * Muat relasi tingkat TUGAS dari sudut [viewer] — semua bentuk detail
+     * KECUALI daftar pekerja & activity. Dipakai event push `task` (biayanya
+     * tetap berapa pun pekerjanya) dan menjadi dasar [loadDetailFor].
      *
-     * activities.worker wajib: mobile memakai worker.name untuk kartu mitra +
-     * syarat tampil stepper status pengerjaan. myBid dibatasi ke penonton
-     * persis seperti di feed — tanpa itu `my_bid` selalu null dan mitra yang
-     * membuka ulang task yang sudah ia tawar melihat "Ajukan Penawaran" hidup
-     * lagi. workers.skills: keahlian pekerja untuk layar profilnya.
-     * cancel_request pending: popup persetujuan di Detail Kerjaan.
+     * myBid dibatasi ke penonton persis seperti di feed — tanpa itu `my_bid`
+     * selalu null dan mitra yang membuka ulang task yang sudah ia tawar melihat
+     * "Ajukan Penawaran" hidup lagi. cancel_request pending: popup persetujuan
+     * di Detail Kerjaan.
      */
-    public function loadDetailFor(?User $viewer): self
+    public function loadSummaryFor(?User $viewer): self
     {
         $viewerId = $viewer?->getKey();
 
         return $this->load([
-            'category', 'poster', 'workers.skills', 'skills', 'payment', 'activities.worker',
+            'category', 'skills', 'payment',
+            // Badge dari satu subquery (User::withIdentityVerified).
+            'poster' => fn ($q) => $q->withIdentityVerified(),
             'pendingCancelRequest.approvals',
             'myBid' => fn ($q) => $q->where('bidder_id', $viewerId),
-        ])->loadExists([
-            // Apakah penonton menyimpan tugas ini (B11).
-            'bookmarks as bookmarked' => fn ($q) => $q->where('user_id', $viewerId),
+        ]);
+    }
+
+    /**
+     * Muat relasi bentuk DETAIL (`GET tasks/{task}`) dari sudut [viewer]:
+     * [loadSummaryFor] + pekerja & activity.
+     *
+     * activities.worker wajib: mobile memakai worker.name untuk kartu mitra +
+     * syarat tampil stepper status pengerjaan. workers.skills: keahlian pekerja
+     * untuk layar profilnya. Setiap pengguna yang tampil membawa
+     * `identity_verified_count` — tanpa itu detail task 500 pekerja menjalankan
+     * ±2.000 kueri `exists` untuk badge.
+     */
+    public function loadDetailFor(?User $viewer): self
+    {
+        $badge = fn ($q) => $q->withIdentityVerified();
+
+        return $this->loadSummaryFor($viewer)->load([
+            'workers' => $badge,
+            'workers.skills',
+            'activities.worker' => $badge,
         ]);
     }
 
@@ -412,5 +431,25 @@ final class Task extends Model
     public function scopeLatestFirst(Builder $query): void
     {
         $query->orderByDesc('created_at')->orderByDesc('id');
+    }
+
+    /** Jumlah penawaran yang masih menunggu — SATU definisi kolom `bids_count`. */
+    public function pendingBidsCount(): int
+    {
+        return $this->bids()->where('status', BidStatus::Pending)->count();
+    }
+
+    /**
+     * Tutup semua penawaran yang masih menunggu sebagai [as] (`rejected` saat
+     * lelang ditutup/dibatalkan, `expired` saat kedaluwarsa) — supaya tidak
+     * menggantung di daftar pelamar.
+     */
+    public function closePendingBids(BidStatus $as): int
+    {
+        return $this->bids()->where('status', BidStatus::Pending)->update([
+            'status' => $as,
+            'responded_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 }

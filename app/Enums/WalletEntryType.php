@@ -62,10 +62,4 @@ enum WalletEntryType: string
             self::AdjustmentDebit => WalletEntryDirection::Debit,
         };
     }
-
-    /** Uang yang datang dari pekerjaan, bukan dari isi ulang sendiri. */
-    public function isEarning(): bool
-    {
-        return $this === self::Earning;
-    }
 }

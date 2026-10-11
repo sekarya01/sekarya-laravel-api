@@ -39,12 +39,6 @@ enum WalletWithdrawalStatus: string
         return $this !== self::Requested;
     }
 
-    /** Status yang mengembalikan dana yang tadi ditahan. */
-    public function returnsHeldFunds(): bool
-    {
-        return $this === self::Rejected || $this === self::Cancelled;
-    }
-
     public function canTransitionTo(self $next): bool
     {
         return in_array($next, match ($this) {

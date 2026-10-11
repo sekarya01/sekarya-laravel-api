@@ -8,7 +8,7 @@
     $task = $dispute->task;
     $activity = $dispute->activity;
     $photoUrl = fn (string $path): string => \Illuminate\Support\Facades\Storage::disk('public')->url($path);
-    $rupiah = fn (?int $n): string => 'Rp'.number_format((int) $n, 0, ',', '.');
+    $rupiah = fn (?int $n): string => \App\Support\Rupiah::format((int) $n);
 @endphp
 <div class="anim-rise flex flex-wrap items-center gap-3">
     <a href="{{ route('super_admin.disputes.index') }}" class="btn btn-ghost py-2! text-xs!">← Kembali ke antrean</a>

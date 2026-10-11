@@ -42,7 +42,7 @@
                         <p class="font-medium"><span class="marq" title="{{ $p->task?->title }}"><span class="marq-in">{{ $p->task?->title }}</span></span></p>
                         <p class="font-mono text-xs text-slate-400">{{ $p->task?->task_number }}</p>
                     </td>
-                    <td class="td-c whitespace-nowrap font-extrabold" style="color: #163C68;">Rp{{ number_format($p->amount, 0, ',', '.') }}</td>
+                    <td class="td-c whitespace-nowrap font-extrabold" style="color: #163C68;">{{ \App\Support\Rupiah::format($p->amount) }}</td>
                     <td class="td-c">@include('super_admin.partials.badge', ['text' => $p->status->value, 'tone' => $tone])</td>
                     <td class="td-c text-xs text-slate-500"><span class="marq" title="{{ $p->payer?->email }}"><span class="marq-in">{{ $p->payer?->email }}</span></span></td>
                     <td class="td-c">

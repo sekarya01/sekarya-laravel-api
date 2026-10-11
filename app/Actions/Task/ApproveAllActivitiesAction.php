@@ -18,8 +18,8 @@ use Illuminate\Database\ConnectionInterface;
  * Klien bisa saja memanggil `POST activities/{a}/approve` berulang, tapi
  * tombolnya satu dan tidak boleh meninggalkan persetujuan SEBAGIAN kalau
  * salah satu gagal di tengah — karena itu seluruhnya satu transaksi.
- * `ApproveActivityAction` tetap satu-satunya tempat aturan "dana dilepas saat
- * pekerja terakhir disetujui" ditulis; Action ini hanya mengulanginya.
+ * `ApproveActivityAction` tetap satu-satunya tempat aturan persetujuan & upah
+ * per mitra ditulis; Action ini hanya mengulanginya.
  */
 final class ApproveAllActivitiesAction
 {

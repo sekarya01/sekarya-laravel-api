@@ -20,11 +20,6 @@ final class SuperAdminIsProtectedException extends DomainException
         return new self('Akun super_admin tidak bisa dihapus.');
     }
 
-    public static function cannotBeDemoted(): self
-    {
-        return new self('Peran akun super_admin tidak bisa diubah.');
-    }
-
     public function errorCode(): string
     {
         return 'super_admin_protected';

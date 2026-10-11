@@ -106,7 +106,7 @@ final class OptionalFieldsTest extends TestCase
             ->assertJsonPath('data.message', 'Bawa alat sendiri');
 
         $this->assertNotNull(
-            $this->asUser($worker)->getJson(route('v1.bids.mine'))->json('data.0.can_start_at'),
+            $this->asUser($worker)->getJson(route('v1.tasks.show', $task))->json('data.my_bid.can_start_at'),
         );
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Data\Admin;
 
 use App\Http\Requests\Api\V1\Admin\CreateAdminRequest;
+use App\Support\Email;
 
 /**
  * Akun pengelola baru. Perannya TIDAK ada di sini.
@@ -27,7 +28,7 @@ final readonly class CreateAdminData
     {
         return new self(
             name: trim($request->string('name')->value()),
-            email: mb_strtolower(trim($request->string('email')->value())),
+            email: Email::normalize($request->string('email')->value()),
             password: $request->string('password')->value(),
             ip: $request->ip(),
         );

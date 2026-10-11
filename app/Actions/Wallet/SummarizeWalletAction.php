@@ -98,7 +98,7 @@ final class SummarizeWalletAction
             ->where($table.'.created_at', '<', $to->utc())
             ->when($data->types !== [], fn (Builder $q) => $q->whereIn(
                 $table.'.type',
-                array_map(static fn (WalletEntryType $t): string => $t->value, $data->types),
+                $data->types,
             ))
             ->when($data->direction !== null, fn (Builder $q) => $q->where($table.'.direction', $data->direction?->value));
     }
@@ -119,7 +119,7 @@ final class SummarizeWalletAction
         WalletSummaryQueryData $data,
     ): array {
         $byType = array_fill_keys(
-            array_map(static fn (WalletEntryType $t): string => $t->value, WalletEntryType::cases()),
+            array_column(WalletEntryType::cases(), 'value'),
             0,
         );
         $count = 0;

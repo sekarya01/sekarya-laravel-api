@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Data\User;
 
 use App\Http\Requests\Api\V1\User\UpsertWorkerProfileRequest;
+use App\Support\PhoneNumber;
 
 /**
  * Isi profil pekerja yang dikirim klien.
@@ -35,20 +36,20 @@ final readonly class UpsertWorkerProfileData
         public array $present = [],
     ) {}
 
-    /** Nama field di payload -> nama kolom. Satu tempat, dipakai dua arah. */
-    private const array COLUMN_MAP = [
-        'display_name' => 'display_name',
-        'headline' => 'headline',
-        'contact_phone' => 'contact_phone',
-        'avatar_path' => 'avatar_path',
-        'address_line' => 'address_line',
-        'city' => 'city',
-        'province' => 'province',
-        'postal_code' => 'postal_code',
-        'latitude' => 'latitude',
-        'longitude' => 'longitude',
-        'radius_km' => 'radius_km',
-        'is_available' => 'is_available',
+    /** Field payload yang boleh dianggap "ada" — namanya sama dengan nama kolom. */
+    private const array FIELDS = [
+        'display_name',
+        'headline',
+        'contact_phone',
+        'avatar_path',
+        'address_line',
+        'city',
+        'province',
+        'postal_code',
+        'latitude',
+        'longitude',
+        'radius_km',
+        'is_available',
     ];
 
     public static function fromRequest(UpsertWorkerProfileRequest $request): self
@@ -60,12 +61,8 @@ final readonly class UpsertWorkerProfileData
         return new self(
             displayName: $str('display_name'),
             headline: $str('headline'),
-            contactPhone: $request->filled('contact_phone')
-                // Spasi dibuang seperti pada pendaftaran: "+62 812 ..." dan
-                // "+62812..." adalah nomor yang sama, dan hanya satu bentuk
-                // yang boleh masuk basis data.
-                ? preg_replace('/\s+/', '', $request->string('contact_phone')->value())
-                : null,
+            // Aturan & normalisasi nomor yang SAMA dengan pendaftaran (PhoneNumber).
+            contactPhone: PhoneNumber::normalize($request->input('contact_phone')),
             avatarPath: $str('avatar_path'),
             addressLine: $str('address_line'),
             city: $str('city'),
@@ -76,7 +73,7 @@ final readonly class UpsertWorkerProfileData
             radiusKm: $request->filled('radius_km') ? (int) $request->input('radius_km') : null,
             isAvailable: $request->has('is_available') ? $request->boolean('is_available') : null,
             present: array_values(array_intersect(
-                array_keys(self::COLUMN_MAP),
+                self::FIELDS,
                 array_keys($request->all()),
             )),
         );
@@ -114,12 +111,7 @@ final readonly class UpsertWorkerProfileData
             return array_filter($values, fn (mixed $v): bool => $v !== null);
         }
 
-        $columns = array_map(
-            fn (string $field): string => self::COLUMN_MAP[$field],
-            $this->present,
-        );
-
-        return array_intersect_key($values, array_flip($columns));
+        return array_intersect_key($values, array_flip($this->present));
     }
 
     /** Klien meminta mengubah ketersediaan. */
