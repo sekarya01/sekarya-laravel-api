@@ -2062,7 +2062,7 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `POST` | `/bids/{bid}/accept` | access | `api` | **Terima seorang pelamar.** Slot terakhir menutup lelang. |
 | `POST` | `/bids/{bid}/withdraw` | access | `api` | Tarik penawaran sendiri. Kuotanya kembali. |
 | `GET` | `/tasks/{task}/bids` | access | `api` | Daftar penawaran masuk. `sort=amount`, `rating`, atau `newest`. |
-| `POST` | `/tasks/{task}/bids` | access | `write` | Ajukan penawaran. Mengirim ulang **mengubah** penawaran (`200`). |
+| `POST` | `/tasks/{task}/bids` | access | `write` | Ajukan penawaran. Mengirim ulang **mengubah** penawaran (`200`); yang sudah diterima ditolak `invalid_status_transition`. |
 
 **Uang**
 

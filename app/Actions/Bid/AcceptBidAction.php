@@ -41,12 +41,15 @@ final class AcceptBidAction
 
     public function handle(Bid $bid, User $poster): Task
     {
-        $task = $this->db->transaction(function () use ($bid, $poster): Task {
+        $task = $this->db->transaction(function () use (&$bid, $poster): Task {
             // Row lock sungguhan: MySQL/InnoDB menerjemahkan ini ke
             // SELECT ... FOR UPDATE. Tanpa itu ada jendela di mana dua
             // penerimaan paralel sama-sama melihat slot terakhir masih kosong
             // dan merekrut 31 orang untuk 30 slot.
             $task = Task::query()->whereKey($bid->task_id)->lockForUpdate()->firstOrFail();
+            // Status bid dibaca dari baris yang dikunci, bukan dari model yang
+            // dimuat sebelum transaksi — penarikan bisa sudah commit duluan.
+            $bid = Bid::query()->whereKey($bid->getKey())->lockForUpdate()->firstOrFail();
 
             // Slot habis diperiksa LEBIH DULU daripada status.
             //

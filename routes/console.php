@@ -26,6 +26,9 @@ $inProcess = static function (string $command): Closure {
 // `needed_at`-nya lewat tanpa pekerja diterima (`workers_hired` = 0).
 Schedule::call($inProcess('sekarya:tasks:expire-bidding'))
     ->name('sekarya:tasks:expire-bidding')
+    // Dua sweep yang tumpang tindih (yang lama belum selesai saat cron
+    // menit berikutnya menyala) memproses task yang sama dua kali.
+    ->withoutOverlapping()
     ->everyFiveMinutes();
 
 // Chat: room `expired` yang melewati masa simpan dihapus isinya permanen.

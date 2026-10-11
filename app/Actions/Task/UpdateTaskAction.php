@@ -38,21 +38,26 @@ final class UpdateTaskAction
 
     public function handle(Task $task, UpdateTaskData $data): Task
     {
-        if (! in_array($task->status, self::EDITABLE, true)) {
-            throw TaskNotEditableException::becauseStatus($task->status);
-        }
-
-        // Dicek sebelum transaksi: penolakan ini tidak menyentuh apa pun.
-        if ($data->has('workers_needed')
-            && $data->workersNeeded !== null
-            && $data->workersNeeded < (int) $task->workers_hired) {
-            throw WorkersNeededBelowHiredException::make(
-                $data->workersNeeded,
-                (int) $task->workers_hired,
-            );
-        }
-
         return $this->db->transaction(function () use ($task, $data): Task {
+            // Status & `workers_hired` dibaca dari baris yang DIKUNCI: penerimaan
+            // penawaran yang commit sejak task dimuat bisa sudah memindahkannya
+            // ke `dealt`, dan escrow->sync di bawah tidak boleh jalan atas
+            // salinan lama.
+            $task = Task::query()->whereKey($task->getKey())->lockForUpdate()->firstOrFail();
+
+            if (! in_array($task->status, self::EDITABLE, true)) {
+                throw TaskNotEditableException::becauseStatus($task->status);
+            }
+
+            if ($data->has('workers_needed')
+                && $data->workersNeeded !== null
+                && $data->workersNeeded < (int) $task->workers_hired) {
+                throw WorkersNeededBelowHiredException::make(
+                    $data->workersNeeded,
+                    (int) $task->workers_hired,
+                );
+            }
+
             $attributes = [];
 
             // Kategori pindah berarti harga acuannya ikut pindah. Snapshot

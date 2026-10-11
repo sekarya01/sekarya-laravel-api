@@ -12,6 +12,8 @@ use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
 use App\Support\TaskStatusRecorder;
 use Carbon\CarbonInterface;
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Collection;
 
 /**
  * Penutup lelang otomatis (G12).
@@ -35,6 +37,7 @@ use Carbon\CarbonInterface;
 final class ExpireBiddingAction
 {
     public function __construct(
+        private readonly ConnectionInterface $db,
         private readonly TaskStatusRecorder $recorder,
         private readonly PushDispatcher $push,
     ) {}
@@ -56,32 +59,50 @@ final class ExpireBiddingAction
                     ->where('needed_at', '<=', $now)
                     ->where('workers_hired', 0)))
             ->orderBy('id')
-            ->chunkById(100, function ($tasks) use (&$closed): void {
+            ->chunkById(100, function ($tasks) use (&$closed, $now): void {
                 foreach ($tasks as $task) {
-                    $this->recorder->move(
-                        $task,
-                        TaskStatus::Expired,
-                        ActorType::System,
-                        null,
-                        'Batas waktu penawaran terlewat',
-                    );
+                    // Satu task satu transaksi, dibaca ulang di bawah kunci: task
+                    // yang penawarannya diterima SETELAH potongan ini dibaca
+                    // tidak boleh ditimpa `expired` dari salinan lama, dan
+                    // kegagalan di tengah tidak boleh meninggalkan task
+                    // `expired` dengan penawaran yang masih `pending`.
+                    $bidders = $this->db->transaction(function () use ($task, $now): ?Collection {
+                        $task = Task::query()->whereKey($task->getKey())->lockForUpdate()->firstOrFail();
+                        if (! $this->isDue($task, $now)) {
+                            return null;
+                        }
 
-                    // Penawaran yang masih menggantung ditutup DAN penawarnya
-                    // diberi tahu — kalau tidak, mereka menunggu jawaban atas
-                    // lelang yang sudah mati. Sama seperti pembatalan task.
-                    $bidders = $task->bids()
-                        ->where('status', BidStatus::Pending)
-                        ->pluck('bidder_id')
-                        ->map(static fn (mixed $id): int => (int) $id)
-                        ->unique();
+                        $this->recorder->move(
+                            $task,
+                            TaskStatus::Expired,
+                            ActorType::System,
+                            null,
+                            'Batas waktu penawaran terlewat',
+                        );
 
-                    $task->bids()
-                        ->where('status', BidStatus::Pending)
-                        ->update([
-                            'status' => BidStatus::Expired,
-                            'responded_at' => now(),
-                            'updated_at' => now(),
-                        ]);
+                        // Penawaran yang masih menggantung ditutup DAN penawarnya
+                        // diberi tahu — kalau tidak, mereka menunggu jawaban atas
+                        // lelang yang sudah mati. Sama seperti pembatalan task.
+                        $bidders = $task->bids()
+                            ->where('status', BidStatus::Pending)
+                            ->pluck('bidder_id')
+                            ->map(static fn (mixed $id): int => (int) $id)
+                            ->unique();
+
+                        $task->bids()
+                            ->where('status', BidStatus::Pending)
+                            ->update([
+                                'status' => BidStatus::Expired,
+                                'responded_at' => now(),
+                                'updated_at' => now(),
+                            ]);
+
+                        return $bidders;
+                    });
+
+                    if ($bidders === null) {
+                        continue;
+                    }
 
                     $this->push->send((int) $task->poster_id, PushMessages::taskExpired($task));
 
@@ -94,5 +115,21 @@ final class ExpireBiddingAction
             });
 
         return $closed;
+    }
+
+    /** Predikat sweep, diulang atas baris yang dikunci (SAMA dengan WHERE di atas). */
+    private function isDue(Task $task, CarbonInterface $now): bool
+    {
+        if ($task->status !== TaskStatus::Open) {
+            return false;
+        }
+
+        if ($task->bidding_closes_at !== null && $task->bidding_closes_at->lte($now)) {
+            return true;
+        }
+
+        return $task->needed_at !== null
+            && $task->needed_at->lte($now)
+            && (int) $task->workers_hired === 0;
     }
 }

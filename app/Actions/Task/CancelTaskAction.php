@@ -39,28 +39,25 @@ final class CancelTaskAction
 
     public function handle(Task $task, User $actor, ?string $reason = null): Task
     {
-        // Status yang boleh dibatalkan = yang punya transisi ke `cancelled`
-        // (lihat TaskStatus::allowedNext): `draft`, `open`, `expired`, `dealt`,
-        // `active`. Tugas `expired` sengaja tidak di-refund otomatis — dananya
-        // kembali di sini, saat pemberi kerja memutuskan membatalkan.
-        // Di luar itu tolak SEBELUM menyentuh uang, supaya task yang sudah
-        // selesai tidak bisa mengembalikan dana yang sudah dilepas.
-        if (! in_array($task->status, [
-            TaskStatus::Draft,
-            TaskStatus::Open,
-            TaskStatus::Expired,
-            TaskStatus::Dealt,
-            TaskStatus::Active,
-        ], true)) {
-            throw TaskNotCancellableException::becauseStatus($task->status);
-        }
-
         return $this->db->transaction(function () use ($task, $actor, $reason): Task {
+            // Semua pemeriksaan di bawah memakai baris yang DIKUNCI. Dulu status
+            // dicek pada model yang dimuat sebelum transaksi dan hasil kunci
+            // dibuang — task yang baru saja selesai bisa ikut "dibatalkan".
+            $task = $this->settlement->lockTask($task);
+
+            // Boleh dibatalkan = punya transisi ke `cancelled` (SSOT:
+            // TaskStatus::allowedNext — `draft`, `open`, `expired`, `dealt`,
+            // `active`). Tugas `expired` sengaja tidak di-refund otomatis —
+            // dananya kembali di sini. Di luar itu tolak SEBELUM menyentuh
+            // uang, supaya task selesai tidak mengembalikan dana yang dilepas.
+            if (! $task->status->canTransitionTo(TaskStatus::Cancelled)) {
+                throw TaskNotCancellableException::becauseStatus($task->status);
+            }
+
             // Sengketa mitra yang masih terbuka mengikat sebagian dana
             // tagihan: membatalkan sekarang mengembalikan dana yang mungkin
             // masih diputuskan pengelola sebagai upah mitra itu. Diperiksa di
             // bawah kunci task — pengajuan sengketa mengambil kunci yang sama.
-            $this->settlement->lockTask($task);
             if ($task->activities()->where('status', ActivityStatus::Rejected)->exists()) {
                 throw TaskNotCancellableException::becauseOpenDispute($task->status);
             }
