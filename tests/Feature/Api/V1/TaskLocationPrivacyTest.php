@@ -140,9 +140,10 @@ final class TaskLocationPrivacyTest extends TestCase
             $this->asUser($bidder)->getJson(route('v1.tasks.show', $this->task->ulid)),
             'data.location',
         );
+        // `tasks/worked` memuat penawaran yang masih menunggu (tab "Diajukan").
         $this->assertMasked(
-            $this->asUser($bidder)->getJson(route('v1.bids.mine')),
-            'data.0.task.location',
+            $this->asUser($bidder)->getJson(route('v1.tasks.worked')),
+            'data.0.location',
         );
     }
 
@@ -152,8 +153,8 @@ final class TaskLocationPrivacyTest extends TestCase
         $this->bid($this->task, $bidder, BidStatus::Rejected);
 
         $this->assertMasked(
-            $this->asUser($bidder)->getJson(route('v1.bids.mine')),
-            'data.0.task.location',
+            $this->asUser($bidder)->getJson(route('v1.tasks.show', $this->task->ulid)),
+            'data.location',
         );
     }
 
@@ -199,25 +200,17 @@ final class TaskLocationPrivacyTest extends TestCase
             $this->asUser($worker)->getJson(route('v1.tasks.worked')),
             'data.0.location',
         );
-        $this->assertPrecise(
-            $this->asUser($worker)->getJson(route('v1.bids.mine')),
-            'data.0.task.location',
-        );
     }
 
     public function test_a_hired_worker_sees_the_precise_location_on_activities(): void
     {
         $worker = $this->activeUser();
         $this->hireWorker($this->task, $worker);
-        $activity = $this->activityFor($this->task, $worker);
+        $this->activityFor($this->task, $worker);
 
         $this->assertPrecise(
             $this->asUser($worker)->getJson(route('v1.activities.mine')),
             'data.0.task.location',
-        );
-        $this->assertPrecise(
-            $this->asUser($worker)->getJson(route('v1.activities.show', $activity->ulid)),
-            'data.task.location',
         );
     }
 
@@ -287,12 +280,11 @@ final class TaskLocationPrivacyTest extends TestCase
             'feed' => fn () => $this->asUser($this->activeUser())->getJson(route('v1.tasks.index')),
             'posted' => fn () => $this->asUser($this->poster)->getJson(route('v1.tasks.posted')),
             'worked' => fn () => $this->asUser($worker)->getJson(route('v1.tasks.worked')),
-            'bids' => fn () => $this->asUser($worker)->getJson(route('v1.bids.mine')),
             'activities' => fn () => $this->asUser($worker)->getJson(route('v1.activities.mine')),
         ];
 
         $this->assertSame(
-            ['feed' => 0, 'posted' => 0, 'worked' => 0, 'bids' => 0, 'activities' => 0],
+            ['feed' => 0, 'posted' => 0, 'worked' => 0, 'activities' => 0],
             array_map(fn (callable $c): int => $this->locationFallbackQueries($c), $calls),
         );
     }

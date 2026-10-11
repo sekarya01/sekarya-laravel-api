@@ -72,6 +72,19 @@ final class TaskLifecycleTest extends TestCase
             ->json('data.id');
     }
 
+    /**
+     * Draf tidak bisa lagi dibuat lewat API (alur draf + `publish` dibuang
+     * 2026-10-11), tapi baris lama berstatus `draft` masih ada — yang diuji
+     * adalah cara API memperlakukannya.
+     */
+    private function createDraftTask(): string
+    {
+        $id = $this->createTask();
+        Task::query()->where('ulid', $id)->update(['status' => TaskStatus::Draft]);
+
+        return $id;
+    }
+
     // ── buat task ───────────────────────────────────────────────────────────
 
     public function test_creating_a_task_returns_the_full_shape(): void
@@ -93,14 +106,6 @@ final class TaskLifecycleTest extends TestCase
                     'created_at', 'updated_at',
                 ],
             ]);
-    }
-
-    public function test_without_publish_now_the_task_is_a_draft(): void
-    {
-        $this->asUser($this->poster)
-            ->postJson(route('v1.tasks.store'), $this->payload(['publish_now' => false]))
-            ->assertCreated()
-            ->assertJsonPath('data.status', 'draft');
     }
 
     public function test_creating_a_task_validates_required_fields(): void
@@ -215,29 +220,9 @@ final class TaskLifecycleTest extends TestCase
 
     public function test_a_stranger_cannot_see_a_draft(): void
     {
-        $id = $this->createTask(['publish_now' => false]);
+        $id = $this->createDraftTask();
 
         $this->asUser($this->stranger)->getJson(route('v1.tasks.show', $id))->assertForbidden();
-    }
-
-    public function test_only_the_poster_can_publish(): void
-    {
-        $id = $this->createTask(['publish_now' => false]);
-
-        $this->asUser($this->stranger)->postJson(route('v1.tasks.publish', $id))->assertForbidden();
-        $this->asUser($this->poster)->postJson(route('v1.tasks.publish', $id))
-            ->assertOk()
-            ->assertJsonPath('data.status', 'open');
-    }
-
-    public function test_publishing_a_completed_task_is_rejected(): void
-    {
-        $id = $this->createTask(['publish_now' => false]);
-        Task::query()->where('ulid', $id)->update(['status' => TaskStatus::Completed]);
-
-        $this->asUser($this->poster)->postJson(route('v1.tasks.publish', $id))
-            ->assertUnprocessable()
-            ->assertJsonPath('code', 'invalid_status_transition');
     }
 
     public function test_the_poster_can_cancel_with_a_reason(): void
@@ -303,7 +288,7 @@ final class TaskLifecycleTest extends TestCase
     public function test_posted_list_can_filter_by_status(): void
     {
         $this->createTask();
-        $this->createTask(['publish_now' => false]);
+        $this->createDraftTask();
 
         $this->asUser($this->poster)
             ->getJson(route('v1.tasks.posted', ['status' => 'draft']))
@@ -324,7 +309,7 @@ final class TaskLifecycleTest extends TestCase
     public function test_posted_status_counts_include_every_status(): void
     {
         $this->createTask();
-        $this->createTask(['publish_now' => false]);
+        $this->createDraftTask();
 
         $counts = $this->asUser($this->poster)
             ->getJson(route('v1.tasks.posted.counts'))
@@ -379,7 +364,7 @@ final class TaskLifecycleTest extends TestCase
     public function test_posted_list_can_filter_by_multiple_statuses(): void
     {
         $this->createTask();
-        $this->createTask(['publish_now' => false]);
+        $this->createDraftTask();
 
         $this->asUser($this->poster)
             ->getJson(route('v1.tasks.posted', [
@@ -506,15 +491,6 @@ final class TaskLifecycleTest extends TestCase
             ->getJson(route('v1.tasks.bids.index', [$id, 'sort' => 'harga']))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['sort']);
-    }
-
-    public function test_my_bids_lists_only_mine(): void
-    {
-        $id = $this->createTask();
-        $this->asUser($this->worker)->postJson(route('v1.tasks.bids.store', $id), ['amount' => 220_000]);
-
-        $this->asUser($this->worker)->getJson(route('v1.bids.mine'))->assertOk()->assertJsonCount(1, 'data');
-        $this->asUser($this->stranger)->getJson(route('v1.bids.mine'))->assertOk()->assertJsonCount(0, 'data');
     }
 
     /**
@@ -665,15 +641,16 @@ final class TaskLifecycleTest extends TestCase
     {
         [$task, , $activity] = $this->throughToActivity();
 
-        $this->asUser($this->worker)->getJson(route('v1.activities.show', $activity))
+        $this->asUser($this->worker)->getJson(route('v1.activities.mine'))
             ->assertOk()
-            ->assertJsonPath('data.status', 'open')
-            ->assertJsonPath('data.payment.is_held', true)
-            ->assertJsonPath('data.task.status', 'active')
-            ->assertJsonStructure(['data' => ['id', 'status', 'agreed_amount', 'opened_at',
+            ->assertJsonPath('data.0.id', $activity)
+            ->assertJsonPath('data.0.status', 'open')
+            ->assertJsonPath('data.0.payment.is_held', true)
+            ->assertJsonPath('data.0.task.status', 'active')
+            ->assertJsonStructure(['data' => [['id', 'status', 'agreed_amount', 'opened_at',
                 'departed_at', 'arrived_at', 'started_at',
                 'submitted_at', 'approved_at', 'rejected_at', 'worker_note', 'proof_photos',
-                'poster_note', 'task', 'worker', 'payment', 'created_at']]);
+                'poster_note', 'task', 'worker', 'payment', 'created_at']]]);
         $this->assertNotEmpty($task);
     }
 
@@ -769,9 +746,9 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonPath('data.note', 'Tiba di lokasi');
 
         $this->asUser($this->worker)
-            ->getJson(route('v1.activities.show', $activity))
+            ->getJson(route('v1.activities.mine'))
             ->assertOk()
-            ->assertJsonPath('data.latest_update.note', 'Tiba di lokasi');
+            ->assertJsonPath('data.0.latest_update.note', 'Tiba di lokasi');
     }
 
     /**
@@ -973,13 +950,6 @@ final class TaskLifecycleTest extends TestCase
             ->assertOk()->assertJsonCount(0, 'data');
     }
 
-    public function test_a_stranger_cannot_view_an_activity(): void
-    {
-        [, , $activity] = $this->throughToActivity();
-
-        $this->asUser($this->stranger)->getJson(route('v1.activities.show', $activity))->assertForbidden();
-    }
-
     // ── penilaian ───────────────────────────────────────────────────────────
 
     public function test_reviews_flow_both_ways(): void
@@ -1029,29 +999,6 @@ final class TaskLifecycleTest extends TestCase
             ->getJson(route('v1.users.reviews.index', ['user' => $this->worker->ulid, 'has_photos' => 0]))
             ->assertOk();
         $this->assertCount(0, $tanpaFoto->json('data'));
-    }
-
-    /** Simpan tugas: idempoten, muncul di daftar, ditandai di feed (B11). */
-    public function test_a_task_can_be_bookmarked_and_listed(): void
-    {
-        $task = $this->createTask();
-        $saya = $this->stranger;
-
-        $this->asUser($saya)->getJson(route('v1.tasks.index'))
-            ->assertOk()->assertJsonPath('data.0.is_bookmarked', false);
-
-        $this->asUser($saya)->putJson(route('v1.tasks.bookmark.store', $task))->assertNoContent();
-        $this->asUser($saya)->putJson(route('v1.tasks.bookmark.store', $task))->assertNoContent();
-
-        $this->asUser($saya)->getJson(route('v1.tasks.bookmarked'))
-            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $task);
-
-        $this->asUser($saya)->getJson(route('v1.tasks.index'))
-            ->assertOk()->assertJsonPath('data.0.is_bookmarked', true);
-
-        $this->asUser($saya)->deleteJson(route('v1.tasks.bookmark.destroy', $task))->assertNoContent();
-        $this->asUser($saya)->getJson(route('v1.tasks.bookmarked'))
-            ->assertOk()->assertJsonCount(0, 'data');
     }
 
     public function test_reviewing_before_completion_is_rejected(): void

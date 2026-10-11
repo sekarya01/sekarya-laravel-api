@@ -171,20 +171,6 @@ CREATE TABLE IF NOT EXISTS `failed_jobs` (
   KEY `failed_jobs_connection_queue_failed_at_index` (`connection`,`queue`,`failed_at`)
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `job_batches` (
-  `id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `total_jobs` int NOT NULL,
-  `pending_jobs` int NOT NULL,
-  `failed_jobs` int NOT NULL,
-  `failed_job_ids` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
-  `options` mediumtext COLLATE utf8mb4_unicode_ci,
-  `cancelled_at` int DEFAULT NULL,
-  `created_at` int NOT NULL,
-  `finished_at` int DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS `jobs` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `queue` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -682,19 +668,6 @@ CREATE TABLE IF NOT EXISTS `skill_user` (
   KEY `skill_user_skill_id_user_id_index` (`skill_id`,`user_id`),
   CONSTRAINT `skill_user_skill_id_foreign` FOREIGN KEY (`skill_id`) REFERENCES `skills` (`id`) ON DELETE CASCADE,
   CONSTRAINT `skill_user_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `task_bookmarks` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `user_id` bigint unsigned NOT NULL,
-  `task_id` bigint unsigned NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `task_bookmarks_user_task_unique` (`user_id`,`task_id`),
-  KEY `task_bookmarks_task_id_foreign` (`task_id`),
-  KEY `task_bookmarks_user_latest_index` (`user_id`,`created_at`,`id`),
-  CONSTRAINT `task_bookmarks_task_id_foreign` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `task_bookmarks_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `task_cancel_requests` (
@@ -1316,5 +1289,6 @@ INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (69, '2026_1
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (70, '2026_10_06_000001_add_location_label_to_tasks_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (71, '2026_10_10_000001_drop_user_notifications_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (72, '2026_10_10_000002_make_task_disputes_per_activity', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (73, '2026_10_11_000001_drop_task_bookmarks_and_job_batches_tables', 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

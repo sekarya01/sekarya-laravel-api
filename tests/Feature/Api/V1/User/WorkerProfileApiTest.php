@@ -42,48 +42,34 @@ final class WorkerProfileApiTest extends TestCase
 
     public function test_the_worker_profile_requires_a_token(): void
     {
-        $this->getJson(route('v1.me.worker.show'))
+        $this->putJson(route('v1.me.worker.update'), [])
             ->assertUnauthorized()
             ->assertJsonPath('code', 'unauthenticated');
-
-        $this->putJson(route('v1.me.worker.update'), [])
-            ->assertUnauthorized();
     }
 
     /** Token long_lived hanya boleh menukar diri jadi access token. */
-    public function test_a_long_lived_token_cannot_read_the_worker_profile(): void
+    public function test_a_long_lived_token_cannot_write_the_worker_profile(): void
     {
         $this->asUserWithLongLived($this->worker())
-            ->getJson(route('v1.me.worker.show'))
+            ->putJson(route('v1.me.worker.update'), ['is_available' => true])
             ->assertForbidden();
     }
 
     // ── baca ────────────────────────────────────────────────────────────────
 
     /**
-     * Membaca profil sendiri TIDAK boleh menulis baris.
-     *
-     * Kalau GET membuat baris, sekadar membuka halaman profil sudah menambah
-     * data — dan `configured` tidak akan pernah bisa menjawab "sudah pernah
-     * diisi atau belum", karena jawabannya selalu ya sesudah pembacaan
-     * pertama.
+     * Membaca profil sendiri TIDAK boleh menulis baris (`workerProfileOrNew()`).
+     * Kalau jalur baca membuat baris, sekadar membuka profil sudah menambah
+     * data — dan "sudah pernah diisi atau belum" tidak bisa dijawab lagi.
      */
-    public function test_reading_an_empty_profile_creates_nothing_and_inherits_everything(): void
+    public function test_reading_the_profile_creates_no_worker_row(): void
     {
-        $user = $this->worker(['phone' => '+628111000111']);
+        $user = $this->worker();
 
         $this->asUser($user)
-            ->getJson(route('v1.me.worker.show'))
+            ->getJson(route('v1.me.show'))
             ->assertOk()
-            ->assertJsonPath('data.configured', false)
-            ->assertJsonPath('data.name', 'Budi Santoso')
-            ->assertJsonPath('data.contact_phone', '+628111000111')
-            ->assertJsonPath('data.gender', 'male')
-            ->assertJsonPath('data.address.city', 'Bandung')
-            ->assertJsonPath('data.as_worker.tasks_completed', 0)
-            // Yang diwarisi terbaca null di blok `own` — itulah gunanya.
-            ->assertJsonPath('data.own.display_name', null)
-            ->assertJsonPath('data.own.contact_phone', null);
+            ->assertJsonPath('data.as_worker.tasks_completed', 0);
 
         $this->assertSame(0, UserWorker::query()->where('user_id', $user->getKey())->count());
     }
@@ -93,7 +79,7 @@ final class WorkerProfileApiTest extends TestCase
         Carbon::setTestNow('2026-09-10 12:00:00');
 
         $this->asUser($this->worker(['birth_date' => '2000-09-11']))
-            ->getJson(route('v1.me.worker.show'))
+            ->getJson(route('v1.me.show'))
             ->assertOk()
             ->assertJsonPath('data.age', 25);
     }

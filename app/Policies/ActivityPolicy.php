@@ -9,11 +9,6 @@ use App\Models\User;
 
 final class ActivityPolicy
 {
-    public function view(User $user, Activity $activity): bool
-    {
-        return $this->isWorker($user, $activity) || $this->isPoster($user, $activity);
-    }
-
     /** Yang mengerjakan: mulai & serahkan hasil. */
     public function work(User $user, Activity $activity): bool
     {

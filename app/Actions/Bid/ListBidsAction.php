@@ -86,23 +86,4 @@ final class ListBidsAction
 
         return $bids;
     }
-
-    /**
-     * Penawaran yang diikuti seseorang.
-     *
-     * @return CursorPaginator<int, Bid>
-     */
-    public function byBidder(User $bidder, CursorPageData $page): CursorPaginator
-    {
-        return Bid::query()
-            ->where('bidder_id', $bidder->getKey())
-            ->with([
-                'task.category',
-                // Penentu lokasi presisi (Task::revealsLocationTo) dibaca dari
-                // sini — tanpa ini setiap baris memicu satu kueri `exists`.
-                'task.myBid' => fn (Relation $q) => $q->where('bidder_id', $bidder->getKey()),
-            ])
-            ->latestFirst()
-            ->cursorPaginate($page->perPage);
-    }
 }

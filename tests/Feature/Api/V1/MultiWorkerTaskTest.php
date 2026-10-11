@@ -6,6 +6,7 @@ namespace Tests\Feature\Api\V1;
 
 use App\Enums\UserStatus;
 use App\Models\Admin;
+use App\Models\Bid;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -142,8 +143,8 @@ final class MultiWorkerTaskTest extends TestCase
             // Slot terakhir menutup lelang DAN membuka pekerjaannya.
             ->assertJsonPath('data.status', 'active');
 
-        $this->assertSame('rejected', $this->asUser($this->workers[2])
-            ->getJson(route('v1.bids.mine'))->json('data.0.status'));
+        $this->assertSame('rejected', Bid::query()
+            ->where('bidder_id', $this->workers[2]->getKey())->firstOrFail()->status->value);
 
         $this->asUser($this->poster)->postJson(route('v1.bids.accept', $bids[2]))
             ->assertStatus(409)
@@ -210,8 +211,8 @@ final class MultiWorkerTaskTest extends TestCase
             ->assertJsonPath('data.hiring.slots_remaining', 0);
 
         // Pelamar yang menunggu ditutup, bukan dibiarkan menggantung.
-        $this->assertSame('rejected', $this->asUser($this->workers[1])
-            ->getJson(route('v1.bids.mine'))->json('data.0.status'));
+        $this->assertSame('rejected', Bid::query()
+            ->where('bidder_id', $this->workers[1]->getKey())->firstOrFail()->status->value);
         $this->assertNotNull($waiting);
     }
 

@@ -161,18 +161,6 @@ final class Task extends Model
     }
 
     /**
-     * Simpanan (bookmark) orang-orang. Untuk `is_bookmarked` di feed dipakai
-     * dengan `withExists` yang dibatasi `user_id` — satu subquery per halaman,
-     * bukan satu kueri per baris.
-     *
-     * @return HasMany<TaskBookmark, $this>
-     */
-    public function bookmarks(): HasMany
-    {
-        return $this->hasMany(TaskBookmark::class);
-    }
-
-    /**
      * Tawaran milik satu orang pada task ini. Selalu dipakai dengan batasan
      * bidder_id di eager-load — ada supaya feed bisa menandai "sudah dilamar"
      * tanpa panggilan API kedua.
@@ -306,9 +294,6 @@ final class Task extends Model
             'category', 'poster', 'workers.skills', 'skills', 'payment', 'activities.worker',
             'pendingCancelRequest.approvals',
             'myBid' => fn ($q) => $q->where('bidder_id', $viewerId),
-        ])->loadExists([
-            // Apakah penonton menyimpan tugas ini (B11).
-            'bookmarks as bookmarked' => fn ($q) => $q->where('user_id', $viewerId),
         ]);
     }
 

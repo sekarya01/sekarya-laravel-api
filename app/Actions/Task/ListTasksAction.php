@@ -53,10 +53,7 @@ final class ListTasksAction
                     fn (Builder $b) => $b->where('bidder_id', $actor->getKey()),
                 ),
             )
-            ->with(['myBid' => fn (Relation $q) => $q->where('bidder_id', $actor->getKey())])
-            // Apakah tugas ini disimpan orang ini (B11) — satu subquery per
-            // halaman, bukan satu kueri per kartu.
-            ->withExists(['bookmarks as bookmarked' => fn (Builder $q) => $q->where('user_id', $actor->getKey())]);
+            ->with(['myBid' => fn (Relation $q) => $q->where('bidder_id', $actor->getKey())]);
 
         $this->applySkills($query, $data, $actor);
 

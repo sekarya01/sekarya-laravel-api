@@ -54,7 +54,6 @@ final class CreateTaskRequest extends FormRequest
             'skills' => ['sometimes', 'array', 'max:10'],
             'skills.*' => ['string', 'exists:skills,slug'],
 
-            'publish_now' => ['sometimes', 'boolean'],
         ];
     }
 

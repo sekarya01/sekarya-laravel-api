@@ -13,7 +13,6 @@ use App\Models\Concerns\HasUlid;
 use Database\Factories\AdminFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -119,11 +118,5 @@ final class Admin extends Authenticatable
     public function scopeLatestFirst(Builder $query): void
     {
         $query->orderByDesc('created_at')->orderByDesc('id');
-    }
-
-    /** @return HasMany<AdminAuditLog, $this> */
-    public function auditLogs(): HasMany
-    {
-        return $this->hasMany(AdminAuditLog::class);
     }
 }

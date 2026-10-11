@@ -125,12 +125,6 @@ final class WorkerDistanceTest extends TestCase
 
     public function test_bidders_never_get_a_distance_on_their_own_paths(): void
     {
-        // bids/mine
-        $mine = $this->asUser($this->near)->getJson(route('v1.bids.mine'))->assertOk();
-        $this->assertArrayHasKey('distance_km', $mine->json('data.0'));
-        $this->assertNull($mine->json('data.0.distance_km'));
-        $this->assertNoWorkerCoordinates((string) $mine->getContent());
-
         // my_bid di detail task
         $show = $this->asUser($this->near)->getJson(route('v1.tasks.show', $this->task->ulid))->assertOk();
         $this->assertArrayHasKey('distance_km', $show->json('data.my_bid'));

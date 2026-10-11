@@ -10,7 +10,6 @@ use App\Http\Controllers\Api\V1\Activity\DepartActivityController;
 use App\Http\Controllers\Api\V1\Activity\ListMyActivitiesController;
 use App\Http\Controllers\Api\V1\Activity\RaiseActivityDisputeController;
 use App\Http\Controllers\Api\V1\Activity\RespondDisputeController;
-use App\Http\Controllers\Api\V1\Activity\ShowActivityController;
 use App\Http\Controllers\Api\V1\Activity\StartActivityController;
 use App\Http\Controllers\Api\V1\Activity\SubmitActivityController;
 use App\Http\Controllers\Api\V1\Activity\UpdateActivityLocationController;
@@ -63,7 +62,6 @@ use App\Http\Controllers\Api\V1\Auth\RegisterController;
 use App\Http\Controllers\Api\V1\Auth\ResendCodeController;
 use App\Http\Controllers\Api\V1\Auth\VerifyEmailController;
 use App\Http\Controllers\Api\V1\Bid\AcceptBidController;
-use App\Http\Controllers\Api\V1\Bid\ListMyBidsController;
 use App\Http\Controllers\Api\V1\Bid\ListTaskBidsController;
 use App\Http\Controllers\Api\V1\Bid\PlaceBidController;
 use App\Http\Controllers\Api\V1\Bid\WithdrawBidController;
@@ -89,21 +87,16 @@ use App\Http\Controllers\Api\V1\Task\ApproveAllActivitiesController;
 use App\Http\Controllers\Api\V1\Task\ApproveTaskCancelController;
 use App\Http\Controllers\Api\V1\Task\CancelTaskController;
 use App\Http\Controllers\Api\V1\Task\CreateTaskController;
-use App\Http\Controllers\Api\V1\Task\DestroyBookmarkController;
-use App\Http\Controllers\Api\V1\Task\ListBookmarkedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListMyPostedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListMyWorkedTasksController;
 use App\Http\Controllers\Api\V1\Task\ListOpenTasksController;
 use App\Http\Controllers\Api\V1\Task\ListTaskDisputesController;
-use App\Http\Controllers\Api\V1\Task\PublishTaskController;
 use App\Http\Controllers\Api\V1\Task\RejectTaskCancelController;
 use App\Http\Controllers\Api\V1\Task\RequestTaskCancelController;
 use App\Http\Controllers\Api\V1\Task\ShowPostedTaskCountsController;
-use App\Http\Controllers\Api\V1\Task\ShowTaskCancelRequestController;
 use App\Http\Controllers\Api\V1\Task\ShowTaskController;
 use App\Http\Controllers\Api\V1\Task\ShowWorkedTaskCountsController;
 use App\Http\Controllers\Api\V1\Task\StartTaskController;
-use App\Http\Controllers\Api\V1\Task\StoreBookmarkController;
 use App\Http\Controllers\Api\V1\Task\UpdateTaskController;
 use App\Http\Controllers\Api\V1\Task\WithdrawTaskCancelController;
 use App\Http\Controllers\Api\V1\Upload\StoreUploadController;
@@ -121,7 +114,6 @@ use App\Http\Controllers\Api\V1\User\RegisterDeviceController;
 use App\Http\Controllers\Api\V1\User\ShowAddressController;
 use App\Http\Controllers\Api\V1\User\ShowMeController;
 use App\Http\Controllers\Api\V1\User\ShowPublicUserController;
-use App\Http\Controllers\Api\V1\User\ShowWorkerProfileController;
 use App\Http\Controllers\Api\V1\User\StoreUserBlockController;
 use App\Http\Controllers\Api\V1\User\StoreVerificationDocumentController;
 use App\Http\Controllers\Api\V1\User\SubmitVerificationController;
@@ -231,7 +223,6 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         // PUT, bukan POST: klien tidak perlu tahu apakah profilnya sudah
         // pernah dibuat, dan mengirim isi yang sama dua kali menghasilkan
         // keadaan yang sama.
-        Route::get('me/worker', ShowWorkerProfileController::class)->name('me.worker.show');
         Route::put('me/worker', UpsertWorkerProfileController::class)->name('me.worker.update');
         // Pendaftaran mitra pakai kode undangan 8 char (hash sha256 di DB).
         // POST: menukar kode sekali pakai/kuota-terbatas menjadi baris
@@ -331,13 +322,6 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         Route::get('tasks/posted/counts', ShowPostedTaskCountsController::class)->name('tasks.posted.counts');
         Route::get('tasks/worked', ListMyWorkedTasksController::class)->name('tasks.worked');
         Route::get('tasks/worked/counts', ShowWorkedTaskCountsController::class)->name('tasks.worked.counts');
-        // Tugas yang disimpan (B11). Didaftarkan SEBELUM `tasks/{task}`
-        // supaya `tasks/bookmarked` bukan ditangkap sebagai ULID.
-        Route::get('tasks/bookmarked', ListBookmarkedTasksController::class)->name('tasks.bookmarked');
-        Route::put('tasks/{task}/bookmark', StoreBookmarkController::class)
-            ->can('view', 'task')->name('tasks.bookmark.store');
-        Route::delete('tasks/{task}/bookmark', DestroyBookmarkController::class)
-            ->can('view', 'task')->name('tasks.bookmark.destroy');
         Route::post('tasks', CreateTaskController::class)
             ->middleware('throttle:write')->name('tasks.store');
         Route::get('tasks/{task}', ShowTaskController::class)
@@ -348,8 +332,6 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         Route::put('tasks/{task}', UpdateTaskController::class)
             ->middleware('throttle:write')
             ->can('update', 'task')->name('tasks.update');
-        Route::post('tasks/{task}/publish', PublishTaskController::class)
-            ->can('update', 'task')->name('tasks.publish');
         Route::post('tasks/{task}/cancel', CancelTaskController::class)
             ->can('cancel', 'task')->name('tasks.cancel');
         // Pembatalan ber-PERSETUJUAN: dipakai bila sudah ada pekerja yang
@@ -359,8 +341,6 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
         Route::post('tasks/{task}/cancel-requests', RequestTaskCancelController::class)
             ->middleware('throttle:write')
             ->can('requestCancel', 'task')->name('tasks.cancel-requests.store');
-        Route::get('tasks/{task}/cancel-request', ShowTaskCancelRequestController::class)
-            ->can('view', 'task')->name('tasks.cancel-request.show');
         Route::post('tasks/{task}/cancel-requests/{cancelRequest}/approve', ApproveTaskCancelController::class)
             ->scopeBindings()->can('approve', 'cancelRequest')->name('tasks.cancel-requests.approve');
         Route::post('tasks/{task}/cancel-requests/{cancelRequest}/reject', RejectTaskCancelController::class)
@@ -388,7 +368,6 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
             ->middleware('throttle:write')->name('tasks.bids.store');
         Route::get('tasks/{task}/bids', ListTaskBidsController::class)
             ->can('manageBids', 'task')->name('tasks.bids.index');
-        Route::get('bids/mine', ListMyBidsController::class)->name('bids.mine');
         Route::post('bids/{bid}/withdraw', WithdrawBidController::class)
             ->can('withdraw', 'bid')->name('bids.withdraw');
         // DEAL
@@ -407,8 +386,6 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
 
         // Activity
         Route::get('activities/mine', ListMyActivitiesController::class)->name('activities.mine');
-        Route::get('activities/{activity}', ShowActivityController::class)
-            ->can('view', 'activity')->name('activities.show');
         // Perjalanan: pekerja mengumumkan berangkat, PEMBERI KERJA yang
         // mengakui kedatangannya. Yang melihat orangnya sampai adalah tuan
         // rumah — kalau yang datang boleh menyatakannya sendiri, pengakuan itu

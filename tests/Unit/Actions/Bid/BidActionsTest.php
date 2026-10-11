@@ -367,14 +367,4 @@ final class BidActionsTest extends TestCase
 
         $this->assertSame(0, (int) $page->first()->bidder->identity_verified_count);
     }
-
-    public function test_list_bids_by_bidder(): void
-    {
-        app(PlaceBidAction::class)->handle($this->bid(), $this->task, $this->worker);
-
-        $page = app(ListBidsAction::class)->byBidder($this->worker, new CursorPageData(20));
-
-        $this->assertCount(1, $page->items());
-        $this->assertNotNull($page->first()->task);
-    }
 }

@@ -341,8 +341,6 @@ final class WorkerListApiTest extends TestCase
 
         $this->asUser($user)->getJson(route('v1.me.show'))
             ->assertOk()->assertJsonPath('data.ready_to_work', true);
-        $this->asUser($user)->getJson(route('v1.me.worker.show'))
-            ->assertOk()->assertJsonPath('data.ready_to_work', true);
     }
 
     /** Verifikasi tanpa profil pekerja juga belum siap kerja. */

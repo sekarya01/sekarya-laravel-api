@@ -27,7 +27,10 @@ final class CreateTaskAction
         return $this->db->transaction(function () use ($data, $poster): Task {
             $category = Category::query()->findOrFail($data->categoryId);
 
-            $status = $data->publishNow ? TaskStatus::Open : TaskStatus::Draft;
+            // Selalu langsung tayang: alur draf + `POST tasks/{task}/publish`
+            // dibuang 2026-10-11 (tidak dipakai mobile). `TaskStatus::Draft`
+            // tetap ada untuk baris lama.
+            $status = TaskStatus::Open;
 
             $task = Task::query()->create([
                 'poster_id' => $poster->getKey(),
@@ -72,12 +75,9 @@ final class CreateTaskAction
 
             $poster->increment('tasks_posted');
 
-            // Tugas yang langsung tayang langsung dibiayai: pekerja diminta ×
-            // harga per orang dipotong dari saldo. Saldo kurang → seluruh
-            // pembuatan batal (insufficient_balance). Draf belum menahan apa pun.
-            if ($status === TaskStatus::Open) {
-                $this->escrow->start($task, 'tugas dipasang');
-            }
+            // Tayang = dibiayai: pekerja diminta × harga per orang dipotong dari
+            // saldo. Saldo kurang → seluruh pembuatan batal (insufficient_balance).
+            $this->escrow->start($task, 'tugas dipasang');
 
             // Muat ulang supaya nilai default dari DATABASE ikut terbawa —
             // `workers_hired` dan `bids_count` tidak ada di INSERT, jadi tanpa

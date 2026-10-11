@@ -35,7 +35,6 @@ final readonly class CreateTaskData
         /** Jumlah pekerja yang dibutuhkan; juga kuota pelamar. */
         public int $workersNeeded = 1,
         public ?string $biddingClosesAt = null,
-        public bool $publishNow = false,
         /** @var list<string> slug keahlian yang dibutuhkan */
         public array $skillSlugs = [],
     ) {}
@@ -73,7 +72,6 @@ final readonly class CreateTaskData
             biddingClosesAt: $request->filled('bidding_closes_at')
                 ? $request->string('bidding_closes_at')->value()
                 : null,
-            publishNow: $request->boolean('publish_now'),
             skillSlugs: array_values(array_filter(array_map('trim', $request->array('skills')))),
         );
     }

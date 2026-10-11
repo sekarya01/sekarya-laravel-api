@@ -78,9 +78,6 @@ final class TaskResource extends BaseResource
             'poster' => PublicUserResource::make($this->whenLoaded('poster')),
             // Terisi hanya di feed pencari kerja: null = belum dilamar.
             'my_bid' => BidResource::make($this->whenLoaded('myBid')),
-            // Apakah tugas ini disimpan orang yang meminta (B11). Selalu ada
-            // sebagai boolean; `false` bila tidak dimuat.
-            'is_bookmarked' => (bool) ($this->bookmarked ?? false),
             // Profil publik tiap pekerja + `distance_km` (U8): jarak lokasi
             // kerjanya ke task ini, HANYA untuk pemberi kerja
             // (Task::showsWorkerDistanceTo) — `null` untuk penonton lain dan
