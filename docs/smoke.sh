@@ -417,11 +417,6 @@ check "umur di bawah batas minimum ditolak" 422 "'birth_date' in d['errors']" 't
 check "format tanggal lahir hanya YYYY-MM-DD" 422 "'birth_date' in d['errors']" 'true' \
     -X PATCH "${AUTH[@]}" -H "$CT" -d '{"birth_date":"02-03-1995"}' "$BASE/me"
 
-check "profil pekerja kosong mewarisi dari akun, tanpa membuat baris" 200 \
-    "[d['data']['configured'], d['data']['own']['display_name'], d['data']['gender']]" \
-    '[false, null, "male"]' \
-    "${AUTH[@]}" "$BASE/me/worker"
-
 check "PUT pertama MEMBUAT profilnya" 201 \
     "[d['data']['configured'], d['data']['name'], d['data']['own']['display_name']]" \
     '[true, "Budi Tukang AC", "Budi Tukang AC"]' \
@@ -434,7 +429,7 @@ check "PUT kedua hanya mengubah" 200 "d['data']['work_location']['radius_km']" '
 
 check "field yang tidak disebut tidak tersentuh" 200 \
     "d['data']['own']['display_name']" '"Budi Tukang AC"' \
-    "${AUTH[@]}" "$BASE/me/worker"
+    -X PUT "${AUTH[@]}" -H "$CT" -d '{}' "$BASE/me/worker"
 
 check "null mengembalikan field ke warisan akun" 200 \
     "[d['data']['own']['display_name'], d['data']['name'] != 'Budi Tukang AC']" \
@@ -460,7 +455,7 @@ check "identitas TIDAK bisa diubah lewat profil pekerja" 200 "d['data']['gender'
     -d '{"gender":"female","birth_date":"1970-01-01"}' "$BASE/me/worker"
 
 check "profil pekerja butuh token" 401 "d['code']" '"unauthenticated"' \
-    -H "$ACC" "$BASE/me/worker"
+    -X PUT -H "$ACC" -H "$CT" -d '{}' "$BASE/me/worker"
 
 ME_ID="$(json "$(curl -s "${AUTH[@]}" "$BASE/me")" "d['data']['id']")"
 
@@ -566,7 +561,7 @@ TASK_JSON="$(curl -s -X POST "$BASE/tasks" "${AUTH[@]}" -H "$CT" -d '{
   "description":"Servis AC split, freon dan cuci evaporator.",
   "needed_at":"'"$NEEDED_AT"'","budget_min":150000,
   "city":"Jakarta","latitude":-6.1754,"longitude":106.8272,
-  "skills":["cuci-ac"],"publish_now":true,
+  "skills":["cuci-ac"],
   "options":[{"label":"Bawa alat sendiri","value":true}]
 }')"
 TASK="$(json "$TASK_JSON" "d['data']['id']")"
@@ -611,8 +606,8 @@ check "penawaran membawa sinyal kepercayaan penawar" 200 \
 check "DEAL menetapkan agreed_amount dan menutup lelang" 200 \
     "[d['data']['status'], d['data']['agreed_amount']]" '["dealt", 210000]' \
     -X POST "$BASE/bids/$BID/accept" "${AUTH[@]}"
-check "pelamar yang kalah ditutup, bukan dibiarkan menggantung" 200 "d['data'][0]['status']" '"rejected"' \
-    "${O[@]}" "$BASE/bids/mine"
+check "pelamar yang kalah ditutup, bukan dibiarkan menggantung" 200 "d['data']['my_bid']['status']" '"rejected"' \
+    "${O[@]}" "$BASE/tasks/$TASK"
 check "tagihan dibuat berstatus pending" 200 "d['data']['status']" '"pending"' \
     "${AUTH[@]}" "$BASE/tasks/$TASK/payment"
 check "activity belum ada sebelum dana ditahan" 200 \
@@ -700,8 +695,8 @@ check "slot terakhir menutup lelang, tagihan = jumlah semua" 200 \
     "[d['data']['status'], d['data']['hiring']['workers_hired'], d['data']['agreed_amount']]" \
     '["dealt", 2, 270000]' \
     -X POST "$BASE/bids/$B2/accept" "${AUTH[@]}"
-check "pelamar yang tidak terpilih ikut ditutup" 200 "d['data'][0]['status']" '"rejected"' \
-    "${K3[@]}" "$BASE/bids/mine"
+check "pelamar yang tidak terpilih ikut ditutup" 200 "d['data']['my_bid']['status']" '"rejected"' \
+    "${K3[@]}" "$BASE/tasks/$CREW"
 check "merekrut melebihi slot ditolak" 409 "d['code']" '"task_already_dealt"' \
     -X POST "$BASE/bids/$B3/accept" "${AUTH[@]}"
 
@@ -768,8 +763,8 @@ check "mulai lebih awal: target turun ke yang sudah diterima" 200 \
     '["dealt", 1, 0]' \
     -X POST "$BASE/tasks/$SHORT/start" "${AUTH[@]}"
 check "pelamar yang menunggu ditutup saat berhenti lebih awal" 200 \
-    "d['data'][0]['status']" '"rejected"' \
-    "${K2[@]}" "$BASE/bids/mine"
+    "d['data']['my_bid']['status']" '"rejected"' \
+    "${K2[@]}" "$BASE/tasks/$SHORT"
 check "mulai lagi ditolak — task tidak lagi open" 422 "d['code']" '"task_not_biddable"' \
     -X POST "$BASE/tasks/$SHORT/start" "${AUTH[@]}"
 

@@ -215,7 +215,7 @@ Yang tidak boleh "dirapikan":
   (`cancelled_by: poster`, penghitung `cancellations` miliknya), `.../reject` melanjutkan
   task, `.../withdraw` menarik permintaan yang masih `pending`. Satu task satu antrean
   (`cancel_request_pending` bila meminta lagi). Permintaan yang menunggu terbaca lewat
-  `cancel_request` di `GET /tasks/{task}` dan `GET /tasks/{task}/cancel-request`;
+  `cancel_request` di `GET /tasks/{task}` (endpoint baca tersendirinya dibuang 2026-10-11);
   menjawab yang sudah dijawab/ditarik = `no_pending_cancel_request` (keadaan akhir,
   bukan galat — pola yang sama dengan `review_not_allowed`).
 
@@ -315,9 +315,10 @@ Yang tidak boleh "dirapikan":
 - **`ListBidsAction` sort=rating memakai LEFT join, bukan inner.** Baris `user_workers`
   baru lahir saat orangnya pertama kali menang; inner join akan MENGHILANGKAN penawaran
   dari pekerja baru — pada urutan yang dipakai pemberi kerja untuk memilih orang.
-- **Jalur BACA tidak boleh membuat baris.** `workerProfileOrNew()` untuk GET,
-  `workerProfileOrCreate()` untuk Action. Kalau `GET /me/worker` membuat baris,
-  `configured` tidak akan pernah bisa menjawab pertanyaan yang ia ada untuk menjawabnya.
+- **Jalur BACA tidak boleh membuat baris.** `workerProfileOrNew()` untuk GET (`GET /me`,
+  `GET /users/{user}`, …), `workerProfileOrCreate()` untuk Action. Kalau jalur baca membuat
+  baris, `configured` tidak akan pernah bisa menjawab pertanyaan yang ia ada untuk
+  menjawabnya. (`GET /me/worker` dibuang 2026-10-11 — mobile hanya memakai `PUT`.)
 - **`down()` migrasi perpindahan tidak boleh memakai `after()`.** Kolom-kolom itu dulu
   duduk sesudah `users.skills`, dan kolom itu sudah dihapus ketika keahlian menjadi
   relasi — `after('skills')` membuat SELURUH rollback gagal dengan "Unknown column".
@@ -673,7 +674,7 @@ bagian 17. Yang tidak boleh "dirapikan":
   Urutan di `ChatAccess`: keanggotaan dulu, baru status room (410 hanya untuk peserta).
 - **Realtime = FCM saja** (hosting bersama tanpa WebSocket). Push chat lewat
   `PushDispatcher::sendTransient()` — tetap satu-satunya pintu `SendPushNotification`,
-  tetapi TANPA baris `user_notifications` (chat bukan isi lonceng) dan **TANPA antrean**:
+  **TANPA antrean**:
   `DB::afterCommit` + `dispatchAfterResponse` (dikirim di proses yang sama sesudah respons).
   Antrean di hosting hanya diproses cron per menit — lewat antrean, pesan sampai ke lawan
   bicara terlambat ±1 menit / tak sampai bila cron pekerja mati (ditemukan 2026-10-04,
@@ -757,8 +758,8 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
 - Actions take a DTO and an explicit actor. No `request()`, `auth()`, `abort()`, `response()`.
 - Actions throw `App\Exceptions\Domain\DomainException` subclasses. `bootstrap/app.php` is the
   single place that turns them into status codes.
-- Resources are the disclosure boundary: `npwp` and `gateway_payload` never leave the API.
-  Tests assert this.
+- Resources are the disclosure boundary: NIK, full bank account numbers, password hashes
+  and tokens never leave the API except where `CLAUDE.md` names it (verification detail).
 - Every `cursorPaginate()` query orders by `created_at` **and** `id` (use `scopeLatestFirst`).
 
 ## Commands

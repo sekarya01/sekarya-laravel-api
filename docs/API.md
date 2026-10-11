@@ -5,7 +5,7 @@ Semua yang ada di dokumen ini dijalankan terhadap kode ini, bukan disusun dari i
 | | |
 |---|---|
 | **Base URL** | `http://127.0.0.1:8000/api/v1` |
-| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 135 operation cocok dengan 135 rute nyata |
+| **Kontrak mesin** | [`docs/openapi.yaml`](openapi.yaml) — OpenAPI 3.1, lint bersih, 127 operation cocok dengan 127 rute nyata |
 | **Uji otomatis** | `bash docs/smoke.sh` — 194 pemeriksaan |
 | **Database** | MySQL 8+ / InnoDB |
 | **Wajib di setiap request** | `Accept: application/json` — tanpa ini Laravel bisa membalas HTML |
@@ -355,7 +355,6 @@ curl -s -X POST "$BASE/tasks" \
     "latitude": -6.1754,
     "longitude": 106.8272,
     "skills": ["cuci-ac"],
-    "publish_now": true,
     "options": [{ "label": "Bawa alat sendiri", "value": true }]
   }' -w '\nstatus=%{http_code}\n' | python3 -m json.tool
 ```
@@ -388,8 +387,9 @@ export TASK=01M20DM1EK5PMNW8710QWKXDA4
   seiring data masuk; tanpa salinan ini, sengketa lama tidak bisa dinilai dengan angka
   yang berlaku waktu itu.
 - URL memakai **ULID**, bukan id numerik. Id berurutan membocorkan volume bisnis.
-- Tanpa `publish_now`, task tersimpan sebagai `draft` sampai
-  `POST /tasks/{task}/publish`.
+- Task **selalu langsung `open`** dan dananya ditahan dari saldo. Alur draf +
+  `POST /tasks/{task}/publish` dibuang 2026-10-11; `publish_now` masih diterima tapi
+  diabaikan (klien lama mengirim `true`).
 
 ---
 
@@ -486,7 +486,7 @@ desimal) dari lokasi task ke **lokasi kerja** pelamar (`PUT /me/worker` →
 remote, atau pelamar belum menyetel lokasi kerjanya). Hal yang sama ada di
 `workers[].distance_km` pada `GET /tasks/{task}`.
 
-- **Hanya pemberi kerja task itu** yang mendapat angkanya. Di jalur lain — `bids/mine`,
+- **Hanya pemberi kerja task itu** yang mendapat angkanya. Di jalur lain —
   `my_bid`, respons menawar, dan `workers[]` bila yang membuka bukan pemberi kerja —
   kuncinya tetap ada dengan nilai `null`, supaya bentuk respons sama untuk semua orang.
   Jarak pesaing bukan urusan pelamar lain, dan setiap angka jarak adalah satu persamaan
@@ -835,8 +835,8 @@ Tiga hal dikecualikan supaya feed ini tidak berbohong:
 
 UI menjanjikan *"Detail alamat hanya dibagikan setelah Mitra disetujui"*, jadi server
 yang menahannya — klien bisa membaca JSON mentah. Aturannya satu (`Task::revealsLocationTo`)
-dan berlaku di **setiap** endpoint yang memuat task: feed, detail, `tasks/worked`,
-`bids/mine`, `activities/*`.
+dan berlaku di **setiap** endpoint yang memuat task: feed, detail, `tasks/posted`,
+`tasks/worked`, `activities/mine`.
 
 | Penonton | `location.text` | Koordinat | `is_precise` |
 |---|---|---|---|
@@ -1985,7 +1985,7 @@ curl -X POST $BASE/chat/rooms/$ROOM/messages … \
 
 ## Ringkasan endpoint
 
-**135 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
+**127 endpoint, satu baris masing-masing.** Daftar ini dibangkitkan dari
 `php artisan route:list`, dan sebuah test menjaganya tetap seiring: menambah rute tanpa
 mendaftarkannya di `docs/openapi.yaml` membuat suite gagal
 (`tests/Feature/Docs/ApiDocumentationTest.php`).
@@ -2020,7 +2020,6 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | `GET` | `/categories` | access | `api` | Katalog kategori + harga referensi. `?city=` memakai acuan per kota bila sampel cukup, kalau tidak nasional. |
 | `GET` | `/me` | access | `api` | Profil sendiri, lengkap dengan data kontak. |
 | `PATCH` | `/me` | access | `api` | Ubah profil. `extras` divalidasi per peran. `phone`: aturan sama dengan pendaftaran, unik kecuali milik sendiri; nomor yang berubah membuat `phone_verified` kembali `false`. |
-| `GET` | `/me/worker` | access | `api` | Profil pekerja sendiri. Membacanya tidak membuat baris. |
 | `PUT` | `/me/worker` | access | `api` | Isi/ubah profil pekerja. `null` = kembali ikut akun. `is_available` (ketersediaan) dan `headline` (profesi mitra) ikut di sini. |
 | `POST` | `/me/worker/redeem` | access | `write` | Tukar kode undangan mitra menjadi baris `user_workers` + `active_mode = working`. |
 | `GET` | `/me/worker/invite-availability` | access | `api` | Sinyal ketersediaan kode undangan di kota/provinsi (boolean saja). |
@@ -2041,31 +2040,25 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
 | `GET` | `/tasks` | access | `api` | Feed siap dilamar. Filter: `q`, `lat`/`lng`/`radius_km`, `posted_within_hours`, `needed_from`/`needed_to` (jadwal, `from` inklusif `to` eksklusif), `category_id`/`category_ids[]`, `city`, `budget_from`/`budget_to`, `skills`, `match_my_skills`, `exclude_my_bids`. |
-| `POST` | `/tasks` | access | `write` | Buat task. `workers_needed` menentukan berapa orang direkrut. `publish_now` mengabari mitra sekitar → `meta.notified_workers` (B13). |
+| `POST` | `/tasks` | access | `write` | Buat task — selalu langsung `open`, dana ditahan dari saldo. `workers_needed` menentukan berapa orang direkrut. Mitra sekitar dikabari → `meta.notified_workers` (B13). |
 | `GET` | `/tasks/posted` | access | `api` | Task yang saya posting. |
 | `GET` | `/tasks/worked` | access | `api` | Task yang saya kerjakan **atau ajukan**: penawaran saya `accepted` atau masih `pending` (tab mitra "Diajukan"; yang ditolak/ditarik tidak ikut). |
 | `GET` | `/tasks/{task}` | access | `api` | Detail satu task, termasuk `hiring`, `workers`, `payment`, `activities`, `cancel_request`. Alamat & koordinat penuh hanya untuk pemberi kerja dan pekerja yang sudah deal (`location.is_precise`). |
 | `PUT` | `/tasks/{task}` | access | `write` | Sunting isi task. Parsial; hanya `draft`/`open`. |
 | `POST` | `/tasks/{task}/cancel` | access | `api` | Batalkan LANGSUNG — hanya bila belum ada pekerja yang deal. |
 | `POST` | `/tasks/{task}/cancel-requests` | access | `write` | Minta persetujuan pembatalan ke pekerja (sudah deal). |
-| `GET` | `/tasks/{task}/cancel-request` | access | `api` | Baca permintaan pembatalan yang menunggu. |
 | `POST` | `/tasks/{task}/cancel-requests/{cancelRequest}/approve` | access | `api` | Pekerja menyetujui — task batal atas nama pemberi kerja. |
 | `POST` | `/tasks/{task}/cancel-requests/{cancelRequest}/reject` | access | `api` | Pekerja menolak — task jalan terus. |
 | `POST` | `/tasks/{task}/cancel-requests/{cancelRequest}/withdraw` | access | `api` | Pemberi kerja menarik permintaannya yang masih menunggu. |
-| `POST` | `/tasks/{task}/publish` | access | `api` | `draft` -> `open`. Lelang dibuka. |
 | `POST` | `/tasks/{task}/start` | access | `api` | Berhenti merekrut lebih awal: target turun ke jumlah yang sudah diterima. |
 | `POST` | `/tasks/{task}/approve-all` | access | `api` | Konfirmasi selesai & rilis dana untuk semua pekerja sekali tekan. Belum ada hasil diserahkan → `422 no_submitted_activities`. |
 | `GET` | `/tasks/posted/counts` | access | `api` | Hitungan task saya per status (judul tab). Setiap status selalu ada. |
 | `GET` | `/tasks/worked/counts` | access | `api` | Hitungan per status untuk himpunan yang sama dengan `/tasks/worked` (diterima + diajukan). |
-| `GET` | `/tasks/bookmarked` | access | `api` | Tugas yang saya simpan. Cursor. Tiap baris membawa `is_bookmarked`. |
-| `PUT` | `/tasks/{task}/bookmark` | access | `api` | Simpan tugas. Idempoten (204). |
-| `DELETE` | `/tasks/{task}/bookmark` | access | `api` | Lepas simpanan. Idempoten (204). |
 
 **Lelang**
 
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
-| `GET` | `/bids/mine` | access | `api` | Penawaran saya di seluruh task. |
 | `POST` | `/bids/{bid}/accept` | access | `api` | **Terima seorang pelamar.** Slot terakhir menutup lelang. |
 | `POST` | `/bids/{bid}/withdraw` | access | `api` | Tarik penawaran sendiri. Kuotanya kembali. |
 | `GET` | `/tasks/{task}/bids` | access | `api` | Daftar penawaran masuk. `sort=amount`, `rating`, atau `newest`. |
@@ -2098,7 +2091,6 @@ Kolom **Limit** menyebut pembatas laju yang berlaku; angkanya di `config/sekarya
 | | Endpoint | Token | Limit | Keterangan |
 |---|---|---|---|---|
 | `GET` | `/activities/mine` | access | `api` | Pekerjaan yang saya kerjakan. |
-| `GET` | `/activities/{activity}` | access | `api` | Detail satu activity. |
 | `POST` | `/activities/{activity}/approve` | access | `api` | Setujui hasil. Dana dilepas saat pekerja **terakhir** disetujui. |
 | `POST` | `/activities/{activity}/arrived` | access | `api` | **Pemberi kerja** mengakui pekerjanya sudah sampai. |
 | `POST` | `/activities/{activity}/depart` | access | `api` | Pekerja berangkat ke lokasi. |
