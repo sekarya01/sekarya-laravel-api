@@ -26,8 +26,8 @@ Business logic lives **only** in Action classes. Never in Controllers, Models, R
 | Database | **MySQL 8+ / InnoDB** | Switched from SQLite on 2026-09-08 by explicit instruction. |
 | Auth | Sanctum (`auth:sanctum`) | via `php artisan install:api`. |
 | Tests | PHPUnit 11 (Laravel 11 belum mendukung 12) | Pest is *not* installed. |
-| Money | integer, smallest unit | `transactions.deal_price` is `unsignedBigInteger`. |
-| Pagination | cursor only | `paginate()` is banned. See below. |
+| Money | integer, smallest unit | `bids.amount`, `activities.agreed_amount` (per orang), `tasks.agreed_amount` (TOTAL), `payments.amount`, `wallet_entries.amount`. |
+| Pagination | cursor only (API) | `paginate()` is banned in the API. The super-admin web dashboard deliberately uses numbered `paginate()` for humans — see skill `sekarya`, invariant 1. |
 | API prefix | `/api/v1`, routes named `v1.*` | one route line per invokable controller. |
 
 ## MySQL notes you must not forget
@@ -81,7 +81,8 @@ Dua hal yang mudah terlewat:
   produksi.
 - **`php artisan sekarya:admin create` adalah langkah pemasangan, bukan opsional.** Tanpa
   akun pengelola tidak ada yang bisa menyetujui verifikasi identitas atau mengonfirmasi
-  transfer, dan alur pembayaran berhenti di antrean — padahal API-nya terlihat sehat.
+  isi saldo — dan tanpa saldo tidak ada task yang bisa dipasang (`insufficient_balance`),
+  padahal API-nya terlihat sehat.
   Akun itu sengaja tidak ada di berkas pemasangan SQL maupun seeder, karena keduanya
   dilacak git.
 
@@ -133,7 +134,7 @@ Yang tidak boleh "dirapikan":
 - **`tasks.agreed_amount` adalah TOTAL seluruh pekerja**, bukan harga satu orang. Karena
   itu harga referensi kategori dihitung dari `bids.amount` yang diterima — memakai total
   akan menggeser median kategori sebesar jumlah pekerjanya.
-- **Satu `payment` per task, banyak `activities`.** Pemberi kerja transfer sekali;
+- **Satu `payment` per task, banyak `activities`.** Satu tagihan untuk seluruh task;
   pembagiannya di `activities.agreed_amount` yang disalin dari penawaran masing-masing.
   Penjaga "satu orang satu activity per task" adalah `unique (task_id, worker_id)`,
   bukan lagi `unique (payment_id)`.
@@ -157,14 +158,33 @@ Yang tidak boleh "dirapikan":
   `StartActivityAction` yang menuntut `held`, dan pelepasan upah menunggu hal yang sama.
   Activity adalah catatan siapa mengerjakan apa — menahannya tidak melindungi siapa pun,
   hanya menyembunyikan kesepakatan dari orang yang menyepakatinya.
+- **DANA TASK DITAHAN DARI SALDO SAAT TASK DIPASANG — hanya lewat `App\Support\TaskEscrow`.**
+  Memasang/menerbitkan task membuat tagihan langsung `held` dan memotong saldo pemberi
+  kerja (`task_hold`); tidak ada transfer yang dilaporkan atau dikonfirmasi untuk task.
+  Aturan tunggalnya: dana ditahan = komitmen task = penawaran diterima + slot kosong ×
+  harga per orang (`budget_max ?? budget_min`). `TaskEscrow::sync()` dipanggil setiap kali
+  komitmen bisa berubah (pasang, sunting, penawaran diterima, perekrutan ditutup) dan
+  menagih kekurangan / mengembalikan kelebihan (`task_release`). Contoh: 5 × Rp100rb
+  ditahan Rp500rb saat dipasang; ditutup dengan 3 orang → Rp200rb kembali ke saldo.
+  Saldo kurang = seluruh aksi batal (`insufficient_balance`) — tidak ada task hidup tanpa
+  dana. Tiap mutasi merujuk barisnya sendiri di `task_fund_movements` (buku besar unik per
+  `(reference_type, reference_id, type)`). Tagihan yang LAHIR `held` bukan transisi
+  `pending → held` — transisi itu tetap mustahil.
+- **Jalur transfer manual = jalur LAMA, hanya untuk task yang dibuat sebelum TaskEscrow.**
+  Pemberi kerja melapor `POST /tasks/{task}/payment/hold` (→ `awaiting_confirmation`),
+  pengelola menahan dana lewat `POST /admin/payments/{payment}/confirm`. `TaskEscrow::sync()`
+  sengaja tidak menyentuh tagihan yang tidak `held`. Jangan pernah menambahkan transisi
+  `pending → held` dari sisi pemberi kerja; `PaymentStatus::canTransitionTo()` menjaganya,
+  dan ada test khusus untuk itu.
 - **Gerbang pembayaran sedang DIMATIKAN — sementara.** `config/sekarya.payments.gate_enabled`
-  (`SEKARYA_PAYMENT_GATE`, bawaan `false`) karena mekanisme pembayaran belum dikembangkan
-  (rencananya pindah ke depan: dibayar saat task dibuat). Yang dilewatinya HANYA dua
-  pemeriksaan dana di atas — `StartActivityAction` dan pelepasan upah di
-  `TaskSettlement::approve` (dipakai persetujuan pemberi kerja & keputusan sengketa). Pembukaan pekerjaan tidak bergantung padanya. Yang dilewati
-  PEMERIKSAAN, bukan CATATAN: tagihan tetap `pending`, dan `pending → held` tetap
-  mustahil. Suite test berjalan dengan gerbangnya HIDUP (phpunit.xml); jalur matinya
-  diuji `tests/Unit/Actions/Payment/PaymentGateDisabledTest.php`.
+  (`SEKARYA_PAYMENT_GATE`, bawaan `false`). Yang dilewatinya TIGA pemeriksaan dana:
+  berangkat (`DepartActivityAction`), mulai (`StartActivityAction`), dan pelepasan upah di
+  `TaskSettlement::approve` (dipakai persetujuan pemberi kerja & keputusan sengketa).
+  Task baru selalu `held` lewat TaskEscrow, jadi dalam praktik gerbang hanya berpengaruh
+  pada task lama. Pembukaan pekerjaan tidak bergantung padanya. Yang dilewati
+  PEMERIKSAAN, bukan CATATAN: tagihan lama tetap `pending`. Suite test berjalan dengan
+  gerbangnya HIDUP (phpunit.xml); jalur matinya diuji
+  `tests/Unit/Actions/Payment/PaymentGateDisabledTest.php`.
 - **Task yang terlanjur tersangkut di `dealt` disusulkan sekali jalan** oleh migrasi
   `2026_09_19_000001_open_stuck_dealt_tasks` (`App\Support\StuckWorkBackfill`) — baris
   yang lahir sebelum aturan "deal membuka pekerjaan" ada.
@@ -178,17 +198,7 @@ Yang tidak boleh "dirapikan":
   sebelum task selesai, pembatalan & penutupan tagihan hanya mengembalikan SISA
   (`TaskSettlement::outstanding`) — mengembalikan seluruh `payments.amount` berarti uang yang
   sama keluar dua kali.
-- **Dana tidak bisa ditahan sebelum perekrutan selesai.** Tagihan sudah ada sejak pelamar
-  pertama diterima, jadi tanpa penjaga itu ia bisa ditahan untuk jumlah yang masih akan
-  bertambah.
-- **`held` HANYA bisa dicapai dari sisi pengelola.** Pemberi kerja memanggil
-  `POST /tasks/{task}/payment/hold` (→ `awaiting_confirmation`); yang menahan dana — dan
-  dengan itu mengizinkan pekerjaan dimulai — `POST /admin/payments/{payment}/confirm`. Dulu satu panggilan itu
-  mengerjakan keduanya, artinya pemberi kerja menyatakan sendiri uangnya sudah masuk —
-  dan pekerja yang menanggung kalau ternyata tidak. Jangan pernah menambahkan kembali
-  transisi `pending → held`; `PaymentStatus::canTransitionTo()` yang menjaganya, dan ada
-  test khusus untuk itu.
-- **Path `payment/hold` sengaja tidak diganti nama** walaupun ia tidak lagi menahan dana,
+- **Path `payment/hold` (jalur lama) sengaja tidak diganti nama** walaupun ia tidak lagi menahan dana,
   supaya klien yang sudah ada tidak perlu diubah. Karena itu controller-nya tetap
   `HoldPaymentController` (mengikuti nama rute, seperti seluruh controller lain di
   berkas rute), sedangkan Action-nya `ReportTransferAction` — nama kelas domain harus
@@ -406,6 +416,10 @@ Things that must not be "tidied up":
   `supports_credentials` stays false — this API uses Bearer tokens, not cookies.
 - Login, resend-code and verify-email return **identical responses whether or not the
   email exists**. Otherwise they become account-enumeration tools.
+  **Documented exception:** `POST /auth/forgot-password` deliberately answers
+  `422 email_not_registered` (the mobile flow asked for it), damped by the `forgot`
+  limiter (3/min per email). Do not "fix" it into a vague response without asking — the
+  mobile screen depends on it. Details: skill `references/reset-password.md`.
 
 ## Pengelola (super_admin & admin)
 
@@ -505,10 +519,20 @@ identitas hanya bertumpu pada data teks).
 
 ## Saldo (dompet)
 
-`wallets` menyimpan BERAPA, `wallet_entries` menyimpan KENAPA. Uang masuk dari tiga
-arah — isi ulang (dikonfirmasi pengelola), pengembalian dana task yang batal, dan upah
-pekerja saat dana dilepas — dan keluar lewat satu pintu: `wallet_withdrawals`.
-Panduan manusianya `docs/API.md` bagian 16.
+`wallets` menyimpan BERAPA, `wallet_entries` menyimpan KENAPA. Panduan manusianya
+`docs/API.md` bagian 16. Jenis mutasi (`WalletEntryType`, arahnya dari `direction()`):
+
+| Masuk (kredit) | Keluar (debit) |
+|---|---|
+| `topup` — isi ulang, dikonfirmasi pengelola | `task_hold` — dana task ditahan saat dipasang (TaskEscrow) |
+| `task_release` — sisa dana task kembali | `fee` — biaya layanan dari upah (WorkerPayout) |
+| `refund` — pengembalian dana task | `withdrawal` — penarikan, dipotong saat diminta |
+| `earning` — upah pekerja (bruto) | `adjustment_debit` — koreksi manual |
+| `withdrawal_reversal` — penarikan ditolak/dibatalkan | |
+| `adjustment_credit` — koreksi manual | |
+
+Karena dana task datang dari saldo, antrean isi ulang adalah SATU-SATUNYA pintu masuk uang
+pemberi kerja.
 
 **`App\Support\WalletLedger` adalah SATU-SATUNYA jalur tulis saldo.** Ia menegakkan
 tiga hal yang tidak bisa ditegakkan dari Action masing-masing: setiap perubahan saldo
@@ -568,8 +592,18 @@ Yang tidak boleh "dirapikan":
   (`bank_account_not_verified`). Verifikasi identitas tidak menggantikannya.
 - **Upah dibaca dari `activities.agreed_amount`, bukan `tasks.agreed_amount`.** Yang
   terakhir TOTAL seluruh pekerja — memakainya berarti setiap orang dari task 30 orang
-  menerima seluruh tagihan. Kreditnya per mitra saat ia disetujui (`TaskSettlement::approve`);
-  satu activity paling banyak satu baris `earning` (unique buku besar).
+  menerima seluruh tagihan. Kreditnya per mitra saat ia disetujui (`TaskSettlement::approve`
+  → `App\Support\WorkerPayout`); satu activity paling banyak satu baris `earning` (unique
+  buku besar).
+- **Upah HANYA dibayar lewat `App\Support\WorkerPayout`** — dipanggil persetujuan pemberi
+  kerja, persetujuan otomatis, dan keputusan sengketa `release`. Jalur pembayaran baru WAJIB
+  lewat sini: kalau tiap jalur mengkredit sendiri, biaya layanan terlupa di salah satunya
+  dan satu pekerja dipotong sementara yang lain tidak.
+- **Biaya layanan = dua baris, bukan satu angka bersih.** `earning` BRUTO lalu `fee` DEBIT,
+  supaya "kenapa saldo saya tidak sebesar upahnya" terjawab oleh barisnya sendiri. Tarifnya
+  `config/sekarya.php` → `fees.service_percent` (`SEKARYA_SERVICE_FEE_PERCENT`, bawaan `0`
+  = tidak memotong; fitur yang belum diputuskan nominalnya tidak boleh memotong uang orang).
+  Hitungannya di `App\Support\ServiceFee`; dijaga `tests/Feature/Api/V1/ServiceFeeTest.php`.
 - **Pengembalian dana task selalu ke `payment.payer_id`, bukan ke pembatalnya.** Pekerja
   juga bisa membatalkan; mengembalikan ke pembatal memindahkan uang pemberi kerja ke
   orang lain.
@@ -723,29 +757,15 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
 - Actions take a DTO and an explicit actor. No `request()`, `auth()`, `abort()`, `response()`.
 - Actions throw `App\Exceptions\Domain\DomainException` subclasses. `bootstrap/app.php` is the
   single place that turns them into status codes.
-- `UserRole::extrasKeys()` is the SSOT for which `extras` keys are valid per role.
-  Validation, DTO sanitisation and the Transformer all read from it.
 - Resources are the disclosure boundary: `npwp` and `gateway_payload` never leave the API.
   Tests assert this.
 - Every `cursorPaginate()` query orders by `created_at` **and** `id` (use `scopeLatestFirst`).
 
 ## Commands
 
-```bash
-# Sekali saat setup: buat database-nya lebih dulu
-#   CREATE DATABASE sekarya CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-php artisan migrate:fresh --seed  # 30 tabel + kategori & skills
-php artisan sekarya:admin create  # akun super_admin — SATU-SATUNYA cara membuatnya
-php artisan serve                 # http://localhost:8000
-php artisan test                  # 1.137 test, 4.254 asersi
-composer test-report              # coverage/html + junit + testdox (lihat tests/README.md)
-php artisan sekarya:axiom --audit # buktikan penyaringan PII sebelum kirim apa pun
-php artisan test tests/Unit       # fast tier
-./vendor/bin/pint                 # format (run before committing)
-php artisan route:list --path=api
-php artisan sekarya:demo --fresh     # seed fixtures + print dev tokens
-bash docs/smoke.sh                # 194 live HTTP assertions, self-hosting server
-```
+Satu daftar, di skill proyek: `.claude/skills/sekarya/SKILL.md` bagian **Perintah harian**.
+Suite penuh = `php -d memory_limit=1G vendor/bin/phpunit` — `php artisan test` kehabisan
+memori pada `memory_limit` 128M bawaan PHP lokal.
 
 ## API contract
 
@@ -772,13 +792,11 @@ and that every endpoint appears in the `docs/API.md` summary table with the righ
 Add a route without documenting it and the suite names it.
 
 `docs/API.md` is the human walkthrough. **When you change an API Resource, update
-`docs/openapi.yaml` in the same commit.** Two rules the spec encodes and tests enforce:
+`docs/openapi.yaml` in the same commit.** One rule the spec encodes and tests enforce:
 
 - Validation failures return `{message, errors}`; business failures return
   `{message, code, context?}`. The two shapes stay disjoint so clients branch on `code`,
   never on `message`.
-- `extras` always serialises as an object (`{}` when empty, never `[]`). A key that flips
-  between array and object breaks generated clients.
 
 ## Scaffold a new feature slice
 
@@ -791,12 +809,11 @@ and register the route.
 
 ## Reference implementation
 
-`Activity` create/list is the worked example of every rule above — read it before adding a
-new slice:
+`Activity` is the worked example — read it before adding a new slice:
 
-- `app/Actions/Activity/CreateActivityAction.php` — the Transaction activation gate
 - `app/Actions/Activity/ListActivitiesAction.php` — cursor pagination
-- `app/Http/Resources/Api/V1/UserProfileResource.php` — role-conditional `extras` mapping
+- `app/Actions/Activity/ApproveActivityAction.php` — transaction + lock + payout through a
+  single Support class (`TaskSettlement` → `WorkerPayout`)
 - `tests/Unit/Actions/Activity/` — how Action tests are written (DTO built directly)
 
 ## Gaya kerja: ponytail + caveman
@@ -811,7 +828,7 @@ proyek ini. Cara pakainya di arsitektur Action-Based:
   (Concern, base class, helper global) HANYA bila dipakai ≥2 kali — bukan
   untuk satu slice.
 - **Batas yang tidak boleh dipangkas:** validasi trust-boundary, transaksi +
-  lock, shape `{message, errors}` vs `{message, code}`, `extras` selalu objek,
+  lock, shape `{message, errors}` vs `{message, code}`,
   aturan satu route per invokable controller, dan tes (unit Action + feature).
   Kode boleh kecil, kontrak tidak boleh longgar.
 - **caveman:** jawaban ringkas, Bahasa Indonesia tetap (jangan alih bahasa),
