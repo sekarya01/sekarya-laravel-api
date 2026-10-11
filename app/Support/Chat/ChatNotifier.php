@@ -52,6 +52,24 @@ final class ChatNotifier
     }
 
     /** @return iterable<ChatParticipant> */
+    /**
+     * Sinyal senyap hanya ke [userIds] yang masih peserta aktif — mis. tanda
+     * baca ke pengirim pesan yang terdampak, bukan ke seluruh grup.
+     *
+     * @param  list<int>  $userIds
+     * @param  array<string, string>  $extra
+     */
+    public function syncTo(ChatRoom $room, PushType $type, array $userIds, array $extra = []): void
+    {
+        $message = PushMessages::chatSync($type, $room->task, $room, $extra);
+
+        $room->participants()
+            ->whereNull('left_at')
+            ->whereIn('user_id', $userIds)
+            ->pluck('user_id')
+            ->each(fn (mixed $id) => $this->push->sendTransient((int) $id, $message));
+    }
+
     private function recipients(ChatRoom $room, ?int $exceptUserId): iterable
     {
         return $room->participants()

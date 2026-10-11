@@ -1932,7 +1932,7 @@ lonceng (riwayat lonceng disimpan aplikasi di perangkat, bukan server).
 |---|---|---|---|
 | `chat_message` | ya, **digambar klien** (data-only; senyap bila room dibisukan) | peserta lain | pasang `message` langsung; tanpa itu `GET messages?after_id=<terakhir>` |
 | `chat_message_deleted` | tidak | peserta lain | muat ulang pesan `message_id` |
-| `chat_receipt` | tidak | peserta lain | muat ulang room (penanda `participants[]`) |
+| `chat_receipt` | tidak | HANYA pengirim pesan yang statusnya berubah | muat ulang room (penanda `participants[]`) |
 | `chat_room_updated` | tidak | semua peserta | muat ulang room (mis. jadi `expired`) |
 | `chat_room_deactivated` | tidak | semua peserta | buang salinan lokal room |
 

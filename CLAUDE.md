@@ -696,6 +696,9 @@ bagian 17. Yang tidak boleh "dirapikan":
   dijaga `TransientPushTest`). Jangan kembalikan ke `dispatch()->afterCommit()`.
   `PushMessage::$silent` = data-only (tanda baca, pesan dihapus, room berubah); klien
   memuat isi dari API (`messages?after_id=`), push hanya sinyal (batas payload 4 KB).
+  **`chat_receipt` hanya ke PENGIRIM pesan yang statusnya berubah** (`UpdateChatReceiptsAction`
+  → `ChatNotifier::syncTo`), bukan ke seluruh room: ke semua peserta, satu pesan di grup 30
+  orang menjadi ±1.700 push senyap tanpa antrean.
 - **Lampiran dua langkah & jenisnya dari MIME server.** `POST chat/rooms/{room}/attachments`
   menulis baris `chat_attachments` (disk publik, nama acak, nama asli hanya untuk
   ditampilkan), lalu pesan merujuk `attachment_id` — satu lampiran satu pesan (UNIQUE),

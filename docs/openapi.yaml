@@ -3347,7 +3347,8 @@ paths:
       description: |
         Id pesan TERAKHIR yang sudah sampai / dibaca di perangkat; semua sebelum id itu
         ikut tertandai. Penanda hanya maju. Dibaca selalu berarti sudah sampai.
-        Berubah → push senyap `chat_receipt` ke peserta lain.
+        Berubah → push senyap `chat_receipt` HANYA ke pengirim pesan yang statusnya
+        berubah (centang hanya berarti bagi pengirimnya; dulu ke semua peserta).
       requestBody:
         required: true
         content:
