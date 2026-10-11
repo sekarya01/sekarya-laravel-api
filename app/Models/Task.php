@@ -183,6 +183,12 @@ final class Task extends Model
         return $this->hasMany(Bid::class)->where('status', BidStatus::Accepted);
     }
 
+    /** Apakah [user] pekerja yang sudah DEAL di task ini — SATU definisi untuk policy. */
+    public function hasAcceptedWorker(User $user): bool
+    {
+        return $this->acceptedBids()->where('bidder_id', $user->getKey())->exists();
+    }
+
     /** @return HasOne<Payment, $this> */
     public function payment(): HasOne
     {

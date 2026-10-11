@@ -148,6 +148,24 @@ final class TaskLifecycleTest extends TestCase
             ->assertJsonValidationErrors(['skills.0']);
     }
 
+    /**
+     * Satu lintang tanpa bujur bukan lokasi — kueri jarak melewatinya diam-diam.
+     * Aturan berpasangan yang sama dengan alamat & profil pekerja.
+     */
+    public function test_coordinates_must_come_in_pairs(): void
+    {
+        $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.store'), $this->payload(['latitude' => -6.2, 'longitude' => null]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['longitude']);
+
+        $id = $this->createTask(['latitude' => -6.2, 'longitude' => 106.8]);
+        $this->asUser($this->poster)
+            ->putJson(route('v1.tasks.update', $id), ['longitude' => null])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['longitude']);
+    }
+
     public function test_invalid_coordinates_are_rejected(): void
     {
         $this->asUser($this->poster)

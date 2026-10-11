@@ -169,4 +169,25 @@ final class WorkerInviteAdminApiTest extends TestCase
             ->assertOk()
             ->assertJsonStructure(['meta' => ['next_cursor', 'per_page']]);
     }
+
+    /**
+     * API, dasbor, dan CLI memakai CreateWorkerInviteCodeData yang SAMA:
+     * catatan di-trim di satu tempat (dulu hanya dasbor yang men-trim), dan
+     * respons API tetap membawa `plain_code` + `message`.
+     */
+    public function test_semua_jalur_penerbitan_menormalkan_catatan_yang_sama(): void
+    {
+        $this->asAdmin($this->admin)
+            ->postJson(route('v1.admin.worker-invites.store'), ['max_uses' => 2, 'note' => '  promo  '])
+            ->assertCreated()
+            ->assertJsonPath('data.note', 'promo')
+            ->assertJsonPath('message', 'Kode undangan mitra dibuat. Kodenya tampil terus di menu Kode Mitra.')
+            ->assertJsonStructure(['data' => ['plain_code', 'code']]);
+
+        $this->artisan('sekarya:worker-code', ['--max-uses' => 3, '--note' => '  dari cli  '])->assertSuccessful();
+
+        $cli = WorkerInviteCode::query()->where('max_uses', 3)->firstOrFail();
+        $this->assertSame('dari cli', $cli->note);
+        $this->assertNull($cli->created_by_admin_id);
+    }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Web\SuperAdmin;
 
 use App\Actions\Admin\Dispute\ResolveDisputeAction;
+use App\Data\CursorPageData;
 use App\Enums\DisputeResolution;
 use App\Enums\DisputeStatus;
 use App\Exceptions\Domain\DomainException;
@@ -47,7 +48,7 @@ final class DisputeController
             ->with(['task.poster', 'activity.worker'])
             ->when($status === DisputeStatus::Open, fn ($q) => $q->orderBy('created_at')->orderBy('id'))
             ->when($status !== DisputeStatus::Open, fn ($q) => $q->orderByDesc('resolved_at')->orderByDesc('id'))
-            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->paginate(CursorPageData::fromRequest($request)->perPage)
             ->withQueryString();
 
         return view('super_admin.disputes.index', [

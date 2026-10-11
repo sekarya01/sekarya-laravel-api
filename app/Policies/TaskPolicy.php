@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use App\Enums\BidStatus;
 use App\Models\Task;
 use App\Models\User;
 
@@ -77,9 +76,6 @@ final class TaskPolicy
 
     private function isWorker(User $user, Task $task): bool
     {
-        return $task->bids()
-            ->where('bidder_id', $user->getKey())
-            ->where('status', BidStatus::Accepted)
-            ->exists();
+        return $task->hasAcceptedWorker($user);
     }
 }

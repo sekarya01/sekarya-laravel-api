@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 use App\Actions\Admin\Verification\ReviewVerificationAction;
 use App\Actions\Admin\Verification\ViewVerificationAction;
 use App\Data\Admin\ReviewVerificationData;
+use App\Data\CursorPageData;
 use App\Enums\VerificationStatus;
 use App\Enums\VerificationType;
 use App\Exceptions\Domain\DomainException;
@@ -58,7 +59,7 @@ final class VerificationController
             ->when($type !== null, fn ($q) => $q->where('type', $type))
             ->with('user')
             ->queueOrder()
-            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->paginate(CursorPageData::fromRequest($request)->perPage)
             ->withQueryString();
 
         return view('super_admin.verifications.index', [

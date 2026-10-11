@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use App\Enums\BidStatus;
 use App\Models\TaskCancelRequest;
 use App\Models\User;
 
@@ -34,10 +33,6 @@ final class TaskCancelRequestPolicy
 
     private function isDealtWorker(User $user, TaskCancelRequest $request): bool
     {
-        return $request->task()->firstOrFail()
-            ->bids()
-            ->where('bidder_id', $user->getKey())
-            ->where('status', BidStatus::Accepted)
-            ->exists();
+        return $request->task()->firstOrFail()->hasAcceptedWorker($user);
     }
 }

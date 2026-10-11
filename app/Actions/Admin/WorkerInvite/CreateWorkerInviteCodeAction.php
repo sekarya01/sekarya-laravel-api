@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Actions\Admin\WorkerInvite;
 
+use App\Data\Admin\CreateWorkerInviteCodeData;
 use App\Enums\AdminAction;
 use App\Models\Admin;
 use App\Models\WorkerInviteCode;
 use App\Support\AdminAuditRecorder;
 use App\Support\WorkerInviteCodeGenerator;
-use Carbon\CarbonInterface;
 
 /**
  * Terbitkan satu kode undangan baru.
@@ -26,15 +26,8 @@ final class CreateWorkerInviteCodeAction
     /**
      * @return array{code: WorkerInviteCode, plain: string}
      */
-    public function handle(
-        int $maxUses,
-        ?CarbonInterface $expiresAt,
-        ?string $note,
-        ?Admin $admin,
-        ?string $ip = null,
-        ?string $city = null,
-        ?string $province = null,
-    ): array {
+    public function handle(CreateWorkerInviteCodeData $data, ?Admin $admin): array
+    {
         // Tabrakan sha256 praktis mustahil, tapi unique index tetap dijaga:
         // coba ulang maksimal 5x kalau hash sudah ada.
         for ($attempt = 0; $attempt < 5; $attempt++) {
@@ -45,12 +38,12 @@ final class CreateWorkerInviteCodeAction
                     'code_hash' => $hash,
                     'code_plain' => $plain,
                     'prefix' => mb_substr($plain, 0, 2),
-                    'max_uses' => $maxUses,
-                    'expires_at' => $expiresAt,
-                    'note' => $note,
+                    'max_uses' => $data->maxUses,
+                    'expires_at' => $data->expiresAt,
+                    'note' => $data->note,
                     'created_by_admin_id' => $admin?->getKey(),
-                    'city' => self::blankToNull($city),
-                    'province' => self::blankToNull($province),
+                    'city' => $data->city,
+                    'province' => $data->province,
                 ]);
 
                 // Jejak "siapa menerbitkan kode berkuota ini" — penting saat
@@ -62,10 +55,10 @@ final class CreateWorkerInviteCodeAction
                         $admin,
                         AdminAction::WorkerInviteCreated,
                         (int) $code->getKey(),
-                        "maks {$maxUses}x"
-                            .($expiresAt !== null ? ", kedaluwarsa {$expiresAt->toDateTimeString()}" : ', tanpa tanggal kedaluwarsa')
-                            .($note !== null && $note !== '' ? ", {$note}" : ''),
-                        $ip,
+                        "maks {$data->maxUses}x"
+                            .($data->expiresAt !== null ? ", kedaluwarsa {$data->expiresAt->toDateTimeString()}" : ', tanpa tanggal kedaluwarsa')
+                            .($data->note !== null ? ", {$data->note}" : ''),
+                        $data->ip,
                     );
                 }
 
@@ -74,12 +67,5 @@ final class CreateWorkerInviteCodeAction
         }
 
         throw new \RuntimeException('Gagal menerbitkan kode unik setelah 5 percobaan.');
-    }
-
-    private static function blankToNull(?string $value): ?string
-    {
-        $value = $value === null ? null : trim($value);
-
-        return $value === null || $value === '' ? null : $value;
     }
 }

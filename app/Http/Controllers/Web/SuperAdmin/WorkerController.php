@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Web\SuperAdmin;
 
 use App\Actions\Admin\Verification\ViewVerificationAction;
+use App\Data\CursorPageData;
 use App\Enums\Gender;
 use App\Enums\UserStatus;
 use App\Enums\VerificationType;
@@ -71,7 +72,7 @@ final class WorkerController
                 ->with('skills')
                 ->withIdentityVerified()])
             ->latestFirst()
-            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->paginate(CursorPageData::fromRequest($request)->perPage)
             ->withQueryString();
 
         return view('super_admin.workers.index', [

@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 
 use App\Actions\Admin\User\ChangeUserStatusAction;
 use App\Data\Admin\ChangeUserStatusData;
+use App\Data\CursorPageData;
 use App\Enums\AdminAction;
 use App\Enums\Gender;
 use App\Enums\UserStatus;
@@ -85,7 +86,7 @@ final class UserController
             // memicu satu kueri exists() tambahan.
             ->withIdentityVerified()
             ->latestFirst()
-            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->paginate(CursorPageData::fromRequest($request)->perPage)
             ->withQueryString();
 
         return view('super_admin.users.index', [

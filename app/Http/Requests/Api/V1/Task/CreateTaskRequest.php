@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Task;
 
+use App\Http\Requests\Api\V1\Concerns\RequiresCoordinatePair;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 final class CreateTaskRequest extends FormRequest
 {
+    use RequiresCoordinatePair;
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
@@ -66,5 +70,10 @@ final class CreateTaskRequest extends FormRequest
             'workers_needed.min' => 'Jumlah pekerja minimal 1 orang.',
             'workers_needed.max' => 'Jumlah pekerja maksimal 500 orang untuk satu pekerjaan.',
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(fn (Validator $v) => $this->checkCoordinatePair($v, $this->input('latitude'), $this->input('longitude')));
     }
 }

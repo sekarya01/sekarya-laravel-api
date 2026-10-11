@@ -6,9 +6,10 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 
 use App\Actions\Admin\WorkerInvite\CreateWorkerInviteCodeAction;
 use App\Actions\Admin\WorkerInvite\DeactivateWorkerInviteCodeAction;
+use App\Data\Admin\CreateWorkerInviteCodeData;
+use App\Data\CursorPageData;
 use App\Models\Admin;
 use App\Models\WorkerInviteCode;
-use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -50,7 +51,7 @@ final class WorkerInviteController
             ->when($usable === true, fn (Builder $q) => $q->usable())
             ->when($usable === false, fn (Builder $q) => $q->whereNot(fn (Builder $w) => $w->usable()))
             ->orderByDesc('id')
-            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->paginate(CursorPageData::fromRequest($request)->perPage)
             ->withQueryString();
 
         return view('super_admin.worker_invites.index', [
@@ -91,17 +92,7 @@ final class WorkerInviteController
         $admin = Auth::guard('admin_web')->user();
 
         try {
-            $result = $action->handle(
-                (int) $validated['max_uses'],
-                isset($validated['expires_at']) && $validated['expires_at'] !== null
-                    ? Carbon::parse($validated['expires_at'])
-                    : null,
-                isset($validated['note']) && $validated['note'] !== '' ? trim($validated['note']) : null,
-                $admin,
-                $request->ip(),
-                $validated['city'] ?? null,
-                $validated['province'] ?? null,
-            );
+            $result = $action->handle(CreateWorkerInviteCodeData::fromValues($validated, $request->ip()), $admin);
         } catch (\Throwable $e) {
             report($e);
 

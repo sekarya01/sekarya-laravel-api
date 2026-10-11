@@ -1816,6 +1816,11 @@ paths:
 
         Harga referensi kategori **disalin** ke task saat dibuat, agar sengketa
         bisa dinilai dengan angka yang berlaku waktu itu.
+
+        `latitude` dan `longitude` wajib **berpasangan** (satu tanpa yang lain →
+        `422` pada ruas yang kosong) — aturan yang sama dengan alamat tersimpan,
+        profil pekerja, dan `PUT /tasks/{task}` (dibandingkan dengan nilai
+        tersimpan).
       requestBody:
         required: true
         content:

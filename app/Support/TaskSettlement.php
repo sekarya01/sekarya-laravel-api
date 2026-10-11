@@ -14,6 +14,7 @@ use App\Models\Activity;
 use App\Models\Payment;
 use App\Models\Task;
 use App\Models\WalletEntry;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
@@ -134,9 +135,7 @@ final class TaskSettlement
      */
     public function outstanding(Task $task, Payment $payment): int
     {
-        $settled = (int) WalletEntry::query()
-            ->where('reference_type', (new Activity)->getTable())
-            ->whereIn('reference_id', $task->activities()->select('id'))
+        $settled = (int) $this->activityEntries($task)
             ->whereIn('type', [WalletEntryType::Earning, WalletEntryType::Refund])
             ->sum('amount');
 
@@ -165,11 +164,7 @@ final class TaskSettlement
             );
         }
 
-        $paid = WalletEntry::query()
-            ->where('reference_type', (new Activity)->getTable())
-            ->whereIn('reference_id', $task->activities()->select('id'))
-            ->where('type', WalletEntryType::Earning)
-            ->exists();
+        $paid = $this->activityEntries($task)->where('type', WalletEntryType::Earning)->exists();
 
         $payment->forceFill($paid
             ? ['status' => PaymentStatus::Released, 'released_at' => now()]
@@ -210,6 +205,19 @@ final class TaskSettlement
         if ($anyApproved) {
             $task->poster()->firstOrFail()->increment('poster_tasks_completed');
         }
+    }
+
+    /**
+     * Baris buku besar yang merujuk activity task ini — upah, pengembalian,
+     * biaya per mitra. SATU definisi rujukannya untuk sisa dana & penutupan.
+     *
+     * @return Builder<WalletEntry>
+     */
+    private function activityEntries(Task $task): Builder
+    {
+        return WalletEntry::query()
+            ->where('reference_type', (new Activity)->getTable())
+            ->whereIn('reference_id', $task->activities()->select('id'));
     }
 
     private function isPaid(Activity $activity): bool

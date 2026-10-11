@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Web\SuperAdmin;
 use App\Actions\Admin\Wallet\ConfirmTopupAction;
 use App\Actions\Admin\Wallet\RejectTopupAction;
 use App\Data\Admin\RejectWalletRequestData;
+use App\Data\CursorPageData;
 use App\Enums\WalletTopupStatus;
 use App\Exceptions\Domain\DomainException;
 use App\Models\Admin;
@@ -43,7 +44,7 @@ final class WalletTopupController
             ->where('status', $status)
             ->with('user')
             ->queueOrder()
-            ->paginate(max(1, min($request->integer('per_page', 20), 50)))
+            ->paginate(CursorPageData::fromRequest($request)->perPage)
             ->withQueryString();
 
         return view('super_admin.wallet_topups.index', [

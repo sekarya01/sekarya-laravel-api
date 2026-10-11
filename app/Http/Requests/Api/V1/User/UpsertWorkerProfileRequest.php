@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\User;
 
+use App\Http\Requests\Api\V1\Concerns\RequiresCoordinatePair;
 use App\Support\PhoneNumber;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -23,6 +24,8 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 final class UpsertWorkerProfileRequest extends FormRequest
 {
+    use RequiresCoordinatePair;
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
@@ -76,16 +79,6 @@ final class UpsertWorkerProfileRequest extends FormRequest
      */
     public function withValidator(Validator $validator): void
     {
-        $validator->after(function (Validator $validator): void {
-            $hasLatitude = $this->input('latitude') !== null;
-            $hasLongitude = $this->input('longitude') !== null;
-
-            if ($hasLatitude !== $hasLongitude) {
-                $validator->errors()->add(
-                    $hasLatitude ? 'longitude' : 'latitude',
-                    'Lintang dan bujur harus diisi berpasangan.',
-                );
-            }
-        });
+        $validator->after(fn (Validator $v) => $this->checkCoordinatePair($v, $this->input('latitude'), $this->input('longitude')));
     }
 }
