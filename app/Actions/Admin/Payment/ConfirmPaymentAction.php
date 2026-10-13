@@ -12,6 +12,7 @@ use App\Exceptions\Domain\InvalidStatusTransitionException;
 use App\Models\Activity;
 use App\Models\Admin;
 use App\Models\Payment;
+use App\Models\Task;
 use App\Support\AdminAuditRecorder;
 use App\Support\Rupiah;
 use App\Support\WorkOpening;
@@ -42,7 +43,7 @@ final class ConfirmPaymentAction
     ) {}
 
     /**
-     * [#impure] [#io: db, fcm] [#tx: own] [#lock: payments]
+     * [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks → payments]
      * [#warn: jalur lama — hanya tagihan sebelum TaskEscrow]
      *
      * @return Collection<int, Activity>
@@ -50,6 +51,11 @@ final class ConfirmPaymentAction
     public function handle(Payment $payment, Admin $admin, ?string $ip = null): Collection
     {
         return $this->db->transaction(function () use ($payment, $admin, $ip): Collection {
+            // Task dikunci LEBIH DULU, baru tagihan — urutan yang sama dengan
+            // CancelTaskAction. Urutan terbalik antara dua jalur = deadlock;
+            // tanpa kunci task, status yang diperiksa di bawah bisa basi.
+            $task = Task::query()->whereKey($payment->task_id)->lockForUpdate()->firstOrFail();
+
             // Row lock sungguhan di InnoDB: mencegah dua pengelola yang
             // membuka antrean yang sama sama-sama menahan dana. unique
             // (task_id, worker_id) di activities tetap jadi pengaman terakhir —
@@ -66,8 +72,6 @@ final class ConfirmPaymentAction
                     PaymentStatus::Held->value,
                 );
             }
-
-            $task = $fresh->task;
 
             // Perekrutan harus sudah ditutup. Diperiksa ulang di sini, bukan
             // hanya saat laporan masuk: yang mengubah status task adalah

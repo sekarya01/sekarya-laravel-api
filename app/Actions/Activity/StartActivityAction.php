@@ -19,10 +19,14 @@ final class StartActivityAction
         private readonly PushDispatcher $push,
     ) {}
 
-    /** [#impure] [#io: db, fcm] [#tx: own] */
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: activities] */
     public function handle(Activity $activity): Activity
     {
         $activity = $this->db->transaction(function () use ($activity): Activity {
+            // Dibaca ulang DI BAWAH KUNCI: model dari rute bisa basi, dan dua
+            // permintaan bersamaan sama-sama lolos pemeriksaan status di bawah.
+            $activity = Activity::query()->whereKey($activity->getKey())->lockForUpdate()->firstOrFail();
+
             // INILAH yang dijaga uang: mulai bekerja, bukan keberadaan
             // activity-nya. Activity lahir saat deal — ia catatan siapa
             // mengerjakan apa; yang tidak boleh terjadi tanpa dana adalah

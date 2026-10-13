@@ -112,6 +112,7 @@ final class AdminEnumsTest extends TestCase
             'dispute.released',
             'dispute.refunded',
             'chat_room.deactivated',
+            'report.reviewed',
         ], array_column(AdminAction::cases(), 'value'));
     }
 

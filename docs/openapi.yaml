@@ -4990,6 +4990,9 @@ paths:
       tags: [Admin]
       operationId: reviewReport
       summary: Tandai laporan sudah ditinjau (G7)
+      description: |
+        Tercatat di `admin_audit_logs` sebagai `report.reviewed`. Idempoten: laporan
+        yang sudah ditinjau dikembalikan apa adanya — peninjau pertama tidak ditimpa.
       parameters:
         - name: report
           in: path

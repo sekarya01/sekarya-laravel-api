@@ -37,7 +37,7 @@ final class CancelTaskAction
         private readonly PushDispatcher $push,
     ) {}
 
-    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks, wallets] */
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks → payments, wallets] */
     public function handle(Task $task, User $actor, ?string $reason = null): Task
     {
         return $this->db->transaction(function () use ($task, $actor, $reason): Task {
@@ -72,7 +72,12 @@ final class CancelTaskAction
             // Penerimanya PEMBAYAR (`payer_id`), bukan pembatalnya — pekerja
             // juga bisa membatalkan. Kalau belum ada uang masuk, tagihan cukup
             // dibatalkan.
-            $payment = $task->payment;
+            //
+            // Tagihan dikunci SESUDAH task (urutan sama dengan
+            // ConfirmPaymentAction): dibaca tanpa kunci, konfirmasi transfer
+            // yang bersamaan bisa menjadikannya `held`, lalu salinan basi di
+            // sini menimpanya `cancelled` — dana tertahan tanpa pengembalian.
+            $payment = $task->payment()->lockForUpdate()->first();
             if ($payment?->status === PaymentStatus::Held) {
                 $this->settlement->closePayment($task, $payment, 'Pengembalian dana task #'.$task->task_number);
             } elseif ($payment?->status === PaymentStatus::Pending) {

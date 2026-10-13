@@ -22,11 +22,14 @@ final class SubmitActivityAction
         private readonly PushDispatcher $push,
     ) {}
 
-    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks] */
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks → activities] */
     public function handle(SubmitActivityData $data, Activity $activity): Activity
     {
         $activity = $this->db->transaction(function () use ($data, $activity): Activity {
             $task = $this->settlement->lockTask($activity->task);
+            // Dibaca ulang DI BAWAH KUNCI: model dari rute bisa basi, dan dua
+            // permintaan bersamaan sama-sama lolos pemeriksaan status di bawah.
+            $activity = Activity::query()->whereKey($activity->getKey())->lockForUpdate()->firstOrFail();
 
             if (! $activity->status->canTransitionTo(ActivityStatus::Submitted)) {
                 throw InvalidStatusTransitionException::between(

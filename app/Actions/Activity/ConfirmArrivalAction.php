@@ -30,10 +30,14 @@ final class ConfirmArrivalAction
         private readonly PushDispatcher $push,
     ) {}
 
-    /** [#impure] [#io: db, fcm] [#tx: own] */
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: activities] */
     public function handle(Activity $activity): Activity
     {
         $activity = $this->db->transaction(function () use ($activity): Activity {
+            // Dibaca ulang DI BAWAH KUNCI: model dari rute bisa basi, dan dua
+            // permintaan bersamaan sama-sama lolos pemeriksaan status di bawah.
+            $activity = Activity::query()->whereKey($activity->getKey())->lockForUpdate()->firstOrFail();
+
             if (! $activity->status->canTransitionTo(ActivityStatus::Arrived)) {
                 throw InvalidStatusTransitionException::between(
                     $activity->status->value,

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api\V1;
 
+use App\Models\AdminAuditLog;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\UserReport;
@@ -115,5 +116,26 @@ final class UserReportBlockTest extends TestCase
             ->postJson(route('v1.admin.reports.review', $ulid))
             ->assertOk()
             ->assertJsonPath('data.status', 'reviewed');
+    }
+
+    public function test_reviewing_is_audited_once_and_never_overwrites_the_first_reviewer(): void
+    {
+        $this->asUser($this->viewer)
+            ->postJson(route('v1.users.reports.store', $this->target->ulid), ['reason' => 'abuse'])
+            ->assertCreated();
+        $report = UserReport::query()->firstOrFail();
+        $first = $this->activeAdmin();
+
+        $this->asAdmin($first)->postJson(route('v1.admin.reports.review', $report->ulid))->assertOk();
+        $this->asAdmin($this->activeAdmin())->postJson(route('v1.admin.reports.review', $report->ulid))->assertOk();
+
+        $this->assertSame($first->getKey(), $report->refresh()->reviewed_by);
+        $this->assertSame(1, AdminAuditLog::query()->where('action', 'report.reviewed')->count());
+        $this->assertDatabaseHas('admin_audit_logs', [
+            'action' => 'report.reviewed',
+            'admin_id' => $first->getKey(),
+            'subject_type' => 'user_report',
+            'subject_id' => $report->getKey(),
+        ]);
     }
 }

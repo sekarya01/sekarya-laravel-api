@@ -10,6 +10,7 @@ use App\Models\Admin;
 use App\Models\WorkerInviteCode;
 use App\Support\AdminAuditRecorder;
 use App\Support\WorkerInviteCodeGenerator;
+use Illuminate\Database\ConnectionInterface;
 
 /**
  * Terbitkan satu kode undangan baru.
@@ -21,14 +22,30 @@ use App\Support\WorkerInviteCodeGenerator;
  */
 final class CreateWorkerInviteCodeAction
 {
-    public function __construct(private readonly AdminAuditRecorder $audit) {}
+    public function __construct(
+        private readonly ConnectionInterface $db,
+        private readonly AdminAuditRecorder $audit,
+    ) {}
 
     /**
-     * [#impure] [#io: db]
+     * [#impure] [#io: db] [#tx: own]
      *
      * @return array{code: WorkerInviteCode, plain: string}
      */
     public function handle(CreateWorkerInviteCodeData $data, ?Admin $admin): array
+    {
+        // Kode dan jejaknya SATU transaksi (aturan jejak audit di CLAUDE.md):
+        // kode berkuota yang terbit tanpa jejak tak bisa ditelusuri
+        // penerbitnya saat bocor.
+        return $this->db->transaction(fn (): array => $this->issue($data, $admin));
+    }
+
+    /**
+     * [#impure] [#io: db] [#tx: caller]
+     *
+     * @return array{code: WorkerInviteCode, plain: string}
+     */
+    private function issue(CreateWorkerInviteCodeData $data, ?Admin $admin): array
     {
         // Tabrakan sha256 praktis mustahil, tapi unique index tetap dijaga:
         // coba ulang maksimal 5x kalau hash sudah ada.
