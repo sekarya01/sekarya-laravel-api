@@ -104,7 +104,15 @@ final class UpdateTaskAction
             }
 
             if ($attributes !== []) {
-                $task->fill($attributes)->save();
+                $task->fill($attributes);
+
+                // Tenggat baru = peringatan kedaluwarsa baru: penanda lama
+                // milik tenggat yang sudah tidak berlaku.
+                if ($task->isDirty(['needed_at', 'bidding_closes_at'])) {
+                    $task->forceFill(['expiry_warned_at' => null]);
+                }
+
+                $task->save();
             }
 
             if ($data->has('skills')) {

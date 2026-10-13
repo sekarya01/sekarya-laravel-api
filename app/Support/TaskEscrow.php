@@ -95,12 +95,34 @@ final class TaskEscrow
     {
         TransactionGuard::assertActive('TaskEscrow::sync');
 
+        return $this->holdExactly($task, $reason, $payment, fn (): int => $this->commitment($task));
+    }
+
+    /**
+     * [#impure] [#io: db] [#tx: caller] [#lock: payments, wallets]
+     * Seluruh dana kembali ke saldo, tagihan TETAP `held` bernominal 0 — task
+     * kedaluwarsa yang pekerjanya dibatalkan (keputusan pemilik 2026-10-13).
+     * Tetap `held`, bukan ditutup: dibuka lagi lewat Ubah, `sync()` menagih
+     * komitmennya lagi dari saldo, atau menolak dengan `insufficient_balance`.
+     *
+     * @throws \LogicException di luar transaksi
+     */
+    public function release(Task $task, string $reason): Payment
+    {
+        TransactionGuard::assertActive('TaskEscrow::release');
+
+        return $this->holdExactly($task, $reason, null, static fn (): int => 0);
+    }
+
+    /** @param \Closure(): int $target */
+    private function holdExactly(Task $task, string $reason, ?Payment $payment, \Closure $target): Payment
+    {
         $payment ??= $this->lockedPayment($task);
         if ($payment === null || $payment->status !== PaymentStatus::Held) {
             return $payment ?? new Payment;
         }
 
-        $target = $this->commitment($task);
+        $target = $target();
         $diff = $target - (int) $payment->amount;
 
         if ($diff !== 0) {

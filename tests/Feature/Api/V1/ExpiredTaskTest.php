@@ -75,20 +75,6 @@ final class ExpiredTaskTest extends TestCase
         $this->assertTrue($push->hasTypeTo($this->poster, 'task_expired'));
     }
 
-    public function test_a_task_that_already_hired_someone_does_not_expire_on_its_start_time(): void
-    {
-        $task = Task::factory()->open()->create([
-            'poster_id' => $this->poster->getKey(),
-            'needed_at' => now()->subMinute(),
-            'workers_needed' => 3,
-            'workers_hired' => 1,
-        ]);
-
-        $this->artisan('sekarya:tasks:expire-bidding')->assertSuccessful();
-
-        $this->assertSame(TaskStatus::Open, $task->refresh()->status);
-    }
-
     public function test_editing_an_expired_task_with_a_new_start_reopens_it(): void
     {
         $task = $this->expiredTask();

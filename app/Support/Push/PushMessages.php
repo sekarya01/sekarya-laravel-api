@@ -196,6 +196,40 @@ final class PushMessages
         );
     }
 
+    /**
+     * Tenggat sebentar lagi padahal sudah ada pekerja diterima → pemberi kerja.
+     * Tanpa tindakan (mulai dengan pekerja yang ada), task kedaluwarsa dan
+     * pekerjanya dibatalkan — keputusan pemilik 2026-10-13.
+     */
+    public static function taskExpiring(Task $task, int $minutes): PushMessage
+    {
+        $left = $minutes % 60 === 0 ? intdiv($minutes, 60).' jam' : $minutes.' menit';
+
+        return new PushMessage(
+            title: $task->title,
+            body: sprintf(
+                'Berakhir dalam %s. Sudah ada %d dari %d pekerja — mulai sekarang dengan mereka, atau tugas kedaluwarsa dan semuanya dibatalkan.',
+                $left,
+                (int) $task->workers_hired,
+                (int) $task->workers_needed,
+            ),
+            data: self::data(PushType::TaskExpiring, $task),
+        );
+    }
+
+    /**
+     * Task kedaluwarsa sebelum dimulai → pekerja yang SUDAH diterima.
+     * Jenisnya `bid_expired` (sisi mitra di klien), isinya membedakan.
+     */
+    public static function hiredWorkExpired(Task $task): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: 'Tugas kedaluwarsa sebelum dimulai. Pekerjaan ini dibatalkan dan tidak bisa dilanjutkan.',
+            data: self::data(PushType::BidExpired, $task),
+        );
+    }
+
     /** Penawaran gugur karena lelang ditutup → penawar (G12). */
     public static function bidExpired(Task $task): PushMessage
     {

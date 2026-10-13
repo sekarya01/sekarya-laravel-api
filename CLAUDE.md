@@ -214,6 +214,16 @@ Yang tidak boleh "dirapikan":
   pemberi kerja yang merekrut 30 orang hanya bisa menilai satu dari mereka.
 - `POST /tasks/{task}/start` menurunkan target ke jumlah yang sudah diterima lalu menutup
   lelang — untuk pekerjaan bertanggal yang tidak mendapat pelamar sebanyak targetnya.
+- **Tenggat lewat padahal sebagian pekerja sudah diterima** (keputusan pemilik 2026-10-13,
+  `ExpireBiddingAction`). Dua tenggat diperlakukan SAMA: `bidding_closes_at` dan `needed_at`.
+  `tasks.expiry_warning_minutes` (bawaan 60) sebelumnya pemberi kerja diperingatkan SEKALI
+  (`task_expiring`, penanda `tasks.expiry_warned_at`, di-NULL-kan saat tenggat diubah) —
+  mulai dengan pekerja yang ada lewat `/start`, atau biarkan. Lewat tenggat tanpa dimulai →
+  `expired`, bid diterima → `expired` + push `bid_expired` ke pekerjanya, dan SELURUH dana
+  kembali ke saldo lewat `TaskEscrow::release` — tagihan TETAP `held` bernominal 0, supaya
+  dibuka lagi lewat Ubah menagih ulang (`insufficient_balance` bila kurang). Tidak menaikkan
+  `cancellations` siapa pun: kedaluwarsa oleh sistem. Task TANPA pekerja tetap aturan lama
+  (dana ditahan sampai dibuka lagi atau dibatalkan).
 - **Pembatalan dua jalur, dipilih dari keadaan.** Belum ada yang deal → `POST
   /tasks/{task}/cancel` LANGSUNG (tidak ada yang perlu dimintai setuju). Sudah deal →
   `POST /tasks/{task}/cancel-requests` MEMINTA (alasan opsional); pekerja menjawab dari

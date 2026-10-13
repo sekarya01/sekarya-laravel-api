@@ -33,6 +33,8 @@ enum PushType: string
     case TaskPublished = 'task_published';
     // Batas waktu penawaran terlewat (G12).
     case TaskExpired = 'task_expired';
+    // Tenggat sebentar lagi, sudah ada pekerja diterima — mulai atau batal.
+    case TaskExpiring = 'task_expiring';
     // Penawaran gugur karena lelang ditutup (G12).
     case BidExpired = 'bid_expired';
     // Sengketa diputuskan pengelola (G5).

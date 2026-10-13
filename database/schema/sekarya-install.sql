@@ -370,6 +370,7 @@ CREATE TABLE IF NOT EXISTS `tasks` (
   `needed_at` timestamp NULL DEFAULT NULL,
   `end_at` timestamp NULL DEFAULT NULL,
   `bidding_closes_at` timestamp NULL DEFAULT NULL,
+  `expiry_warned_at` timestamp NULL DEFAULT NULL,
   `status` varchar(24) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft',
   `workers_needed` int unsigned NOT NULL DEFAULT '1',
   `workers_hired` int unsigned NOT NULL DEFAULT '0',
@@ -1218,7 +1219,7 @@ INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VAL
 INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (145, 'Jayawijaya', 'Papua Pegunungan', 'kabupaten', 144);
 INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (146, 'Boven Digoel', 'Papua Selatan', 'kabupaten', 145);
 
--- migrations: 73 baris
+-- migrations: 74 baris
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (1, '0001_01_01_000000_create_users_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (2, '0001_01_01_000001_create_cache_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (3, '0001_01_01_000002_create_jobs_table', 1);
@@ -1293,5 +1294,6 @@ INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (71, '2026_1
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (72, '2026_10_10_000002_make_task_disputes_per_activity', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (73, '2026_10_11_000001_drop_task_bookmarks_and_job_batches_tables', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (74, '2026_10_13_000001_add_awaiting_transfer_lock_to_wallet_topups', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (75, '2026_10_13_000002_add_expiry_warned_at_to_tasks', 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

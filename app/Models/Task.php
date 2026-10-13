@@ -106,6 +106,7 @@ final class Task extends Model
             'needed_at' => 'datetime',
             'end_at' => 'datetime',
             'bidding_closes_at' => 'datetime',
+            'expiry_warned_at' => 'datetime',
             'dealt_at' => 'datetime',
             'completed_at' => 'datetime',
             'cancelled_at' => 'datetime',

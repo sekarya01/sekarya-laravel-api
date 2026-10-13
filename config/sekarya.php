@@ -237,6 +237,9 @@ return [
         'notify_radius_km' => (float) env('SEKARYA_NOTIFY_RADIUS_KM', 5),
         // Batas penerima agar satu tugas tidak membanjiri ribuan notifikasi.
         'notify_max_workers' => (int) env('SEKARYA_NOTIFY_MAX_WORKERS', 50),
+        // Berapa menit sebelum tenggat pemberi kerja diperingatkan bahwa task
+        // yang SUDAH punya pekerja akan kedaluwarsa (lalu pekerjanya batal).
+        'expiry_warning_minutes' => (int) env('SEKARYA_TASK_EXPIRY_WARNING_MINUTES', 60),
     ],
 
     /*
