@@ -85,6 +85,10 @@ deployment:
     - '/bin/cp "$SRC/public/.htaccess" "$DOCROOT/.htaccess"'
     - '/bin/cp "$SRC/public/favicon.ico" "$DOCROOT/favicon.ico"'
     - '/bin/cp "$SRC/public/robots.txt" "$DOCROOT/robots.txt"'
+    # Aset statis landing (wordmark). Tanpa ini /images/* jatuh ke index.php
+    # dan dijawab 404 Laravel -- logonya hilang tanpa galat apa pun.
+    - '/bin/cp -R "$SRC/public/images" "$DOCROOT/"'
+    - '[ -f "$DOCROOT/images/sekarya-wordmark.svg" ] || { echo "GAGAL - public/images tidak tersalin ke $DOCROOT"; exit 1; }'
     - 'perl -pi -e "s{__DIR__\.''/\.\./(?!sekarya/)}{__DIR__.''/../sekarya/}g" "$DOCROOT/index.php"'
     - 'echo "titik masuk web = $DOCROOT/index.php"'
     - 'grep -c sekarya/vendor "$DOCROOT/index.php" >/dev/null || { echo "GAGAL - penulisan ulang path index.php tidak berhasil"; exit 1; }'

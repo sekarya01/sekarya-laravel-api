@@ -12,7 +12,7 @@
             <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px;background-color:#ffffff;border-radius:16px;overflow:hidden;">
                 <tr>
                     <td align="center" style="background-color:#ffffff;padding:28px 24px 8px;">
-                        <img src="{{ $message->embed(public_path('images/logo-sekarya-wordmark.png')) }}"
+                        <img src="{{ $message->embed(public_path('images/sekarya-wordmark.png')) }}"
                              alt="Sekarya" width="144"
                              style="display:block;width:144px;height:auto;border:0;">
                     </td>
