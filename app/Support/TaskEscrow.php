@@ -6,11 +6,13 @@ namespace App\Support;
 
 use App\Enums\PaymentStatus;
 use App\Enums\WalletEntryType;
+use App\Exceptions\Domain\InsufficientBalanceException;
 use App\Models\Payment;
 use App\Models\Task;
 use App\Models\TaskFundMovement;
 
 /**
+ * [#ssot] [#tx: caller] [#lock: payments, wallets]
  * Dana tugas yang ditahan dari SALDO pemberi kerja.
  *
  * Aturannya satu: dana yang ditahan untuk sebuah tugas selalu sama dengan
@@ -36,13 +38,13 @@ final class TaskEscrow
 {
     public function __construct(private readonly WalletLedger $ledger) {}
 
-    /** Harga per orang: batas atas anggaran (sama dengan yang ditawarkan ke pekerja). */
+    /** [#pure] Harga per orang: batas atas anggaran (sama dengan yang ditawarkan ke pekerja). */
     public function unitPrice(Task $task): int
     {
         return (int) ($task->budget_max ?? $task->budget_min ?? 0);
     }
 
-    /** Penawaran yang sudah diterima + slot kosong × harga per orang. */
+    /** [#io: db] Penawaran yang sudah diterima + slot kosong × harga per orang. */
     public function commitment(Task $task): int
     {
         $accepted = $task->acceptedBids()->get(['amount']);
@@ -52,11 +54,14 @@ final class TaskEscrow
     }
 
     /**
+     * [#impure] [#io: db] [#tx: caller] [#lock: payments, wallets]
      * Mulai menahan dana tugas ini (tugas dipasang). Tagihan yang belum ada
      * dibuat; tagihan `pending` tanpa uang di dalamnya diambil alih.
      */
     public function start(Task $task, string $reason): Payment
     {
+        TransactionGuard::assertActive('TaskEscrow::start');
+
         $payment = $this->lockedPayment($task) ?? Payment::query()->create([
             'task_id' => $task->getKey(),
             'payer_id' => $task->poster_id,
@@ -76,13 +81,20 @@ final class TaskEscrow
     }
 
     /**
+     * [#impure] [#io: db] [#tx: caller] [#lock: payments, wallets]
+     * [#warn: baris task_fund_movements ditulis SEBELUM ledger]
      * Samakan dana yang ditahan dengan komitmen tugas. Hanya bekerja pada
      * tagihan yang dananya memang ditahan dari saldo (`held`); tagihan lain
      * (tugas lama sebelum aturan ini, atau yang sudah dilepas/dikembalikan)
      * dibiarkan apa adanya.
+     *
+     * @throws InsufficientBalanceException
+     * @throws \LogicException di luar transaksi
      */
     public function sync(Task $task, string $reason, ?Payment $payment = null): Payment
     {
+        TransactionGuard::assertActive('TaskEscrow::sync');
+
         $payment ??= $this->lockedPayment($task);
         if ($payment === null || $payment->status !== PaymentStatus::Held) {
             return $payment ?? new Payment;

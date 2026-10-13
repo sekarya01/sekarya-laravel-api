@@ -789,6 +789,33 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
   `App\Support\Email::normalize()`. Never inline `number_format(..)` / `mb_strtolower(trim(..))`
   for these — two spellings of one rule drift apart silently.
 
+## Komentar: micro-annotation (tambahan, bukan pengganti)
+
+Satu baris tag di awal docblock untuk yang TIDAK terbaca dari tipe. Komentar
+ALASAN/invarian tetap ditulis — tag bilang apa, kalimat bilang kenapa; yang
+mencegah "dirapikan" adalah kenapa-nya. Hanya untuk kode baru/yang disentuh, tidak
+ada perombakan massal.
+
+| Tag | Arti |
+|---|---|
+| `[#pure]` / `[#impure]` | bebas efek samping / menulis state |
+| `[#io: db\|mail\|fcm\|disk]` | jenis I/O |
+| `[#tx: caller]` / `[#tx: own]` | wajib dipanggil di dalam transaksi / membuka sendiri |
+| `[#lock: <tabel>]` | baris yang di-`lockForUpdate()` |
+| `[#ssot]` | satu-satunya jalur untuk aturan itu |
+| `[#warn: …]` | jebakan / edge case |
+
+Exception tetap `@throws` (dibaca IDE), tipe generik tetap `@param`/`@return`.
+`git grep "#tx: caller"` = daftar fungsi yang pemanggilnya wajib di dalam
+`->transaction()`.
+
+**`[#tx: caller]` pada jalur uang dijaga RUNTIME**, bukan cuma tag:
+`App\Support\TransactionGuard::assertActive()` di `WalletLedger` (credit/debit),
+`WorkerPayout::pay`, `TaskEscrow::start/sync` — `LogicException` di luar transaksi.
+Test `RefreshDatabase` selalu di dalam transaksi, jadi penjaga ini tak pernah
+terpicu di sana; `TransactionGuardTest` sengaja tanpa trait itu. Fixture yang
+menulis saldo membuka transaksi sendiri (`TestCase::fundWallet`).
+
 ## Commands
 
 Satu daftar, di skill proyek: `.claude/skills/sekarya/SKILL.md` bagian **Perintah harian**.

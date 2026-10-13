@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
+ * [#ssot] [#tx: caller] [#lock: tasks, payments, wallets]
  * Penyelesaian uang & status task PER MITRA — satu-satunya tempat keduanya
  * diputuskan (persetujuan pemberi kerja, persetujuan otomatis, keputusan
  * sengketa pengelola, pembatalan).
@@ -49,13 +50,14 @@ final class TaskSettlement
         private readonly TaskStatusRecorder $recorder,
     ) {}
 
-    /** Kunci baris task — serialisasi semua keputusan pada task ini. */
+    /** [#io: db] [#tx: caller] [#lock: tasks] Kunci baris task — serialisasi semua keputusan pada task ini. */
     public function lockTask(Task $task): Task
     {
         return Task::query()->whereKey($task->getKey())->lockForUpdate()->firstOrFail();
     }
 
     /**
+     * [#impure] [#io: db] [#tx: caller] [#lock: payments, wallets]
      * Setujui satu mitra: `approved` + upahnya dibayar bila dana ditahan.
      * Status asal divalidasi pemanggil (submitted / rejected).
      */
@@ -86,7 +88,7 @@ final class TaskSettlement
         }
     }
 
-    /** Sengketa diputuskan untuk pemberi kerja: upah mitra ini kembali kepadanya. */
+    /** [#impure] [#io: db] [#tx: caller] [#lock: payments, wallets] Sengketa diputuskan untuk pemberi kerja: upah mitra ini kembali kepadanya. */
     public function refund(Activity $activity): void
     {
         $payment = $this->lockedPayment($activity->task);
@@ -107,7 +109,7 @@ final class TaskSettlement
         }
     }
 
-    /** Samakan status task dengan agregat activity-nya. */
+    /** [#impure] [#io: db] [#tx: caller] Samakan status task dengan agregat activity-nya. */
     public function sync(Task $task, ActorType $actorType, ?int $actorId, string $reason): void
     {
         /** @var Collection<int, ActivityStatus> $statuses */
@@ -130,6 +132,7 @@ final class TaskSettlement
     }
 
     /**
+     * [#io: db]
      * Dana tagihan yang belum dibayar ke mitra maupun dikembalikan per mitra.
      * Dari buku besar (sumber kebenaran), bukan dari status activity.
      */
@@ -143,6 +146,7 @@ final class TaskSettlement
     }
 
     /**
+     * [#impure] [#io: db] [#tx: caller] [#lock: wallets]
      * Tutup tagihan yang ditahan: SISA dana kembali ke pembayar, status
      * `released` bila ada upah yang dibayar, `refunded` bila tidak ada.
      * Dipakai saat semua mitra diputuskan dan saat task dibatalkan.

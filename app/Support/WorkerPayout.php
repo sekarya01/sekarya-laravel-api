@@ -9,6 +9,7 @@ use App\Models\Activity;
 use App\Models\PlatformFeeEntry;
 
 /**
+ * [#ssot] [#tx: caller]
  * SATU-SATUNYA tempat upah pekerja dibayarkan (G6).
  *
  * Beberapa jalur melepas dana ke pekerja — persetujuan pemberi kerja
@@ -29,8 +30,16 @@ final class WorkerPayout
         private readonly ServiceFee $fee,
     ) {}
 
+    /**
+     * [#impure] [#io: db] [#tx: caller] [#lock: wallets]
+     * [#warn: earning lalu fee = dua tulisan; tanpa transaksi bisa tersisa earning tanpa fee]
+     *
+     * @throws \LogicException di luar transaksi
+     */
     public function pay(Activity $activity, string $description): void
     {
+        TransactionGuard::assertActive('WorkerPayout::pay');
+
         $gross = (int) ($activity->agreed_amount ?? 0);
 
         if ($gross <= 0) {
