@@ -36,7 +36,7 @@
 --
 --  ISINYA
 --    - Seluruh tabel beserta indeks, foreign key, dan indeks FULLTEXT
---    - Kategori dan keahlian (data acuan; aplikasi tidak berjalan tanpanya)
+--    - Kategori, keahlian, dan kota (data acuan; aplikasi tidak berjalan tanpanya)
 --    - Riwayat migrasi, supaya `php artisan migrate` tahu seluruh migrasi
 --      sudah dijalankan dan tidak mengulanginya di atas tabel yang sudah ada
 --
@@ -1013,7 +1013,7 @@ CREATE TABLE IF NOT EXISTS `task_disputes` (
 ) ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------- DATA ACUAN ----------
--- Kategori dan keahlian: aplikasi tidak berjalan tanpanya.
+-- Kategori, keahlian, dan kota: aplikasi tidak berjalan tanpanya.
 -- Riwayat migrasi: supaya `php artisan migrate` tahu semuanya sudah jalan.
 
 -- categories: 9 baris

@@ -59,6 +59,18 @@ final class UserReportBlockTest extends TestCase
             ->assertJsonPath('code', 'cannot_report_self');
     }
 
+    public function test_the_blocked_list_shows_the_latest_block_first(): void
+    {
+        $earlier = $this->activeUser();
+        $this->asUser($this->viewer)->putJson(route('v1.users.block.store', $earlier->ulid))->assertNoContent();
+        $this->travel(1)->minutes();
+        $this->asUser($this->viewer)->putJson(route('v1.users.block.store', $this->target->ulid))->assertNoContent();
+
+        $ids = $this->asUser($this->viewer)->getJson(route('v1.me.blocks.index'))->assertOk()->json('data.*.id');
+
+        $this->assertSame([$this->target->ulid, $earlier->ulid], $ids);
+    }
+
     public function test_blocking_hides_tasks_and_blocks_bids(): void
     {
         $task = $this->targetTask();

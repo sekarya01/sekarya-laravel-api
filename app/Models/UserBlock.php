@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -61,5 +62,11 @@ final class UserBlock extends Model
                 $q->where('blocker_id', $b)->where('blocked_id', $a);
             })
             ->exists();
+    }
+
+    /** @param Builder<$this> $query */
+    public function scopeLatestFirst(Builder $query): void
+    {
+        $query->orderByDesc('created_at')->orderByDesc('id');
     }
 }

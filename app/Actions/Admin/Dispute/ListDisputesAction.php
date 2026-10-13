@@ -19,8 +19,7 @@ final class ListDisputesAction
         return TaskDispute::query()
             ->when($status !== null, fn ($q) => $q->where('status', $status))
             ->with(['task', 'raiser', 'activity'])
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
+            ->latestFirst()
             ->cursorPaginate($perPage);
     }
 }

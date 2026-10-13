@@ -53,7 +53,6 @@ final class ChatNotifier
         }
     }
 
-    /** @return iterable<ChatParticipant> */
     /**
      * [#impure] [#io: fcm]
      * Sinyal senyap hanya ke [userIds] yang masih peserta aktif — mis. tanda
@@ -73,6 +72,7 @@ final class ChatNotifier
             ->each(fn (mixed $id) => $this->push->sendTransient((int) $id, $message));
     }
 
+    /** @return iterable<ChatParticipant> */
     private function recipients(ChatRoom $room, ?int $exceptUserId): iterable
     {
         return $room->participants()

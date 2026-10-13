@@ -16,8 +16,8 @@ use Illuminate\Contracts\Pagination\CursorPaginator;
  *
  * TIDAK ada pencarian nama sebagian. `LIKE '%budi%'` tidak bisa memakai
  * indeks apa pun, jadi setiap ketikan di kotak pencarian akan memindai
- * seluruh tabel pengguna — dan proyek ini memang tidak memakai `LIKE` di mana
- * pun. Pencarian nama yang benar butuh tabel indeks terbalik dengan
+ * seluruh tabel pengguna — dan `LIKE` di proyek ini hanya pengecualian tercatat
+ * yang dipersempit pemiliknya (CLAUDE.md, Feed & pencarian nama). Pencarian nama yang benar butuh tabel indeks terbalik dengan
  * normalisasi di dua sisi, seperti `task_search`; itu slice sendiri.
  */
 final class ListUsersAction

@@ -73,8 +73,9 @@ final class AdminCommand extends Command
                     'super_admin sudah ada: %s. Hanya boleh satu, dan ia tidak bisa dihapus.',
                     $existing->email,
                 ));
-                $this->line('  Ganti sandinya: hapus baris tokennya lalu jalankan ulang '
-                    .'`sekarya:admin create` setelah barisnya diubah langsung di basis data.');
+                // Dulu menyarankan "jalankan ulang create sesudah barisnya diubah"
+                // — create tetap menolak selama baris super_admin ada.
+                $this->line('  Perintah ini tidak mengganti sandi, dan belum ada jalur ganti sandi pengelola.');
 
                 return self::FAILURE;
             }

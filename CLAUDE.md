@@ -38,9 +38,10 @@ Business logic lives **only** in Action classes. Never in Controllers, Models, R
   (`activities (task_id, worker_id)`, `admins.super_admin_lock`) are kept as the last
   line of defence anyway — a lock only holds inside a transaction, and writes from other
   paths may not take one.
-- **Keyword search uses a FULLTEXT index**, never `LIKE`. `MATCH()` must name exactly
-  the columns of the composite index `tasks_fulltext (title, description)` — a
-  mismatched column list silently skips the index.
+- **Keyword search uses a FULLTEXT index**, never `LIKE` — on the separate tables
+  `task_search` and `review_search` (`MATCH(terms)`), not on `tasks` itself (the old
+  `tasks_fulltext` index was dropped; see **Feed & pencarian nama**). `MATCH()` must name
+  exactly the indexed column list — a mismatch silently skips the index.
 - **`innodb_ft_min_token_size` defaults to 3**, so two-letter words such as "AC" are
   not indexed and cannot be found. Lower it to 1 in the server config if short words
   must be searchable; that needs a server restart plus an index rebuild. InnoDB also
@@ -71,7 +72,7 @@ keduanya dijaga test:
   dan phpMyAdmin melewati komentar itu, sehingga impornya berhenti di `CREATE TABLE`
   pertama tanpa keterangan. Perintahnya mengurutkan menurut ketergantungan.
   Migrasi baru **wajib** ikut ke sini; `tests/Feature/Deployment/InstallSchemaTest.php`
-  menggagalkan suite kalau tidak, dan menolak data selain kategori, keahlian, dan migrasi —
+  menggagalkan suite kalau tidak, dan menolak data selain kategori, keahlian, kota, dan migrasi —
   berkas ini dilacak git, dan riwayat git tidak bisa ditarik kembali.
 - **`.env.production.example`** — template produksi, tiap nilai berkomentar.
 

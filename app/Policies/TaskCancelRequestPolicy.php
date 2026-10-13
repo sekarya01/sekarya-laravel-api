@@ -11,8 +11,9 @@ use App\Models\User;
  * Otorisasi permintaan-persetujuan pembatalan.
  *
  * Aturan bisnis (sudah deal? masih pending?) dijaga Action — di sini hanya
- * SOAL SIAPA: meminta/menarik = peminta (poster), menjawab = pekerja yang
- * deal di task itu.
+ * SOAL SIAPA: menarik = peminta (poster), menjawab = pekerja yang deal di
+ * task itu. Meminta dijaga `TaskPolicy::requestCancel` — permintaannya belum
+ * ada saat itu.
  */
 final class TaskCancelRequestPolicy
 {

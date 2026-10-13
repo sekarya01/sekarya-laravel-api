@@ -427,7 +427,7 @@ final class Redactor
             '/\bBearer\s+[A-Za-z0-9._\-|+\/=]{8,}/i',
             '/\bBasic\s+[A-Za-z0-9+\/=]{8,}/i',
 
-            // Token Sanctum (`<id>|<40+ karakter>`) dan JWT.
+            // Token Sanctum (`<id>|<40 karakter>`; pola sengaja longgar, 20+) dan JWT.
             '/\b\d+\|[A-Za-z0-9]{20,}\b/',
             '/\beyJ[A-Za-z0-9_\-]{6,}\.[A-Za-z0-9_\-]{6,}\.[A-Za-z0-9_\-]{6,}\b/',
 

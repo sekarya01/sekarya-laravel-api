@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Schema;
  * `PUT activities/{activity}/checklist` dibuang (keputusan user 2026-09-26).
  * `live_*` di activities (B8, migrasi 000010) TIDAK ikut — tetap dipakai.
  */
-return new class() extends Migration
+return new class extends Migration
 {
     public function up(): void
     {

@@ -19,8 +19,11 @@ final class WorkerInviteCodeGenerator
     public const LENGTH = 8;
 
     private const LOWER = 'abcdefghjkmnpqrstuvwxyz';
+
     private const UPPER = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+
     private const DIGITS = '23456789';
+
     private const SPECIAL = '!@#$%-*+=';
 
     public static function generate(): string
@@ -48,6 +51,7 @@ final class WorkerInviteCodeGenerator
         if (mb_strlen($code) !== self::LENGTH) {
             return false;
         }
+
         return (bool) preg_match('/[a-z]/', $code)
             && (bool) preg_match('/[A-Z]/', $code)
             && (bool) preg_match('/[0-9]/', $code)

@@ -8,6 +8,7 @@ use App\Enums\DisputeCategory;
 use App\Enums\DisputeResolution;
 use App\Enums\DisputeStatus;
 use App\Models\Concerns\HasUlid;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -68,5 +69,11 @@ final class TaskDispute extends Model
     public function raiser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'raised_by');
+    }
+
+    /** @param Builder<$this> $query */
+    public function scopeLatestFirst(Builder $query): void
+    {
+        $query->orderByDesc('created_at')->orderByDesc('id');
     }
 }

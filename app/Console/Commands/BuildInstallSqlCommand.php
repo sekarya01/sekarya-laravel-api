@@ -62,7 +62,7 @@ final class BuildInstallSqlCommand extends Command
             ."-- yang sudah dibuat di atasnya.\n\n"
             .$this->structure($db, $tables)
             ."-- ---------- DATA ACUAN ----------\n"
-            ."-- Kategori dan keahlian: aplikasi tidak berjalan tanpanya.\n"
+            ."-- Kategori, keahlian, dan kota: aplikasi tidak berjalan tanpanya.\n"
             ."-- Riwayat migrasi: supaya `php artisan migrate` tahu semuanya sudah jalan.\n\n"
             .$this->referenceData($db)
             .$this->sessionEpilogue();
@@ -386,7 +386,7 @@ USE `%s`;
             --
             --  ISINYA
             --    - Seluruh tabel beserta indeks, foreign key, dan indeks FULLTEXT
-            --    - Kategori dan keahlian (data acuan; aplikasi tidak berjalan tanpanya)
+            --    - Kategori, keahlian, dan kota (data acuan; aplikasi tidak berjalan tanpanya)
             --    - Riwayat migrasi, supaya `php artisan migrate` tahu seluruh migrasi
             --      sudah dijalankan dan tidak mengulanginya di atas tabel yang sudah ada
             --
