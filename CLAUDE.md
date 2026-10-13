@@ -86,6 +86,11 @@ Dua hal yang mudah terlewat:
   padahal API-nya terlihat sehat.
   Akun itu sengaja tidak ada di berkas pemasangan SQL maupun seeder, karena keduanya
   dilacak git.
+- **`public_html` hanya berisi yang disalin `.cpanel.yml`** (index.php, .htaccess,
+  favicon, robots, `images/`). Aset statis baru di `public/` wajib ditambahkan ke sana,
+  atau ia 404 di produksi tanpa galat. Klon repo di server (`~/sekarya/sekarya-laravel-api`)
+  tidak boleh disunting langsung — cPanel menolak deploy tanpa log. Rinci:
+  `docs/DEPLOYMENT.md` bagian 10.
 
 ## Feed & pencarian nama
 

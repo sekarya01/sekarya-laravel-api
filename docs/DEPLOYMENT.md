@@ -504,6 +504,29 @@ php artisan up
 Tanpa SSH, unggah ulang berkasnya lalu jalankan `migrate --force` dan perintah cache lewat
 cron sekali jalan.
 
+### Lewat cPanel Git Version Control (`.cpanel.yml`)
+
+Produksi sekarya.com memakai jalur ini: **Update from Remote** lalu **Deploy HEAD Commit**.
+Klon repo ada di `~/sekarya/sekarya-laravel-api` (sumber), `.cpanel.yml` menyalinnya ke
+`~/sekarya` (aplikasi) dan ke `~/public_html` (titik masuk web).
+
+- **Jangan menyunting, mengunggah, atau menghapus apa pun di folder klon.** cPanel menolak
+  deploy selama klon punya perubahan yang belum di-commit — pesannya cuma "The system
+  cannot deploy … No uncommitted changes exist", tanpa nama berkas, dan **tidak ada log
+  baru** (log terakhir di `~/.cpanel/logs/*git_deploy.log` adalah deploy sukses yang lama).
+  Semua perubahan lewat commit.
+- **Klon terlanjur kotor dan hosting tanpa Terminal:** kembalikan berkas yang diubah ke isi
+  persis versi commit-nya (`git show <commit>:<path> > berkas`, unggah lewat File Manager —
+  jangan lewat editor File Manager, akhir barisnya bisa berubah). Kalau tidak tahu berkas
+  mana, buat klon baru di path lain lewat **Create** lalu deploy dari situ — `SRC` dibaca
+  dari `$(pwd)`, dan `.env`/`vendor/`/`storage/` ada di `~/sekarya`, bukan di klon.
+- **`public_html` hanya menerima yang disebut `.cpanel.yml`:** `index.php`, `.htaccess`,
+  `favicon.ico`, `robots.txt`, dan folder `images/`. Berkas atau folder statis baru di
+  `public/` **wajib** ditambahkan ke sana — kalau tidak, permintaannya jatuh ke
+  `index.php` dan dijawab 404 Laravel tanpa galat apa pun (wordmark landing pernah hilang
+  karena ini, 2026-10-13). Uji sesudah deploy:
+  `curl -I https://sekarya.com/images/sekarya-wordmark.svg` → `200`.
+
 Backup basis data **sebelum** `migrate` — cPanel > phpMyAdmin > Export, atau:
 
 ```bash
