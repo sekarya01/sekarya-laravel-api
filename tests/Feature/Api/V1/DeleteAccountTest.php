@@ -4,15 +4,22 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api\V1;
 
+use App\Actions\User\DeleteAccountAction;
+use App\Data\User\DeleteAccountData;
 use App\Enums\ActivityStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\TaskStatus;
 use App\Models\Activity;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\UserVerification;
 use App\Models\WalletTopup;
+use App\Support\VerificationDocuments;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 use Tests\TestCase;
 
 /**
@@ -45,6 +52,54 @@ final class DeleteAccountTest extends TestCase
         $this->assertNotSame($originalEmail, $row->email);
         $this->assertSame("deleted+{$user->getKey()}@sekarya.invalid", $row->email);
         $this->assertSame(0, $row->tokens()->count());
+    }
+
+    public function test_identity_files_are_deleted_once_the_deletion_commits(): void
+    {
+        [$user, $paths] = $this->userWithIdentityFiles();
+
+        $this->asUser($user)
+            ->deleteJson(route('v1.me.destroy'), ['password' => 'password'])
+            ->assertNoContent();
+
+        foreach ($paths as $path) {
+            Storage::disk(VerificationDocuments::DISK)->assertMissing($path);
+        }
+    }
+
+    public function test_identity_files_survive_when_the_deletion_rolls_back(): void
+    {
+        [$user, $paths] = $this->userWithIdentityFiles();
+
+        // Transaksi luar yang batal sesudah Action selesai: baris kembali, dan
+        // berkasnya pun harus tetap ada — dulu sudah terhapus sebelum commit.
+        try {
+            DB::transaction(function () use ($user): void {
+                app(DeleteAccountAction::class)->handle(new DeleteAccountData('password'), $user);
+
+                throw new RuntimeException('batal');
+            });
+        } catch (RuntimeException) {
+        }
+
+        $this->assertNotSoftDeleted('users', ['id' => $user->getKey()]);
+        foreach ($paths as $path) {
+            Storage::disk(VerificationDocuments::DISK)->assertExists($path);
+        }
+    }
+
+    /** @return array{0: User, 1: list<string>} */
+    private function userWithIdentityFiles(): array
+    {
+        Storage::fake(VerificationDocuments::DISK);
+        $user = $this->userWithPassword();
+        $verification = UserVerification::factory()->create(['user_id' => $user->getKey()]);
+        $paths = [$verification->id_card_photo_path, $verification->selfie_photo_path];
+        foreach ($paths as $path) {
+            Storage::disk(VerificationDocuments::DISK)->put($path, 'foto');
+        }
+
+        return [$user, $paths];
     }
 
     public function test_the_password_must_be_correct(): void

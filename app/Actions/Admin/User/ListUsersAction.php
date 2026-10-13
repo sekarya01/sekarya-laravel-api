@@ -26,6 +26,8 @@ final class ListUsersAction
     public function handle(UserQueueData $data): CursorPaginator
     {
         return User::query()
+            // Badge identitas sekali per halaman, bukan dua `exists` per orang.
+            ->withIdentityVerified()
             ->when($data->status !== null, fn ($q) => $q->where('status', $data->status))
             ->when($data->email !== null, fn ($q) => $q->where('email', $data->email))
             ->latestFirst()

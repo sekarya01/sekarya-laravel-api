@@ -509,8 +509,10 @@ CREATE TABLE IF NOT EXISTS `wallet_topups` (
   `cancelled_at` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
+  `awaiting_transfer_lock` bigint unsigned GENERATED ALWAYS AS ((case when ((`status` = _utf8mb4'awaiting_confirmation') and (`unique_code` > 0)) then `transfer_amount` end)) VIRTUAL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `wallet_topups_ulid_unique` (`ulid`),
+  UNIQUE KEY `wallet_topups_awaiting_transfer_lock_unique` (`awaiting_transfer_lock`),
   KEY `wallet_topups_reviewed_by_foreign` (`reviewed_by`),
   KEY `wallet_topups_status_created_at_id_index` (`status`,`created_at`,`id`),
   KEY `wallet_topups_user_id_created_at_id_index` (`user_id`,`created_at`,`id`),
@@ -1216,7 +1218,7 @@ INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VAL
 INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (145, 'Jayawijaya', 'Papua Pegunungan', 'kabupaten', 144);
 INSERT IGNORE INTO `cities` (`id`, `name`, `province`, `type`, `sort_order`) VALUES (146, 'Boven Digoel', 'Papua Selatan', 'kabupaten', 145);
 
--- migrations: 72 baris
+-- migrations: 73 baris
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (1, '0001_01_01_000000_create_users_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (2, '0001_01_01_000001_create_cache_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (3, '0001_01_01_000002_create_jobs_table', 1);
@@ -1290,5 +1292,6 @@ INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (70, '2026_1
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (71, '2026_10_10_000001_drop_user_notifications_table', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (72, '2026_10_10_000002_make_task_disputes_per_activity', 1);
 INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (73, '2026_10_11_000001_drop_task_bookmarks_and_job_batches_tables', 1);
+INSERT IGNORE INTO `migrations` (`id`, `migration`, `batch`) VALUES (74, '2026_10_13_000001_add_awaiting_transfer_lock_to_wallet_topups', 1);
 
 SET FOREIGN_KEY_CHECKS = 1;

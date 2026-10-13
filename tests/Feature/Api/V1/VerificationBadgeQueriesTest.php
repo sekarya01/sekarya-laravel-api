@@ -100,10 +100,11 @@ final class VerificationBadgeQueriesTest extends TestCase
             'worked' => fn () => $this->asUser($this->worker)->getJson(route('v1.tasks.worked')),
             'activities' => fn () => $this->asUser($this->worker)->getJson(route('v1.activities.mine')),
             'detail' => fn () => $this->asUser($this->poster)->getJson(route('v1.tasks.show', $this->firstTask->ulid)),
+            'admin users' => fn () => $this->asAdmin($this->activeAdmin())->getJson(route('v1.admin.users.index')),
         ];
 
         $this->assertSame(
-            ['feed' => 0, 'posted' => 0, 'worked' => 0, 'activities' => 0, 'detail' => 0],
+            ['feed' => 0, 'posted' => 0, 'worked' => 0, 'activities' => 0, 'detail' => 0, 'admin users' => 0],
             array_map(fn (callable $c): int => $this->fallbackQueries($c), $calls),
         );
     }
