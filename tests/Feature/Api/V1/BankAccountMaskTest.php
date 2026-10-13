@@ -42,6 +42,21 @@ final class BankAccountMaskTest extends TestCase
         ])->assertSuccessful();
     }
 
+    public function test_resubmitting_clears_leftover_review_fields(): void
+    {
+        $this->submitBankAccount();
+        DB::table('user_worker_verifications')->where('user_id', $this->user->getKey())->update([
+            'reviewed_at' => now(),
+            'rejection_reason' => 'Nama tidak cocok',
+        ]);
+
+        $this->submitBankAccount('1111-2222-3333');
+
+        $row = DB::table('user_worker_verifications')->where('user_id', $this->user->getKey())->sole();
+        $this->assertNull($row->reviewed_at);
+        $this->assertNull($row->rejection_reason);
+    }
+
     public function test_submitting_stores_the_last_four_digits(): void
     {
         $this->submitBankAccount('0987-654-910');

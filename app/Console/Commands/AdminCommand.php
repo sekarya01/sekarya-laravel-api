@@ -8,7 +8,9 @@ use App\Enums\AdminRole;
 use App\Enums\AdminStatus;
 use App\Models\Admin;
 use App\Support\Email;
+use App\Support\TokenIssuer;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
 
@@ -213,12 +215,19 @@ final class AdminCommand extends Command
             return self::FAILURE;
         }
 
-        $admin->forceFill(['status' => $status])->save();
-
         // Status saja tidak menghentikan siapa pun: token akses hidup delapan
-        // jam dan tidak menyimpan status di dalamnya.
+        // jam dan tidak menyimpan status di dalamnya. Satu transaksi, lewat
+        // TokenIssuer (satu-satunya pencabut token): status nonaktif yang
+        // tersimpan tanpa tokennya tercabut adalah penonaktifan setengah jadi.
+        DB::transaction(static function () use ($admin, $status): void {
+            $admin->forceFill(['status' => $status])->save();
+
+            if (! $status->isActive()) {
+                app(TokenIssuer::class)->revokeAll($admin);
+            }
+        });
+
         if (! $status->isActive()) {
-            $admin->tokens()->delete();
             $this->line('  Token dicabut.');
         }
 

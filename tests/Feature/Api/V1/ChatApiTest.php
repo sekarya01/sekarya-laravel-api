@@ -243,6 +243,26 @@ final class ChatApiTest extends TestCase
         $this->assertSame(1, ChatMessage::query()->where('client_message_id', $clientId)->count());
     }
 
+    public function test_a_failed_attachment_row_does_not_leave_its_file_behind(): void
+    {
+        $worker = $this->activeUser();
+        $room = $this->roomOf($this->dealtTask([$worker]));
+        ChatAttachment::creating(static function (): never {
+            throw new \RuntimeException('insert gagal');
+        });
+
+        try {
+            $this->asUser($worker)->post(route('v1.chat.rooms.attachments.store', $room->ulid), [
+                'file' => UploadedFile::fake()->create('voice.m4a', 120, 'audio/mp4'),
+                'duration' => 14,
+            ], ['Accept' => 'application/json'])->assertServerError();
+        } finally {
+            ChatAttachment::flushEventListeners();
+        }
+
+        $this->assertSame([], Storage::disk('public')->allFiles('uploads/chat/'.$room->ulid));
+    }
+
     public function test_text_needs_a_caption_and_audio_drops_it(): void
     {
         $worker = $this->activeUser();

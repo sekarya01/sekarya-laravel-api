@@ -31,7 +31,8 @@ use Laravel\Sanctum\NewAccessToken;
 final class TokenIssuer
 {
     /**
-     * [#impure] [#io: db] [#warn: cabut lalu terbitkan, tanpa transaksi]
+     * [#impure] [#io: db] [#tx: caller] — cabut lalu terbitkan; ketiga
+     * pemanggilnya (Login, VerifyEmail, AdminLogin) membuka transaksi.
      * Pasangan token untuk sesi baru (setelah verifikasi atau login).
      *
      * Token lama dicabut lebih dulu: satu perangkat satu sesi. Kalau nanti

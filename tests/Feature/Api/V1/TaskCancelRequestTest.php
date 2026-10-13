@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api\V1;
 
+use App\Enums\TaskStatus;
+use App\Models\Task;
+use App\Models\TaskCancelRequest;
 use App\Models\User;
 use App\Support\Push\PushNotifier;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -102,6 +105,18 @@ final class TaskCancelRequestTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.cancel_request.status', 'pending')
             ->assertJsonPath('data.cancel_request.reason', 'jadwal berubah');
+    }
+
+    public function test_a_finished_task_cannot_be_asked_to_cancel(): void
+    {
+        $task = $this->dealtTask();
+        Task::query()->where('ulid', $task)->update(['status' => TaskStatus::Completed]);
+
+        $this->asUser($this->poster)
+            ->postJson(route('v1.tasks.cancel-requests.store', $task))
+            ->assertJsonPath('code', 'task_not_cancellable');
+
+        $this->assertSame(0, TaskCancelRequest::query()->count());
     }
 
     public function test_second_request_while_pending_conflicts(): void

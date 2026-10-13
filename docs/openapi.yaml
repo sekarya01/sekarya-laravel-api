@@ -2085,7 +2085,8 @@ paths:
         Membuat permintaan `pending`; pekerja melihatnya sebagai popup di
         Detail Kerjaan (lewat `cancel_request` di `GET /tasks/{task}`) lalu
         menyetujui atau menolak. Satu task satu antrean: meminta lagi selagi
-        masih pending = `cancel_request_pending`.
+        masih pending = `cancel_request_pending`. Task yang sudah tidak bisa
+        dibatalkan (selesai/batal/dikembalikan) = `task_not_cancellable`.
       requestBody:
         required: false
         content:

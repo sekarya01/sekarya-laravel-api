@@ -17,6 +17,7 @@ use App\Models\Review;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 final class ReviewActionsTest extends TestCase
@@ -146,6 +147,51 @@ final class ReviewActionsTest extends TestCase
         } catch (ReviewNotAllowedYetException $e) {
             $this->assertStringContainsString('sudah memberi penilaian', $e->getMessage());
         }
+    }
+
+    /**
+     * Ulasan kembar yang di-commit permintaan lain DI ANTARA cek ganda dan
+     * insert: unique index menolaknya, dan itu harus keluar sebagai
+     * `already_reviewed`, bukan 500.
+     */
+    public function test_a_duplicate_that_slips_past_the_check_is_still_already_reviewed(): void
+    {
+        Review::creating(function (Review $review): void {
+            DB::table('reviews')->insert([
+                'task_id' => $review->task_id,
+                'reviewer_id' => $review->reviewer_id,
+                'reviewee_id' => $review->reviewee_id,
+                'reviewer_role' => $review->reviewer_role,
+                'rating' => 3,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        try {
+            app(CreateReviewAction::class)->handle(new CreateReviewData(5), $this->task, $this->poster);
+            $this->fail('ulasan kembar seharusnya ditolak');
+        } catch (ReviewNotAllowedYetException $e) {
+            $this->assertStringContainsString('sudah memberi penilaian', $e->getMessage());
+        } finally {
+            Review::flushEventListeners();
+        }
+    }
+
+    /** Ulasan untuk satu orang berurutan: barisnya dikunci, agregat dibaca terkunci. */
+    public function test_reviews_for_one_person_are_serialised(): void
+    {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        app(CreateReviewAction::class)->handle(new CreateReviewData(5), $this->task, $this->poster);
+        $queries = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+
+        $lockUser = array_key_first(array_filter($queries, static fn (string $q): bool => str_starts_with($q, 'select * from `users`') && str_ends_with($q, 'for update')));
+        $insert = array_key_first(array_filter($queries, static fn (string $q): bool => str_starts_with($q, 'insert into `reviews`')));
+        $this->assertNotNull($lockUser, 'baris orang yang dinilai harus dikunci');
+        $this->assertLessThan($insert, $lockUser);
+        $this->assertNotEmpty(array_filter($queries, static fn (string $q): bool => str_contains($q, 'AVG(rating)') && str_ends_with($q, 'lock in share mode')));
     }
 
     /** Bukan peserta → 404, bukan 403, agar keberadaan task tidak terkonfirmasi. */

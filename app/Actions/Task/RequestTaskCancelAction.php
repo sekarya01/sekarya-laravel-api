@@ -6,8 +6,10 @@ namespace App\Actions\Task;
 
 use App\Enums\CancelApprovalStatus;
 use App\Enums\CancelRequestStatus;
+use App\Enums\TaskStatus;
 use App\Exceptions\Domain\CancelRequestPendingException;
 use App\Exceptions\Domain\NoWorkersHiredException;
+use App\Exceptions\Domain\TaskNotCancellableException;
 use App\Models\Task;
 use App\Models\TaskCancelRequest;
 use App\Models\User;
@@ -33,10 +35,19 @@ final class RequestTaskCancelAction
         private readonly PushDispatcher $push,
     ) {}
 
-    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: task_cancel_requests] */
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks → task_cancel_requests] */
     public function handle(Task $task, User $requester, ?string $reason = null): TaskCancelRequest
     {
         return $this->db->transaction(function () use ($task, $requester, $reason): TaskCancelRequest {
+            // Dibaca ulang di bawah kunci: dari model rute, task yang sudah
+            // selesai atau batal bisa diberi permintaan yang baru ditolak
+            // saat disetujui — pekerja ditanyai sesuatu yang tak bisa terjadi.
+            $task = Task::query()->whereKey($task->getKey())->lockForUpdate()->firstOrFail();
+
+            if (! $task->status->canTransitionTo(TaskStatus::Cancelled)) {
+                throw TaskNotCancellableException::becauseStatus($task->status);
+            }
+
             if ($task->workers_hired <= 0) {
                 throw NoWorkersHiredException::forCancelRequest();
             }
