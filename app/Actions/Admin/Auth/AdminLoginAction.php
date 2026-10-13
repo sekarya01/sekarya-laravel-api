@@ -26,7 +26,11 @@ final class AdminLoginAction
         private readonly VerifyAdminCredentialsAction $credentials,
     ) {}
 
-    /** @return array{admin: Admin, access: NewAccessToken, long_lived: NewAccessToken} */
+    /**
+     * [#impure] [#io: db] [#tx: own]
+     *
+     * @return array{admin: Admin, access: NewAccessToken, long_lived: NewAccessToken}
+     */
     public function handle(AdminLoginData $data): array
     {
         return $this->db->transaction(function () use ($data): array {

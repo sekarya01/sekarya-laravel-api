@@ -41,10 +41,10 @@ final class AdminAccessDeniedException extends DomainException
     /**
      * Perannya tidak mencakup tindakan itu.
      *
-     * Dilempar Action, bukan hanya ditolak Policy di rute. Pemeriksaan ganda
+     * Dilempar Action, bukan hanya ditolak middleware di rute. Pemeriksaan ganda
      * di SATU tempat ini disengaja: Action yang membuat pengelola baru adalah
      * jalur kenaikan hak akses, dan jalur itu juga bisa dipanggil dari
-     * command atau job — tempat yang tidak melewati Policy sama sekali.
+     * command atau job — tempat yang tidak melewati middleware sama sekali.
      */
     public static function becauseRoleCannot(AdminAction $action): self
     {

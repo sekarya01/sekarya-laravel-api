@@ -22,11 +22,9 @@ use Illuminate\Database\ConnectionInterface;
  *
  * - Belum ada pekerja (`workers_hired == 0`) → `CancelTaskAction` LANGSUNG
  *   lewat `POST tasks/{task}/cancel`. Tidak ada yang perlu dimintai setuju.
- * - Sudah ada yang deal → ke sini. Action ini MENOLAK bila task-nya belum
- *   deal (`no_workers_hired`, lewat `DomainException` anonim? tidak — lewat
- *   `TaskNotDealt`: tidak ada; dipakai `NoWorkersHiredException` yang sudah
- *   ada), dan MENOLAK bila masih ada permintaan `pending`
- *   (`cancel_request_pending`).
+ * - Sudah ada yang deal → ke sini. Action ini MENOLAK bila belum ada pekerja
+ *   yang diterima (`no_workers_hired`, `NoWorkersHiredException`), dan MENOLAK
+ *   bila masih ada permintaan `pending` (`cancel_request_pending`).
  */
 final class RequestTaskCancelAction
 {
@@ -35,6 +33,7 @@ final class RequestTaskCancelAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: task_cancel_requests] */
     public function handle(Task $task, User $requester, ?string $reason = null): TaskCancelRequest
     {
         return $this->db->transaction(function () use ($task, $requester, $reason): TaskCancelRequest {

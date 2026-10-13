@@ -33,6 +33,7 @@ final class UpdateChatReceiptsAction
         private readonly ChatNotifier $notifier,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: chat_participants] */
     public function handle(ChatRoom $room, User $user, ?string $deliveredId, ?string $readId): ChatParticipant
     {
         $senders = $this->db->transaction(function () use ($room, $user, $deliveredId, $readId): array {

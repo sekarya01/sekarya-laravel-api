@@ -24,6 +24,8 @@ final class CreateWorkerInviteCodeAction
     public function __construct(private readonly AdminAuditRecorder $audit) {}
 
     /**
+     * [#impure] [#io: db]
+     *
      * @return array{code: WorkerInviteCode, plain: string}
      */
     public function handle(CreateWorkerInviteCodeData $data, ?Admin $admin): array

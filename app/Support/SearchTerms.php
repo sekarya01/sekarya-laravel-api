@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
+ * [#ssot] [#pure]
  * Normalisasi kata untuk pencarian nama pekerjaan.
  *
  * Dipakai di DUA tempat dan itu inti dari kelas ini: saat baris diindeks, dan

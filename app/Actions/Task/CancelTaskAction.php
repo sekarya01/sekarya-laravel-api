@@ -37,6 +37,7 @@ final class CancelTaskAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks, wallets] */
     public function handle(Task $task, User $actor, ?string $reason = null): Task
     {
         return $this->db->transaction(function () use ($task, $actor, $reason): Task {

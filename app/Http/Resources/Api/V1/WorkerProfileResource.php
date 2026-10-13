@@ -37,8 +37,9 @@ final class WorkerProfileResource extends BaseResource
         $address = $this->resource->resolvedAddress();
 
         return [
-            // Profilnya belum tentu pernah dibuat. GET tidak membuat baris —
-            // yang dikembalikan instance sementara berisi warisan dari akun.
+            // Barisnya sudah tersimpan atau belum. Instance tanpa baris berisi
+            // warisan dari akun (jalur baca tidak membuat baris; GET /me/worker
+            // dibuang 2026-10-11, pemakainya kini hanya PUT me/worker).
             'configured' => $this->resource->exists,
 
             // ── Nilai terpakai ──────────────────────────────────────────────

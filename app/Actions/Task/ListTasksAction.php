@@ -117,8 +117,9 @@ final class ListTasksAction
     private function base(ListTasksData $data): Builder
     {
         // select eksplisit dan seluruh kolom dikualifikasi dengan `tasks.`:
-        // filter jarak menambahkan kolom terhitung, dan pengurutan penawaran
-        // memakai join ke users — tanpa kualifikasi, kolomnya bisa ambigu.
+        // filter jarak menambahkan kolom terhitung (`distance_km`) — tanpa
+        // select eksplisit kolom task tidak ikut terpilih — dan kualifikasi
+        // menjaga kolomnya tetap tidak ambigu bila kueri ini di-join.
         $query = Task::query()
             ->select('tasks.*')
             // Badge poster dari satu subquery (User::withIdentityVerified), bukan

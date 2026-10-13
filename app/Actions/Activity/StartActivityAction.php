@@ -19,6 +19,7 @@ final class StartActivityAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] */
     public function handle(Activity $activity): Activity
     {
         $activity = $this->db->transaction(function () use ($activity): Activity {
@@ -30,10 +31,10 @@ final class StartActivityAction
             // Diperiksa di sini, bukan sekali saat barisnya dibuat: dana bisa
             // sudah dikembalikan sejak deal.
             //
-            // Dilewati selama gerbang pembayaran dimatikan — mekanisme
-            // pembayarannya belum ada, jadi tagihan tidak pernah beranjak dari
-            // `pending` dan menuntut `held` berarti tidak ada pekerjaan yang
-            // pernah bisa dimulai. Lihat config/sekarya.payments.
+            // Dilewati selama gerbang pembayaran dimatikan — tagihan task lama
+            // (sebelum TaskEscrow) bisa tetap `pending`, dan menuntut `held`
+            // berarti pekerjaannya tidak pernah bisa dimulai. Task baru selalu
+            // `held` sejak dipasang. Lihat config/sekarya.payments.
             if ((bool) config('sekarya.payments.gate_enabled')
                 && ! $activity->payment->status->opensActivity()) {
                 throw PaymentNotHeldException::becauseStatus($activity->payment->status);

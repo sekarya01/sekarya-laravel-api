@@ -11,6 +11,7 @@ use App\Models\UserReport;
 /** Tandai laporan sudah ditinjau (G7). */
 final class ReviewReportAction
 {
+    /** [#impure] [#io: db] */
     public function handle(UserReport $report, Admin $admin): UserReport
     {
         $report->forceFill([

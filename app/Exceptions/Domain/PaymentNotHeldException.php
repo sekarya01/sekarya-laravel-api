@@ -6,7 +6,7 @@ namespace App\Exceptions\Domain;
 
 use App\Enums\PaymentStatus;
 
-/** Activity tidak boleh dibuka sebelum dana ditahan. */
+/** Pekerjaan tidak boleh dimulai (berangkat/mulai) sebelum dana ditahan. */
 final class PaymentNotHeldException extends DomainException
 {
     private function __construct(string $message, private readonly PaymentStatus $status)

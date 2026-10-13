@@ -21,11 +21,11 @@ use Illuminate\Database\ConnectionInterface;
  * satu-satunya yang menahannya cuma aturan validasi, yang berubah setiap kali
  * ada orang menambah field.
  *
- * Kewenangan pemanggil diperiksa DI SINI juga, bukan hanya oleh Policy di
- * rute. Pemeriksaan ganda hanya dilakukan pada dua Action ini di seluruh
- * aplikasi, dengan alasan: ini jalur kenaikan hak akses, dan ia juga bisa
- * dipanggil dari command atau job — tempat yang tidak melewati Policy sama
- * sekali.
+ * Kewenangan pemanggil diperiksa DI SINI juga, bukan hanya oleh middleware
+ * `admin.manages-admins` di rute. Pemeriksaan ganda hanya dilakukan pada dua
+ * Action ini di seluruh aplikasi, dengan alasan: ini jalur kenaikan hak akses,
+ * dan ia juga bisa dipanggil dari command atau job — tempat yang tidak
+ * melewati middleware itu sama sekali.
  */
 final class CreateAdminAction
 {
@@ -34,6 +34,7 @@ final class CreateAdminAction
         private readonly AdminAuditRecorder $audit,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] */
     public function handle(CreateAdminData $data, Admin $actor): Admin
     {
         if (! $actor->mayPerform(AdminAction::AdminCreated)) {

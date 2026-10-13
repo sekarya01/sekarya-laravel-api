@@ -20,6 +20,7 @@ final class CancelTopupAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: wallet_topups] */
     public function handle(WalletTopup $topup): WalletTopup
     {
         return $this->db->transaction(function () use ($topup): WalletTopup {

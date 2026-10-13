@@ -50,6 +50,10 @@ final class DeleteAccountAction
         private readonly TokenIssuer $tokens,
     ) {}
 
+    /**
+     * [#impure] [#io: db, disk, fcm] [#tx: own]
+     * [#warn: berkas KTP/selfie dihapus sebelum commit; rollback tak memulihkannya]
+     */
     public function handle(DeleteAccountData $data, User $user): void
     {
         if (! Hash::check($data->password, $user->password)) {

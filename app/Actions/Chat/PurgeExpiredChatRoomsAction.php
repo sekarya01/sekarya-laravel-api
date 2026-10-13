@@ -20,6 +20,7 @@ final class PurgeExpiredChatRoomsAction
         private readonly Config $config,
     ) {}
 
+    /** [#impure] [#io: db, disk, fcm] [#tx: own] [#warn: satu transaksi per room, bukan per batch] */
     public function handle(): int
     {
         $days = (int) $this->config->get('sekarya.chat.purge_after_days');

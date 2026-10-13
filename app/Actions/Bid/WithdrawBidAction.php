@@ -14,6 +14,7 @@ final class WithdrawBidAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: tasks, bids] */
     public function handle(Bid $bid): Bid
     {
         return $this->db->transaction(function () use ($bid): Bid {

@@ -66,6 +66,7 @@ final class FcmClient
     }
 
     /**
+     * [#impure] [#io: fcm, cache, log]
      * Kirim satu pesan ke satu token perangkat.
      *
      * @throws InvalidDeviceTokenException token tidak lagi terdaftar — buang.

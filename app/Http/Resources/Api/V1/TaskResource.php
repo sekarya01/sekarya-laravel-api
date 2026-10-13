@@ -8,7 +8,11 @@ use App\Models\Task;
 use App\Models\User;
 use Illuminate\Http\Request;
 
-/** @mixin Task */
+/**
+ * [#io: db] [#warn: revealsLocationTo kueri per baris bila myBid tak dimuat]
+ *
+ * @mixin Task
+ */
 final class TaskResource extends BaseResource
 {
     /** @return array<string, mixed> */

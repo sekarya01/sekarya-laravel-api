@@ -32,7 +32,11 @@ final class AutoApproveStaleActivitiesAction
         private readonly ApproveActivityAction $approve,
     ) {}
 
-    /** @return int Jumlah activity yang disetujui otomatis. */
+    /**
+     * [#impure] [#io: db, fcm] [#warn: satu transaksi per activity, bukan sekaligus]
+     *
+     * @return int Jumlah activity yang disetujui otomatis.
+     */
     public function handle(?CarbonInterface $now = null): int
     {
         $now ??= now();

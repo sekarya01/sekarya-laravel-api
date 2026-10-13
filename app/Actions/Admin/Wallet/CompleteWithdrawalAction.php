@@ -32,6 +32,7 @@ final class CompleteWithdrawalAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: wallet_withdrawals] [#warn: TIDAK memotong saldo lagi] */
     public function handle(
         WalletWithdrawal $withdrawal,
         Admin $admin,

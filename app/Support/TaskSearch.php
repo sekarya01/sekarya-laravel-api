@@ -85,7 +85,6 @@ final class TaskSearch
             // Prafilter yang memakai index (latitude, longitude).
             ->whereBetween('tasks.latitude', $box['lat'])
             ->whereBetween('tasks.longitude', $box['lng'])
-            // Jarak ikut dipilih agar bisa ditampilkan tanpa dihitung ulang di klien.
             ->selectRaw(
                 $this->haversineSql().' as distance_km',
                 [$latitude, $longitude, $latitude],

@@ -29,6 +29,8 @@ final class RedeemWorkerInviteCodeAction
     public function __construct(private readonly ConnectionInterface $db) {}
 
     /**
+     * [#impure] [#io: db] [#tx: own] [#lock: worker_invite_codes]
+     *
      * @return array{code: WorkerInviteCode, already_worker: bool}
      */
     public function handle(string $plainCode, User $user): array

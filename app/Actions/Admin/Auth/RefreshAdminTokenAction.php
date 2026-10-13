@@ -24,6 +24,7 @@ final class RefreshAdminTokenAction
         private readonly TokenIssuer $tokens,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] */
     public function handle(Admin $admin): NewAccessToken
     {
         return $this->db->transaction(function () use ($admin): NewAccessToken {

@@ -28,8 +28,9 @@ use Illuminate\Database\ConnectionInterface;
  * `wallet_entries` — satu activity paling banyak satu baris `earning`.
  *
  * SEMENTARA: selama gerbang pembayaran dimatikan
- * (`config/sekarya.payments.gate_enabled`), tidak ada dana yang ditahan —
- * pekerjaannya tetap ditutup, yang tertunda uangnya.
+ * (`config/sekarya.payments.gate_enabled`), task lama yang tagihannya masih
+ * `pending` (sebelum TaskEscrow) tetap ditutup tanpa upah — yang tertunda
+ * uangnya. Task baru selalu `held` lewat TaskEscrow, jadi upahnya dibayar.
  */
 final class ApproveActivityAction
 {
@@ -40,6 +41,8 @@ final class ApproveActivityAction
     ) {}
 
     /**
+     * [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks, activities, payments, wallets] [#ssot]
+     *
      * @param  ActorType  $actorType  siapa yang tercatat menyetujui di riwayat
      *                                status. Tombol poster memakai bawaan (`poster`); persetujuan otomatis
      *                                sistem meneruskan `system` supaya audit tetap jujur.

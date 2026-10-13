@@ -6,7 +6,7 @@ namespace App\Http\Requests\Api\V1\Activity;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/** Dipakai poster untuk menyetujui atau menolak hasil kerja. */
+/** Dipakai poster untuk menyetujui hasil kerja. Penolakan = sengketa (RaiseActivityDisputeRequest). */
 final class ReviewSubmissionRequest extends FormRequest
 {
     /** @return array<string, mixed> */

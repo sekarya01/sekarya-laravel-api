@@ -13,7 +13,8 @@ use App\Support\Email;
  * Penyaring daftar pengguna untuk moderasi.
  *
  * `email` adalah pencocokan PERSIS, bukan pencarian sebagian. Proyek ini
- * tidak memakai `LIKE` di mana pun (`%x%` tidak bisa memakai indeks, jadi
+ * tidak memakai `LIKE` pada kueri tanpa batas pemilik (satu pengecualian
+ * tercatat: ListWalletEntriesAction; `%x%` tidak bisa memakai indeks, jadi
  * setiap pencarian sebagian berarti memindai seluruh tabel pengguna), dan
  * pencarian nama sebagian butuh tabel indeks terbalik tersendiri dengan
  * normalisasi dua sisi — pola `task_search`. Sampai tabel itu ada, yang

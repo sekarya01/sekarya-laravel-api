@@ -48,6 +48,7 @@ final class ResolveDisputeAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: task_disputes, tasks, activities, payments, wallets] */
     public function handle(
         TaskDispute $dispute,
         Admin $admin,

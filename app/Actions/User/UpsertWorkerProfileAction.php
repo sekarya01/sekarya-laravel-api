@@ -29,6 +29,7 @@ final class UpsertWorkerProfileAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] */
     public function handle(UpsertWorkerProfileData $data, User $user): UserWorker
     {
         // Diperiksa DI LUAR transaksi: tidak ada yang perlu dibatalkan, dan

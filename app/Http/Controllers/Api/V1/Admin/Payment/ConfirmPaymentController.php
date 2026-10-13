@@ -9,7 +9,10 @@ use App\Http\Resources\Api\V1\Admin\AdminPaymentResource;
 use App\Models\Payment;
 use Illuminate\Http\Request;
 
-/** Dana masuk → ditahan → pekerjaan boleh dimulai. Satu-satunya jalan ke `held`. */
+/**
+ * Jalur LAMA (task sebelum TaskEscrow): transfer terlihat → dana ditahan.
+ * Satu-satunya TRANSISI ke `held`; tagihan TaskEscrow lahir `held` dari saldo.
+ */
 final class ConfirmPaymentController
 {
     public function __construct(private readonly ConfirmPaymentAction $action) {}

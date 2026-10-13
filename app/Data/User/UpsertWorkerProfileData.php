@@ -114,7 +114,6 @@ final readonly class UpsertWorkerProfileData
         return array_intersect_key($values, array_flip($this->present));
     }
 
-    /** Klien meminta mengubah ketersediaan. */
     public function changesAvailability(): bool
     {
         return $this->isAvailable !== null;

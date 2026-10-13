@@ -30,6 +30,7 @@ final class DepartActivityAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] */
     public function handle(Activity $activity): Activity
     {
         $activity = $this->db->transaction(function () use ($activity): Activity {

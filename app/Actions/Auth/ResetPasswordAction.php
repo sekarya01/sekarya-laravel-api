@@ -22,6 +22,7 @@ final class ResetPasswordAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] */
     public function handle(string $email, string $token, string $password): void
     {
         $status = Password::reset(

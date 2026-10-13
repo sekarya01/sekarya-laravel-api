@@ -27,6 +27,8 @@ final class AxiomClient
     ) {}
 
     /**
+     * [#impure] [#io: http, log] [#warn: tidak pernah melempar; gagal = false]
+     *
      * @param  array<int, array<string, mixed>>  $events
      * @return bool true bila Axiom menerimanya
      */

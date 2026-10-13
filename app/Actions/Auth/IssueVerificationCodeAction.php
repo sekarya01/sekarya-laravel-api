@@ -23,6 +23,10 @@ final class IssueVerificationCodeAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /**
+     * [#impure] [#io: db, mail] [#tx: own] [#lock: email_verification_codes] [#ssot]
+     * [#warn: email terkirim sesudah commit transaksi TERLUAR pemanggil]
+     */
     public function handle(User $user, ?string $ip = null, bool $enforceCooldown = true): EmailVerificationCode
     {
         return $this->db->transaction(function () use ($user, $ip, $enforceCooldown): EmailVerificationCode {

@@ -35,6 +35,7 @@ final class RejectWithdrawalAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: wallet_withdrawals, wallets] */
     public function handle(
         WalletWithdrawal $withdrawal,
         Admin $admin,

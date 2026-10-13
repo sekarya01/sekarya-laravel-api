@@ -117,6 +117,8 @@ final class AxiomLogger
     }
 
     /**
+     * [#impure] [#warn: hanya menampung; terkirim saat flush()]
+     *
      * @param  array<string, mixed>  $fields
      */
     public function event(string $event, array $fields = [], string $level = 'info'): void
@@ -163,6 +165,8 @@ final class AxiomLogger
     }
 
     /**
+     * [#impure] [#io: http] [#warn: delivery=queue -> job, bukan HTTP langsung]
+     *
      * Dikirim sekali di akhir siklus hidup proses.
      *
      * Buffer dikosongkan SEBELUM pengiriman: kalau transport melempar, event

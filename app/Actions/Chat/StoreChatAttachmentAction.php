@@ -31,6 +31,7 @@ final class StoreChatAttachmentAction
         private readonly Config $config,
     ) {}
 
+    /** [#impure] [#io: disk, db] [#warn: berkas ditulis sebelum baris DB; insert gagal = berkas yatim] */
     public function handle(ChatRoom $room, StoreChatAttachmentData $data, User $user): ChatAttachment
     {
         $this->access->writer($room, $user);

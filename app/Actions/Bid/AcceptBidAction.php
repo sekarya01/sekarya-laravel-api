@@ -20,8 +20,9 @@ use Illuminate\Database\ConnectionInterface;
  * Pemberi kerja menerima satu pelamar.
  *
  * Task bisa merekrut banyak orang, jadi aksi ini dipanggil berulang — sekali
- * per pekerja. Setiap panggilan mengisi satu slot dan menambah tagihan task
- * sebesar penawaran orang itu.
+ * per pekerja. Setiap panggilan mengisi satu slot; dana task disamakan ulang
+ * dengan komitmennya lewat TaskHiring::sync (TaskEscrow untuk task `held`,
+ * tagihan `pending` sebesar total penawaran untuk task lama).
  *
  * Pelamarnya boleh jauh lebih banyak daripada slotnya: `workers_needed` adalah
  * berapa orang yang DITERIMA, bukan berapa yang boleh melamar. Pemberi kerja
@@ -39,6 +40,7 @@ final class AcceptBidAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks, bids, payments, wallets] */
     public function handle(Bid $bid, User $poster): Task
     {
         $task = $this->db->transaction(function () use (&$bid, $poster): Task {

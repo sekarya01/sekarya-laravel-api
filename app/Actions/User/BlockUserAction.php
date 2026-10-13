@@ -14,6 +14,7 @@ use App\Models\UserBlock;
  */
 final class BlockUserAction
 {
+    /** [#impure] [#io: db] */
     public function handle(User $blocker, User $blocked): void
     {
         if ($blocker->is($blocked)) {

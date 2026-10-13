@@ -23,8 +23,10 @@ use Illuminate\Support\Collection;
  * "masih menerima penawaran" di mata semua pembaca status. Command terjadwal
  * memanggil ini supaya statusnya ikut jujur.
  *
- * Pekerjaan hanya untuk task yang BELUM deal: begitu ada penawaran diterima,
- * status bukan lagi `open` dan transisi ke `expired` memang tidak sah.
+ * Pekerjaan hanya untuk task yang BELUM deal (`open`); sesudah deal transisi
+ * ke `expired` memang tidak sah. Task banyak slot tetap `open` sampai slot
+ * TERAKHIR terisi, jadi task yang sudah menerima sebagian pekerja tetap bisa
+ * tersaring lewat `bidding_closes_at`.
  *
  * Dua tenggat: `bidding_closes_at` (kalau diisi), dan `needed_at` — jadwal
  * mulai yang lewat tanpa seorang pun diterima berarti tugasnya praktis gagal.
@@ -42,7 +44,11 @@ final class ExpireBiddingAction
         private readonly PushDispatcher $push,
     ) {}
 
-    /** @return int Jumlah task yang ditutup. */
+    /**
+     * [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks] [#warn: satu transaksi per task, bukan sekaligus]
+     *
+     * @return int Jumlah task yang ditutup.
+     */
     public function handle(?CarbonInterface $now = null): int
     {
         $now ??= now();

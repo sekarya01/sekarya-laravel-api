@@ -28,6 +28,7 @@ final class ReportTransferAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: payments] [#warn: jalur lama — hanya tagihan sebelum TaskEscrow] */
     public function handle(Task $task, User $payer): Payment
     {
         return $this->db->transaction(function () use ($task): Payment {

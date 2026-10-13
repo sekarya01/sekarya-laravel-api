@@ -25,7 +25,7 @@ final class ListWalletEntriesRequest extends FormRequest
             'types' => ['sometimes', 'array', 'max:'.count(WalletEntryType::cases())],
             'types.*' => [Rule::enum(WalletEntryType::class)],
             'direction' => ['sometimes', Rule::enum(WalletEntryDirection::class)],
-            // Kata dalam `description` ("Upah task #123").
+            // Kata dalam `description` ("Upah task #123") atau judul task rujukan.
             'q' => ['sometimes', 'nullable', 'string', 'max:100'],
             // Rentang waktu ISO-8601 BEROFFSET dari klien: `from` inklusif,
             // `to` eksklusif. Hari "hari ini" milik orangnya (WIB), bukan

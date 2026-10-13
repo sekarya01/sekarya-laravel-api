@@ -47,8 +47,9 @@ final class ListWalletEntriesAction
             // LIKE — PENGECUALIAN tercatat dari aturan "tanpa LIKE" proyek ini.
             // Aturan itu ada karena LIKE '%x%' memindai SELURUH tabel. Di sini
             // `wallet_id` sudah mempersempit lewat indeks ke riwayat SATU
-            // orang, jadi yang dipindai hanya baris miliknya (lihat EXPLAIN
-            // di test). `%`/`_` dari ketikan di-escape agar dibaca harfiah.
+            // orang, jadi yang dipindai hanya baris miliknya (belum ada test
+            // EXPLAIN untuk jalur ini; yang di `WalletSummaryTest` hanya kueri
+            // ringkasan). `%`/`_` dari ketikan di-escape agar dibaca harfiah.
             //
             // Judul task ikut dicocokkan: baris riwayat di aplikasi DITAMPILKAN
             // dengan judul task-nya (`attachTasks`), sedangkan `description`

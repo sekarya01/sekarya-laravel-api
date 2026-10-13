@@ -18,6 +18,7 @@ use App\Support\WalletLedger;
 use Illuminate\Database\ConnectionInterface;
 
 /**
+ * [#ssot]
  * Pengelola melihat dana masuk → SALDO BERTAMBAH.
  *
  * Satu-satunya jalan saldo bisa bertambah dari isi ulang. Sama seperti
@@ -40,6 +41,7 @@ final class ConfirmTopupAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: wallet_topups, wallets] */
     public function handle(WalletTopup $topup, Admin $admin, ?string $ip = null): WalletTopup
     {
         return $this->db->transaction(function () use ($topup, $admin, $ip): WalletTopup {

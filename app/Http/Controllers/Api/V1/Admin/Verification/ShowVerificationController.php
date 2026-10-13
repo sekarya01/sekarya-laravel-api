@@ -9,7 +9,10 @@ use App\Http\Resources\Api\V1\Admin\AdminVerificationDetailResource;
 use App\Models\UserVerification;
 use Illuminate\Http\Request;
 
-/** Detail pengajuan. Pembacaannya dicatat — lihat ViewVerificationAction. */
+/**
+ * [#impure] [#io: db] [#warn: GET menulis jejak verification.viewed]
+ * Detail pengajuan. Pembacaannya dicatat — lihat ViewVerificationAction.
+ */
 final class ShowVerificationController
 {
     public function __construct(private readonly ViewVerificationAction $action) {}

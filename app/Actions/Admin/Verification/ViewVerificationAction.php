@@ -25,6 +25,7 @@ final class ViewVerificationAction
 {
     public function __construct(private readonly AdminAuditRecorder $audit) {}
 
+    /** [#impure] [#io: db] [#warn: dipakai GET, tetap menulis jejak audit] */
     public function handle(UserVerification $verification, Admin $admin, ?string $ip = null): UserVerification
     {
         $this->audit->record(

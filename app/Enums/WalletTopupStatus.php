@@ -10,9 +10,9 @@ namespace App\Enums;
  * menyatakannya masuk.
  *
  * Karena itu tidak ada status `pending`. Baris ini lahir dari permintaan
- * pengguna, dan permintaan itu ADALAH laporannya — berbeda dari `payments`,
- * yang barisnya sudah ada sejak pelamar pertama diterima, jauh sebelum ada
- * transfer yang dilaporkan.
+ * pengguna, dan permintaan itu ADALAH laporannya — berbeda dari `payments`
+ * jalur lama (sebelum TaskEscrow), yang barisnya sudah ada sejak pelamar
+ * pertama diterima, jauh sebelum ada transfer yang dilaporkan.
  */
 enum WalletTopupStatus: string
 {

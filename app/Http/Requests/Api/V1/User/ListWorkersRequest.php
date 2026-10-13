@@ -15,7 +15,8 @@ use Illuminate\Validation\Rule;
  * Penyaringnya sengaja sedikit, dan tiap satunya bertumpu indeks yang sudah
  * ada: `user_workers (city, province)` dan `users.gender`. TIDAK ada pencarian
  * nama sebagian — `LIKE '%budi%'` tidak bisa memakai indeks apa pun, dan
- * proyek ini nol kemunculan `LIKE` di `app/`. Pencarian nama yang benar butuh
+ * satu-satunya `LIKE` di `app/` adalah pengecualian tercatat yang dibatasi
+ * pemiliknya (ListWalletEntriesAction). Pencarian nama yang benar butuh
  * tabel indeks terbalik dengan normalisasi di dua sisi, seperti `task_search`;
  * itu slice sendiri.
  */

@@ -11,6 +11,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Laravel\Sanctum\NewAccessToken;
 
 /**
+ * [#io: db]
+ *
  * Pasangan token setelah verifikasi atau login.
  *
  * Nilai token hanya bisa dibaca SEKALI, di sini — yang tersimpan di database

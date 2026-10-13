@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 
 /**
+ * [#impure] [#io: disk]
  * Unggah satu dokumen identitas (G2a). Balasannya HANYA `path` — tidak ada
  * `url`, karena berkasnya tidak pernah bisa diakses publik. Path itu lalu
  * dipakai di `POST me/verifications` sebagai `id_card_photo_path`/`selfie_photo_path`.

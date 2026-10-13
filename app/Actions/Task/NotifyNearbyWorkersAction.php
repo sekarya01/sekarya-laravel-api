@@ -20,6 +20,7 @@ use App\Support\GeoDistance;
  */
 final class NotifyNearbyWorkersAction
 {
+    /** [#impure] [#io: db, fcm] [#warn: dispatch tanpa afterCommit — panggil sesudah commit] */
     public function handle(Task $task): int
     {
         if ($task->latitude === null || $task->longitude === null) {

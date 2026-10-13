@@ -28,6 +28,7 @@ final class SubmitVerificationAction
         private readonly VerificationDocuments $documents,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] */
     public function handle(SubmitVerificationData $data, User $user): UserVerification
     {
         return $this->db->transaction(function () use ($data, $user): UserVerification {

@@ -33,6 +33,7 @@ final class AuthController
         return view('super_admin.login');
     }
 
+    /** [#impure] [#io: db] [#warn: recordLogin + sesi hanya sesudah gerbang super_admin] */
     public function login(Request $request, VerifyAdminCredentialsAction $credentials): RedirectResponse
     {
         $validated = $request->validate([
@@ -64,6 +65,7 @@ final class AuthController
         return redirect()->intended(route('super_admin.dashboard'));
     }
 
+    /** [#impure] */
     public function logout(Request $request): RedirectResponse
     {
         Auth::guard('admin_web')->logout();

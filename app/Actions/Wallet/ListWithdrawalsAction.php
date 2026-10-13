@@ -19,8 +19,9 @@ final class ListWithdrawalsAction
             ->where('user_id', $user->getKey())
             ->when($status !== null, fn ($q) => $q->where('status', $status))
             // `verification` ikut supaya daftarnya bisa menyebut bank tujuan
-            // tanpa satu kueri per baris. Nomor rekeningnya tidak ikut keluar —
-            // Resource-nya hanya membaca `bank_code` dan nama pemilik.
+            // tanpa satu kueri per baris. Nomor rekening utuh tidak ikut keluar —
+            // Resource-nya hanya membaca `bank_code`, nama pemilik, dan nomor
+            // bermasker dari `account_number_last4`.
             ->with('verification')
             ->latestFirst()
             ->cursorPaginate($page->perPage);

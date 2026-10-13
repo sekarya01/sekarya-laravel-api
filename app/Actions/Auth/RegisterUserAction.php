@@ -25,6 +25,7 @@ final class RegisterUserAction
         private readonly IssueVerificationCodeAction $issueCode,
     ) {}
 
+    /** [#impure] [#io: db, mail] [#tx: own] */
     public function handle(RegisterData $data, ?string $ip = null): User
     {
         return $this->db->transaction(function () use ($data, $ip): User {

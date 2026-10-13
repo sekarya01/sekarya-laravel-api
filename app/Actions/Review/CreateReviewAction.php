@@ -33,6 +33,7 @@ final class CreateReviewAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] */
     public function handle(CreateReviewData $data, Task $task, User $reviewer): Review
     {
         return $this->db->transaction(function () use ($data, $task, $reviewer): Review {

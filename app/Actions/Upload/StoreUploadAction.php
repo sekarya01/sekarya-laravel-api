@@ -21,6 +21,7 @@ final class StoreUploadAction
 {
     public function __construct(private readonly ProofPhotos $proofs) {}
 
+    /** [#impure] [#io: disk] */
     public function handle(UploadedFile $file, string $purpose, User $user): string
     {
         return match ($purpose) {

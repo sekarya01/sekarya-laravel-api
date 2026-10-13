@@ -9,7 +9,7 @@ use App\Models\Admin;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 
 /**
- * Daftar akun pengelola. Hanya super_admin (Policy di rute).
+ * Daftar akun pengelola. Hanya super_admin (middleware `admin.manages-admins` di rute).
  *
  * Yang sudah dihapus tidak ikut: scope soft delete bawaan menyingkirkannya,
  * dan itu memang yang diinginkan — barisnya tetap ada hanya supaya jejak

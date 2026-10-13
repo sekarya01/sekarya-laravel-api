@@ -19,6 +19,7 @@ use App\Models\User;
  */
 final class ForgetDeviceTokenAction
 {
+    /** [#impure] [#io: db] */
     public function handle(string $token, User $user): void
     {
         DeviceToken::query()

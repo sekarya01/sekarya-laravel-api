@@ -18,6 +18,7 @@ use App\Models\UserAddress;
  */
 final class UpsertAddressAction
 {
+    /** [#impure] [#io: db] */
     public function handle(UpsertAddressData $data, User $user): UserAddress
     {
         return $user->savedAddress()->updateOrCreate([], $data->toAttributes());

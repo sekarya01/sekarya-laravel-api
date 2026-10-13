@@ -37,6 +37,7 @@ final class RaiseActivityDisputeAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks, activities] */
     public function handle(RaiseActivityDisputeData $data, Activity $activity, User $poster): TaskDispute
     {
         $dispute = $this->db->transaction(function () use ($data, $activity, $poster): TaskDispute {

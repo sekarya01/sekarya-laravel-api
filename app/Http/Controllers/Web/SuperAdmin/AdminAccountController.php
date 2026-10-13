@@ -20,7 +20,8 @@ use Illuminate\View\View;
 
 /**
  * Kelola akun pengelola. Peran baru SELALU `admin` (dipaksa di Action).
- * super_admin tidak bisa dihapus (hook `deleting` + unique index).
+ * super_admin tidak bisa dihapus (hook `deleting`); tepat satu dijamin
+ * unique index `super_admin_lock`.
  * Hapus = soft delete; email tetap terpakai.
  */
 final class AdminAccountController

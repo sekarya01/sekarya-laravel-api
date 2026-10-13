@@ -17,6 +17,7 @@ use App\Models\UserReport;
  */
 final class ReportUserAction
 {
+    /** [#impure] [#io: db] */
     public function handle(ReportUserData $data, User $reporter, User $reported): UserReport
     {
         if ($reporter->is($reported)) {

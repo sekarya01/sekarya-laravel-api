@@ -16,7 +16,8 @@ use Illuminate\Support\Collection;
 /**
  * Menghitung ulang harga referensi per kategori.
  *
- * Sumbernya `agreed_amount` dari task yang SELESAI — bukan budget yang diminta
+ * Sumbernya `bids.amount` yang diterima pada task yang SELESAI (harga per
+ * orang, bukan `tasks.agreed_amount` yang TOTAL) — bukan budget yang diminta
  * pemberi kerja (bisa terlalu rendah) dan bukan penawaran yang masuk (banyak
  * yang kalah lelang). Yang pantas dibayarkan adalah yang benar-benar disepakati
  * dan pekerjaannya beres.
@@ -27,6 +28,7 @@ final class RecomputeReferencePricesAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#warn: harga kota ditulis di luar transaksi] */
     public function handle(): int
     {
         $updated = 0;

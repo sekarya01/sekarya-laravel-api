@@ -7,6 +7,8 @@ namespace App\Logging\Axiom;
 use Illuminate\Contracts\Config\Repository as Config;
 
 /**
+ * [#ssot] [#pure]
+ *
  * Satu-satunya pintu keluar data ke Axiom.
  *
  * Tidak ada satu pun nilai dari request, database, atau exception yang boleh

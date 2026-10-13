@@ -30,6 +30,7 @@ final class RejectPaymentAction
         private readonly AdminAuditRecorder $audit,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: payments] [#warn: jalur lama — hanya tagihan sebelum TaskEscrow] */
     public function handle(Payment $payment, Admin $admin, RejectPaymentData $data): Payment
     {
         return $this->db->transaction(function () use ($payment, $admin, $data): Payment {

@@ -11,6 +11,7 @@ use App\Models\UserBlock;
 /** Lepas blokir pengguna (G7) — idempoten. */
 final class UnblockUserAction
 {
+    /** [#impure] [#io: db] */
     public function handle(User $blocker, User $blocked): void
     {
         if ($blocker->is($blocked)) {

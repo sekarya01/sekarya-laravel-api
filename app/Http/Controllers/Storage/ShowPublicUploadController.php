@@ -37,6 +37,7 @@ final class ShowPublicUploadController
 
     public function __construct(private readonly FilesystemFactory $filesystem) {}
 
+    /** [#io: disk] */
     public function __invoke(string $folder, string $file): Response
     {
         $disk = $this->filesystem->disk('public');

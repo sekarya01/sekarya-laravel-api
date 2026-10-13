@@ -19,6 +19,10 @@ use Illuminate\Support\Facades\Password;
  */
 final class RequestPasswordResetLinkAction
 {
+    /**
+     * [#impure] [#io: db, mail]
+     * [#warn: sengaja 422 email_not_registered — pengecualian tercatat CLAUDE.md]
+     */
     public function handle(ForgotPasswordData $data): void
     {
         $user = User::query()->where('email', $data->email)->first();

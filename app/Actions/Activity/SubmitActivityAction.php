@@ -22,6 +22,7 @@ final class SubmitActivityAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks] */
     public function handle(SubmitActivityData $data, Activity $activity): Activity
     {
         $activity = $this->db->transaction(function () use ($data, $activity): Activity {

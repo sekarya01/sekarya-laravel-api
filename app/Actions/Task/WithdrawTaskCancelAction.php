@@ -19,6 +19,7 @@ final class WithdrawTaskCancelAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: task_cancel_requests] */
     public function handle(TaskCancelRequest $request): TaskCancelRequest
     {
         return $this->db->transaction(function () use ($request): TaskCancelRequest {

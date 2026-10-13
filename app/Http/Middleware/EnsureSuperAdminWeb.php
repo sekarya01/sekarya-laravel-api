@@ -24,6 +24,7 @@ use Symfony\Component\HttpFoundation\Response;
  */
 final class EnsureSuperAdminWeb
 {
+    /** [#impure] [#warn: ditolak = logout + sesi diinvalidasi] */
     public function handle(Request $request, Closure $next): Response
     {
         $admin = Auth::guard('admin_web')->user();

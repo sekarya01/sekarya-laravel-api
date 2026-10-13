@@ -117,6 +117,7 @@ class User extends Authenticatable
     }
 
     /**
+     * [#impure] [#io: mail] [#warn: notifikasi tidak di-queue — dikirim sinkron]
      * Tautan reset memakai notifikasi sendiri (bahasa Indonesia, gaya email
      * Sekarya) alih-alih bawaan Laravel. URL-nya menunjuk ke form web
      * sekali pakai `password.reset`, bukan ke endpoint API.
@@ -174,6 +175,7 @@ class User extends Authenticatable
     }
 
     /**
+     * [#impure] [#io: db]
      * Profil pekerja yang pasti TERSIMPAN. Dipakai jalur TULIS — Action yang
      * menaikkan agregat reputasi tidak bisa menunggu profilnya dibuat manual:
      * orang bisa memenangkan penawaran tanpa pernah membuka halaman profil
@@ -322,7 +324,8 @@ class User extends Authenticatable
     }
 
     /**
-     * Siap menerima pekerjaan: profil pekerjanya sudah terdaftar.
+     * Siap menerima pekerjaan: profil pekerjanya sudah terdaftar DAN
+     * verifikasi identitasnya `verified`.
      *
      * DIHITUNG dari ada-tidaknya baris `user_workers`, bukan kolom boolean di
      * `users` — persis alasan yang sama dengan badge terverifikasi di bawah.

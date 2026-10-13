@@ -21,8 +21,9 @@ use Illuminate\View\View;
  * Antrean konfirmasi transfer.
  *
  * Bawaan `awaiting_confirmation`, urut `reported_at` (kapan pemberi kerja
- * mengaku transfer) — bukan `created_at`. Confirm adalah satu-satunya jalan
- * ke `held`, dan `held` yang mengizinkan pekerjaan dimulai.
+ * mengaku transfer) — bukan `created_at`. Jalur LAMA (task sebelum
+ * TaskEscrow): confirm adalah satu-satunya transisi ke `held`; tagihan task
+ * baru lahir `held` dari saldo dan tidak pernah masuk antrean ini.
  *
  * Pagination BERNOMOR. Aturan saring & urut disalin dari
  * ListPaymentQueueAction — kalau Action itu berubah, samakan di sini.

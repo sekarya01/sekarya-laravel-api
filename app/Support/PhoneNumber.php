@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
+ * [#ssot]
  * SATU aturan bentuk nomor HP, dipakai pendaftaran DAN sunting profil.
  *
  * Kalau dua jalur tulis memakai aturan berbeda, nomor yang ditolak saat

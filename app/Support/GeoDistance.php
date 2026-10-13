@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
+ * [#pure]
  * Jarak antara lokasi task dan lokasi kerja seorang pekerja, dihitung SERVER.
  *
  * Dipakai `distance_km` di BidResource dan TaskResource.workers[] (U8). Ada
@@ -89,6 +90,7 @@ final class GeoDistance
     }
 
     /**
+     * [#ssot]
      * Kotak lintang/bujur yang memuat lingkaran berjari-jari `$radiusKm` —
      * prafilter yang bisa memakai indeks (latitude, longitude) sebelum jarak
      * sebenarnya dihitung. SATU rumus untuk feed (TaskSearch) dan pencarian

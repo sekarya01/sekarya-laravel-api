@@ -24,13 +24,14 @@ use App\Support\Rupiah;
 use Illuminate\Support\Facades\Storage;
 
 /**
+ * [#ssot]
  * Satu-satunya tempat copy notifikasi push dan bentuk `data` disusun.
  *
  * Dipisah dari pengirim supaya mengubah kalimat atau menambah jenis peristiwa
  * tidak menyentuh transport, dan dari Action supaya aturan bisnis tidak
  * tercampur dengan urusan penyajian. Setiap jenis peristiwa punya satu fungsi
- * pabrik; `data` yang menyertainya lahir di SATU builder `data()` agar bentuk
- * deep-link hanya ditentukan sekali.
+ * pabrik; `data` yang menyertainya lahir di SATU builder `data()` (peristiwa
+ * dompet: `walletData()`) agar bentuk deep-link hanya ditentukan sekali.
  */
 final class PushMessages
 {
@@ -118,7 +119,6 @@ final class PushMessages
         );
     }
 
-    /** Hasil ditolak pemberi kerja → pekerja. */
     /** Pemberi kerja menyengketakan hasil → mitra itu (bisa menanggapi). */
     public static function activityRejected(Task $task, Activity $activity, DisputeCategory $category): PushMessage
     {
@@ -265,7 +265,8 @@ final class PushMessages
     }
 
     /**
-     * SATU-SATUNYA pembentuk `data` FCM: `type` + `event` + `task_id` selalu ada,
+     * SATU-SATUNYA pembentuk `data` FCM untuk peristiwa task (dompet:
+     * `walletData()`): `type` + `event` + `task_id` selalu ada,
      * `activity_id` + `activity_status` hanya ada bila activity diberikan,
      * `bids_count` hanya ada bila jumlah penawar diberikan (event lelang ke
      * pemberi kerja, agar kartu di list tugas bisa diperbarui langsung tanpa
@@ -311,6 +312,7 @@ final class PushMessages
     }
 
     /**
+     * [#warn: loadMissing relasi pesan & peserta room = kueri DB]
      * Pesan chat baru → peserta lain. Judul = nama room (judul task), isi =
      * "Nama: pratinjau" (lihat ChatPreview). Isi pesan utuh TIDAK ikut di
      * `data` — batas payload FCM 4 KB; klien memuat pesannya dari API.

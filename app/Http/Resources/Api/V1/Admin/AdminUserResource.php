@@ -9,6 +9,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 
 /**
+ * [#io: db] [#warn: tanpa withIdentityVerified() = 2 kueri per orang]
+ *
  * Pengguna dilihat dari sisi pengelola.
  *
  * Lebih terbuka daripada PublicUserResource (email dan nomor HP ikut, karena

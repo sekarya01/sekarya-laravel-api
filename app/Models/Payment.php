@@ -14,8 +14,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * STUB — mekanisme pembayaran belum diriset.
- * Satu aturan yang berlaku: status Held adalah gerbang pembuka Activity.
+ * Tagihan satu task (satu per task, banyak activity). Task baru lahir `held`
+ * lewat `App\Support\TaskEscrow`; jalur transfer manual hanya untuk task lama.
+ * Status Held adalah gerbang MULAI BEKERJA dan pelepasan upah — bukan pembuka
+ * Activity (activity lahir saat DEAL, `WorkOpening`).
  */
 final class Payment extends Model
 {

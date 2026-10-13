@@ -8,11 +8,13 @@ use App\Enums\ChatMessageType;
 use App\Models\ChatMessage;
 
 /**
+ * [#ssot]
  * Teks ringkas sebuah pesan — `last_message.preview` di daftar room dan isi
  * notifikasi push. Satu tempat supaya keduanya tidak pernah berbeda kata.
  */
 final class ChatPreview
 {
+    /** [#warn: jenis File tanpa eager-load `attachment` = lazy load] */
     public static function of(ChatMessage $message): string
     {
         if ($message->trashed()) {

@@ -46,6 +46,7 @@ final class BuildInstallSqlCommand extends Command
     /** Tabel yang datanya ikut. Sisanya struktur saja. */
     private const array SEEDED_TABLES = ['categories', 'skills', 'cities', 'migrations'];
 
+    /** [#impure] [#io: db, disk] — baca skema, tulis berkas `--path` */
     public function handle(ConnectionInterface $db): int
     {
         $database = (string) $db->getDatabaseName();

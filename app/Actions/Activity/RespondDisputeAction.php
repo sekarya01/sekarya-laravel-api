@@ -21,6 +21,7 @@ final class RespondDisputeAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: task_disputes] */
     public function handle(RespondDisputeData $data, Activity $activity): TaskDispute
     {
         return $this->db->transaction(function () use ($data, $activity): TaskDispute {

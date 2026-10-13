@@ -34,6 +34,7 @@ final class Task extends Model
         'needed_at', 'end_at', 'bidding_closes_at', 'status', 'workers_needed',
     ];
 
+    /** [#impure] [#io: db] [#ssot] [#warn: saved menulis task_search bila judul/deskripsi berubah] */
     protected static function booted(): void
     {
         self::creating(function (self $task): void {
@@ -54,6 +55,7 @@ final class Task extends Model
     }
 
     /**
+     * [#impure] [#io: db]
      * Tulis ulang baris `task_search` milik task ini.
      *
      * Teks yang disimpan sudah dinormalisasi (lihat SearchTerms) dan sengaja
@@ -211,7 +213,7 @@ final class Task extends Model
 
     /**
      * Satu activity per pekerja yang diterima. Task 30 orang membuka 30
-     * activity begitu dana ditahan.
+     * activity begitu lelang ditutup (DEAL, `WorkOpening`).
      *
      * @return HasMany<Activity, $this>
      */
@@ -440,6 +442,7 @@ final class Task extends Model
     }
 
     /**
+     * [#impure] [#io: db] [#warn: update massal — event model Bid tidak terpicu]
      * Tutup semua penawaran yang masih menunggu sebagai [as] (`rejected` saat
      * lelang ditutup/dibatalkan, `expired` saat kedaluwarsa) — supaya tidak
      * menggantung di daftar pelamar.

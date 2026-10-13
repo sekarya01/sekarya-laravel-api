@@ -36,6 +36,7 @@ final class UpdateTaskAction
         private readonly TaskStatusRecorder $recorder,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: tasks, payments, wallets] */
     public function handle(Task $task, UpdateTaskData $data): Task
     {
         return $this->db->transaction(function () use ($task, $data): Task {

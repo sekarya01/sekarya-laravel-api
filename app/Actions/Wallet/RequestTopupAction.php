@@ -24,6 +24,7 @@ final class RequestTopupAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: wallet_topups] */
     public function handle(User $user, CreateTopupData $data): WalletTopup
     {
         return $this->db->transaction(function () use ($user, $data): WalletTopup {

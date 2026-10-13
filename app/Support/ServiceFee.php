@@ -7,6 +7,7 @@ namespace App\Support;
 use Illuminate\Contracts\Config\Repository as Config;
 
 /**
+ * [#ssot]
  * Biaya layanan (G6) — persen dari upah pekerja yang dipotong saat dana dilepas.
  *
  * Angkanya datang dari `config/sekarya.php` → `fees.service_percent` (env),

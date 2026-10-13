@@ -9,7 +9,8 @@ namespace App\Enums;
  *
  * Dua aturan yang sudah berlaku:
  *
- *  1. `Held` adalah gerbang pembuka Activity.
+ *  1. `Held` adalah gerbang MULAI BEKERJA (berangkat & mulai), bukan pembuka
+ *     Activity — Activity lahir saat deal (WorkOpening).
  *  2. `Held` HANYA bisa dicapai dari `AwaitingConfirmation`, dan yang
  *     memindahkannya cuma pengelola. Pemberi kerja melapor sudah transfer;
  *     yang menyatakan dana benar-benar diterima adalah orang yang melihat
@@ -28,7 +29,7 @@ enum PaymentStatus: string
     case Refunded = 'refunded';
     case Cancelled = 'cancelled';
 
-    /** Dana sudah masuk dan ditahan → activity boleh dibuka. */
+    /** Dana sudah masuk dan ditahan → pekerjaan boleh dimulai (nama method warisan). */
     public function opensActivity(): bool
     {
         return $this === self::Held;

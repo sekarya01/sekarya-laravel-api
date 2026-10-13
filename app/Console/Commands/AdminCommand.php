@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
 
 /**
+ * [#ssot] — satu-satunya jalan lahir super_admin
  * Kelola akun pengelola dari baris perintah.
  *
  * INI SATU-SATUNYA cara akun super_admin lahir. Tidak ada endpoint
@@ -21,7 +22,7 @@ use Illuminate\Validation\Rules\Password;
  * dilacak git, jadi kredensial di dalamnya bisa dibaca siapa pun yang membuka
  * repositori — pada akun yang paling berhak di seluruh aplikasi.
  * `tests/Feature/Deployment/InstallSchemaTest.php` bahkan menolak data
- * selain kategori, keahlian, dan riwayat migrasi.
+ * selain kategori, keahlian, kota, dan riwayat migrasi.
  *
  * Kredensialnya karena itu diambil dari environment (`SEKARYA_SUPER_ADMIN_*`)
  * atau dari opsi perintah ini.
@@ -37,6 +38,7 @@ final class AdminCommand extends Command
 
     protected $description = 'Kelola akun pengelola (super_admin & admin)';
 
+    /** [#impure] [#io: db] — create/suspend/activate menulis `admins`; suspend mencabut token */
     public function handle(): int
     {
         return match ((string) $this->argument('action')) {

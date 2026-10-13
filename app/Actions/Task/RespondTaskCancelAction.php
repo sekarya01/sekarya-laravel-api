@@ -41,6 +41,7 @@ final class RespondTaskCancelAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: task_cancel_requests, task_cancel_approvals, tasks, wallets] */
     public function approve(Task $task, TaskCancelRequest $request, User $worker): Task
     {
         return $this->db->transaction(function () use ($task, $request, $worker): Task {
@@ -86,6 +87,7 @@ final class RespondTaskCancelAction
         });
     }
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: task_cancel_requests, task_cancel_approvals] */
     public function reject(TaskCancelRequest $request, User $worker): TaskCancelRequest
     {
         return $this->db->transaction(function () use ($request, $worker): TaskCancelRequest {

@@ -18,8 +18,8 @@ use Illuminate\Http\Request;
  * menolak, dan izin per-endpoint kehilangan artinya.
  *
  * `decision` dan `action` dibawa berdampingan, tidak diturunkan satu dari
- * yang lain: menurunkannya menuntut `match` atas sepuluh nilai AdminAction
- * yang sembilan di antaranya tidak berlaku di sini, dan cabang yang tidak
+ * yang lain: menurunkannya menuntut `match` atas seluruh nilai AdminAction
+ * yang hampir semuanya tidak berlaku di sini, dan cabang yang tidak
  * berlaku itu hanya bisa berakhir sebagai galat runtime.
  */
 final readonly class ReviewVerificationData
