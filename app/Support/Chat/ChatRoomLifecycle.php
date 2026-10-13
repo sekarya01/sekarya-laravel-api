@@ -18,13 +18,14 @@ use App\Models\ChatRoom;
 use App\Models\Task;
 
 /**
+ * [#ssot]
  * Lahir dan berakhirnya room chat — DIKAITKAN ke dua titik tunggal yang
  * sudah ada, bukan ke Action satu per satu:
  *
  *  - `open()`   dipanggil `WorkOpening` (deal membuka pekerjaan). Tiga
  *               jalur pembuka pekerjaan otomatis ikut.
  *  - `expire()` dipanggil `TaskStatusRecorder` saat task masuk status akhir
- *               (completed/cancelled/refunded/expired). Room langsung
+ *               (completed/cancelled/refunded). Room langsung
  *               `expired` — baca saja — tanpa masa tenggang (keputusan
  *               produk 2026-09-30).
  *
@@ -35,6 +36,7 @@ final class ChatRoomLifecycle
 {
     public function __construct(private readonly ChatNotifier $notifier) {}
 
+    /** [#impure] [#io: db] [#tx: caller] — idempoten lewat unique `chat_rooms.task_id` */
     public function open(Task $task): ChatRoom
     {
         $bids = $task->acceptedBids()->get();
@@ -72,6 +74,7 @@ final class ChatRoomLifecycle
         return $room;
     }
 
+    /** [#impure] [#io: db, fcm] [#tx: caller] [#lock: chat_rooms] */
     public function expire(Task $task, TaskStatus $status): void
     {
         $room = ChatRoom::query()

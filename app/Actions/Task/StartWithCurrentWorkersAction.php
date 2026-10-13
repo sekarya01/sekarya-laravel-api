@@ -31,6 +31,7 @@ final class StartWithCurrentWorkersAction
         private readonly TaskHiring $hiring,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks, payments, wallets] */
     public function handle(Task $task, User $poster): Task
     {
         return $this->db->transaction(function () use ($task, $poster): Task {

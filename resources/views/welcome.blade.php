@@ -159,7 +159,7 @@ tailwind.config = {
       <h1 class="hero-el text-4xl sm:text-5xl lg:text-[54px] lg:leading-[1.12] font-extrabold text-white tracking-tight mb-6 max-w-xl" style="animation-delay:.15s">Butuh bantuan harian? Pasang tugas, pilih mitra terpercaya.</h1>
       <p class="hero-el text-lg text-slate-300 max-w-lg mb-9 leading-relaxed" style="animation-delay:.25s">Dana kamu ditahan aman dan baru cair setelah kamu setujui hasilnya.</p>
       <div class="hero-el flex flex-wrap items-center gap-4 mb-8" style="animation-delay:.35s">
-        <a href="#download" class="group inline-flex items-center gap-3.5 px-6 h-[52px] rounded-full bg-orange text-white shadow-cta hover:bg-orange-text active:scale-[0.98] transition-all">
+        <a href="#download" class="group inline-flex items-center justify-center gap-3.5 w-[220px] h-[52px] rounded-full bg-orange text-white shadow-cta hover:bg-orange-text active:scale-[0.98] transition-all">
           <svg class="w-6 h-6 shrink-0" viewBox="30 336.7 120.9 129.2" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#FFC400" d="M119.2 421.2c15.3-8.4 27-14.8 28-15.3 3.2-1.7 6.5-6.2 0-9.7-2.1-1.1-13.4-7.3-28-15.3l-20.1 20.2 20.1 20.1z"/><path fill="#FF3A44" d="M99.1 401.1l-64.2 64.7c1.5.2 3.2-.2 5.2-1.3 4.2-2.3 48.8-26.7 79.1-43.3l-20.1-20.1z"/><path fill="#00E676" d="M99.1 401.1l20.1-20.2c0 0-74.6-40.7-79.1-43.1-1.7-1-3.6-1.3-5.3-1l64.3 64.3z"/><path fill="#00A0FF" d="M99.1 401.1l-64.3-64.3c-2.6.6-4.8 2.9-4.8 7.6v113.8c0 4.3 1.7 7.4 4.9 7.7l64.2-64.8z"/></svg>
           <span class="flex flex-col text-left leading-tight">
             <span class="text-[10px] uppercase tracking-wider opacity-90 font-semibold">Temukan di</span>
@@ -167,7 +167,7 @@ tailwind.config = {
           </span>
           <span class="msr text-[20px] ml-1 group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
         </a>
-        <div class="inline-flex items-center gap-3 px-5 h-[52px] rounded-full bg-white/5 border border-white/10 text-slate-400 cursor-not-allowed">
+        <div class="inline-flex items-center justify-center gap-3 w-[220px] h-[52px] rounded-full bg-white/5 border border-white/10 text-slate-400 cursor-not-allowed">
           <span class="msr text-[22px]">smartphone</span>
           <span class="flex flex-col text-left leading-tight">
             <span class="text-[10px] uppercase tracking-wider font-semibold text-slate-400">App Store</span>
@@ -954,13 +954,13 @@ tailwind.config = {
         <h2 class="text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-tight mb-4">Satu aplikasi untuk memberi kerja dan mencari kerja</h2>
         <p class="text-slate-300 text-sm leading-relaxed mb-8 max-w-lg">Mulai selesaikan urusan harianmu, atau dapatkan penghasilan tambahan yang fleksibel, hari ini.</p>
         <div class="flex flex-wrap items-center gap-4">
-          <a href="https://play.google.com" rel="noopener noreferrer" target="_blank" class="inline-flex items-center gap-3.5 px-6 h-[52px] rounded-full bg-orange text-white shadow-cta hover:bg-orange-text active:scale-[0.98] transition-all">
+          <a href="https://play.google.com" rel="noopener noreferrer" target="_blank" class="inline-flex items-center justify-center gap-3.5 w-[220px] h-[52px] rounded-full bg-orange text-white shadow-cta hover:bg-orange-text active:scale-[0.98] transition-all">
             <svg class="w-6 h-6 shrink-0" viewBox="30 336.7 120.9 129.2" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#FFC400" d="M119.2 421.2c15.3-8.4 27-14.8 28-15.3 3.2-1.7 6.5-6.2 0-9.7-2.1-1.1-13.4-7.3-28-15.3l-20.1 20.2 20.1 20.1z"/><path fill="#FF3A44" d="M99.1 401.1l-64.2 64.7c1.5.2 3.2-.2 5.2-1.3 4.2-2.3 48.8-26.7 79.1-43.3l-20.1-20.1z"/><path fill="#00E676" d="M99.1 401.1l20.1-20.2c0 0-74.6-40.7-79.1-43.1-1.7-1-3.6-1.3-5.3-1l64.3 64.3z"/><path fill="#00A0FF" d="M99.1 401.1l-64.3-64.3c-2.6.6-4.8 2.9-4.8 7.6v113.8c0 4.3 1.7 7.4 4.9 7.7l64.2-64.8z"/></svg>
             <span class="flex flex-col text-left leading-tight"><span class="text-[10px] uppercase tracking-wider font-semibold opacity-90">Temukan di</span><span class="text-sm font-extrabold">Google Play</span></span>
           </a>
-          <div class="inline-flex items-center gap-3 px-4 h-[52px] rounded-full bg-white/5 border border-white/10 text-slate-400 cursor-not-allowed">
+          <div class="inline-flex items-center justify-center gap-3 w-[220px] h-[52px] rounded-full bg-white/5 border border-white/10 text-slate-400 cursor-not-allowed">
             <span class="msr text-[22px]">smartphone</span>
-            <span class="flex flex-col text-left leading-tight"><span class="text-[10px] uppercase tracking-wider font-semibold text-slate-400">App Store</span><span class="text-xs font-semibold text-slate-300">Segera hadir</span></span>
+            <span class="flex flex-col text-left leading-tight"><span class="text-[10px] uppercase tracking-wider font-semibold text-slate-400">App Store</span><span class="text-sm font-semibold text-slate-300">Segera hadir</span></span>
           </div>
         </div>
       </div>

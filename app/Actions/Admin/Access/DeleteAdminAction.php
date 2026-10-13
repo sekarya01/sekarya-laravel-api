@@ -40,6 +40,7 @@ final class DeleteAdminAction
         private readonly AdminAuditRecorder $audit,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#warn: sasaran super_admin dilempar hook `deleting` model] */
     public function handle(Admin $target, Admin $actor, ?string $ip = null): void
     {
         if (! $actor->mayPerform(AdminAction::AdminDeleted)) {

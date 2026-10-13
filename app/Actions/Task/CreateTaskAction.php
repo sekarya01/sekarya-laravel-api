@@ -22,6 +22,7 @@ final class CreateTaskAction
         private readonly TaskEscrow $escrow,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: payments, wallets] */
     public function handle(CreateTaskData $data, User $poster): Task
     {
         return $this->db->transaction(function () use ($data, $poster): Task {

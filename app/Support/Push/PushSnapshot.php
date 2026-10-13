@@ -22,6 +22,8 @@ final class PushSnapshot
     private const JSON_FLAGS = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
 
     /**
+     * [#pure]
+     *
      * @param  array<string, string>  $data
      * @param  array<string, mixed>  $value
      * @return array<string, string>

@@ -24,13 +24,14 @@ use App\Support\Rupiah;
 use Illuminate\Support\Facades\Storage;
 
 /**
+ * [#ssot]
  * Satu-satunya tempat copy notifikasi push dan bentuk `data` disusun.
  *
  * Dipisah dari pengirim supaya mengubah kalimat atau menambah jenis peristiwa
  * tidak menyentuh transport, dan dari Action supaya aturan bisnis tidak
  * tercampur dengan urusan penyajian. Setiap jenis peristiwa punya satu fungsi
- * pabrik; `data` yang menyertainya lahir di SATU builder `data()` agar bentuk
- * deep-link hanya ditentukan sekali.
+ * pabrik; `data` yang menyertainya lahir di SATU builder `data()` (peristiwa
+ * dompet: `walletData()`) agar bentuk deep-link hanya ditentukan sekali.
  */
 final class PushMessages
 {
@@ -118,7 +119,6 @@ final class PushMessages
         );
     }
 
-    /** Hasil ditolak pemberi kerja → pekerja. */
     /** Pemberi kerja menyengketakan hasil → mitra itu (bisa menanggapi). */
     public static function activityRejected(Task $task, Activity $activity, DisputeCategory $category): PushMessage
     {
@@ -196,6 +196,40 @@ final class PushMessages
         );
     }
 
+    /**
+     * Tenggat sebentar lagi padahal sudah ada pekerja diterima → pemberi kerja.
+     * Tanpa tindakan (mulai dengan pekerja yang ada), task kedaluwarsa dan
+     * pekerjanya dibatalkan — keputusan pemilik 2026-10-13.
+     */
+    public static function taskExpiring(Task $task, int $minutes): PushMessage
+    {
+        $left = $minutes % 60 === 0 ? intdiv($minutes, 60).' jam' : $minutes.' menit';
+
+        return new PushMessage(
+            title: $task->title,
+            body: sprintf(
+                'Berakhir dalam %s. Sudah ada %d dari %d pekerja — mulai sekarang dengan mereka, atau tugas kedaluwarsa dan semuanya dibatalkan.',
+                $left,
+                (int) $task->workers_hired,
+                (int) $task->workers_needed,
+            ),
+            data: self::data(PushType::TaskExpiring, $task),
+        );
+    }
+
+    /**
+     * Task kedaluwarsa sebelum dimulai → pekerja yang SUDAH diterima.
+     * Jenisnya `bid_expired` (sisi mitra di klien), isinya membedakan.
+     */
+    public static function hiredWorkExpired(Task $task): PushMessage
+    {
+        return new PushMessage(
+            title: $task->title,
+            body: 'Tugas kedaluwarsa sebelum dimulai. Pekerjaan ini dibatalkan dan tidak bisa dilanjutkan.',
+            data: self::data(PushType::BidExpired, $task),
+        );
+    }
+
     /** Penawaran gugur karena lelang ditutup → penawar (G12). */
     public static function bidExpired(Task $task): PushMessage
     {
@@ -265,7 +299,8 @@ final class PushMessages
     }
 
     /**
-     * SATU-SATUNYA pembentuk `data` FCM: `type` + `event` + `task_id` selalu ada,
+     * SATU-SATUNYA pembentuk `data` FCM untuk peristiwa task (dompet:
+     * `walletData()`): `type` + `event` + `task_id` selalu ada,
      * `activity_id` + `activity_status` hanya ada bila activity diberikan,
      * `bids_count` hanya ada bila jumlah penawar diberikan (event lelang ke
      * pemberi kerja, agar kartu di list tugas bisa diperbarui langsung tanpa
@@ -311,6 +346,7 @@ final class PushMessages
     }
 
     /**
+     * [#warn: loadMissing relasi pesan & peserta room = kueri DB]
      * Pesan chat baru → peserta lain. Judul = nama room (judul task), isi =
      * "Nama: pratinjau" (lihat ChatPreview). Isi pesan utuh TIDAK ikut di
      * `data` — batas payload FCM 4 KB; klien memuat pesannya dari API.

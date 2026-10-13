@@ -25,6 +25,7 @@ final class DeactivateWorkerInviteCodeAction
         private readonly AdminAuditRecorder $audit,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: worker_invite_codes] */
     public function handle(WorkerInviteCode $code, Admin $admin, ?string $ip = null): WorkerInviteCode
     {
         return $this->db->transaction(function () use ($code, $admin, $ip): WorkerInviteCode {

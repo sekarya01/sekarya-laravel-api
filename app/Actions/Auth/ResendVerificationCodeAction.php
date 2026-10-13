@@ -19,6 +19,7 @@ final class ResendVerificationCodeAction
 {
     public function __construct(private readonly IssueVerificationCodeAction $issueCode) {}
 
+    /** [#impure] [#io: db, mail] */
     public function handle(ResendCodeData $data, ?string $ip = null): void
     {
         $user = User::query()->where('email', $data->email)->first();

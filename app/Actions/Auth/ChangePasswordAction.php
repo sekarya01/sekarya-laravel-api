@@ -30,6 +30,7 @@ final class ChangePasswordAction
         private readonly TokenIssuer $tokens,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] */
     public function handle(ChangePasswordData $data, User $user): void
     {
         $this->db->transaction(function () use ($data, $user): void {

@@ -190,6 +190,28 @@ final class AdminCommandTest extends TestCase
         $this->assertSame(0, $admin->tokens()->count());
     }
 
+    public function test_a_failed_revocation_leaves_the_status_untouched(): void
+    {
+        $admin = $this->activeAdmin(['email' => 'verif@sekarya.test']);
+        $this->app->instance(TokenIssuer::class, new class
+        {
+            public function revokeAll(mixed $owner): void
+            {
+                throw new \RuntimeException('pencabutan gagal');
+            }
+        });
+
+        try {
+            $this->artisan('sekarya:admin', ['action' => 'suspend', '--email' => 'verif@sekarya.test'])->run();
+            $this->fail('pencabutan seharusnya gagal');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('pencabutan gagal', $e->getMessage());
+        }
+
+        // Penonaktifan setengah jadi tidak boleh tersimpan.
+        $this->assertSame(AdminStatus::Active, $admin->refresh()->status);
+    }
+
     public function test_activating_brings_an_admin_back(): void
     {
         $admin = Admin::factory()->suspended()->create(['email' => 'verif@sekarya.test']);

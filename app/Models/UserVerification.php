@@ -44,7 +44,8 @@ final class UserVerification extends Model
 
     /**
      * Kolom foto dan NIK TIDAK boleh ikut serialisasi default.
-     * Path foto hanya dibuka lewat signed URL, NIK hanya saat sengketa.
+     * Path foto nantinya hanya dibuka lewat signed URL (belum ada); NIK hanya
+     * keluar di detail verifikasi pengelola, yang mencatat pembacaannya.
      */
     protected $hidden = [
         'id_card_photo_path', 'selfie_photo_path',

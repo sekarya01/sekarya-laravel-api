@@ -23,6 +23,7 @@ final class Review extends Model
         'rating', 'comment', 'tags', 'photos', 'is_visible',
     ];
 
+    /** [#impure] [#io: db] [#ssot] */
     protected static function booted(): void
     {
         // Baris indeks pencarian komentar dijaga DI SINI, bukan di Action —
@@ -38,6 +39,7 @@ final class Review extends Model
     }
 
     /**
+     * [#impure] [#io: db]
      * Tulis ulang (atau hapus) baris `review_search` milik ulasan ini.
      *
      * Teks yang disimpan sudah dinormalisasi SearchTerms — kelas yang sama

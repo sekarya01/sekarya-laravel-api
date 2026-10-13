@@ -37,6 +37,10 @@ final class DeactivateChatRoomAction
         private readonly Filesystem $storage,
     ) {}
 
+    /**
+     * [#impure] [#io: db, disk, fcm] [#tx: own] [#lock: chat_rooms]
+     * [#warn: berkas dihapus & push dikirim SESUDAH commit]
+     */
     public function handle(ChatRoom $room, ?Admin $admin = null, ?string $reason = null): ChatRoom
     {
         $paths = $this->db->transaction(function () use ($room, $admin, $reason): ?array {

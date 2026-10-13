@@ -34,6 +34,7 @@ final class NotifyNearbyWorkersJob implements ShouldQueue
         private readonly array $userIds,
     ) {}
 
+    /** [#impure] [#io: db, fcm] */
     public function handle(PushDispatcher $push): void
     {
         $task = Task::query()->where('ulid', $this->taskUlid)->first();

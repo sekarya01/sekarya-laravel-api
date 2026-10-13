@@ -10,6 +10,7 @@ use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Database\ConnectionInterface;
 
 /**
+ * [#impure] [#io: db] — `run()` tanpa transaksi; tiap baris di-UPDATE sendiri
  * Menyusulkan `account_number_last4` untuk rekening yang diajukan sebelum
  * kolom itu ada.
  *

@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\ReportReason;
 use App\Enums\ReportStatus;
 use App\Models\Concerns\HasUlid;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -48,5 +49,11 @@ final class UserReport extends Model
     public function task(): BelongsTo
     {
         return $this->belongsTo(Task::class);
+    }
+
+    /** @param Builder<$this> $query */
+    public function scopeLatestFirst(Builder $query): void
+    {
+        $query->orderByDesc('created_at')->orderByDesc('id');
     }
 }

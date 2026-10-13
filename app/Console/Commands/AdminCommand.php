@@ -8,11 +8,14 @@ use App\Enums\AdminRole;
 use App\Enums\AdminStatus;
 use App\Models\Admin;
 use App\Support\Email;
+use App\Support\TokenIssuer;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
 
 /**
+ * [#ssot] — satu-satunya jalan lahir super_admin
  * Kelola akun pengelola dari baris perintah.
  *
  * INI SATU-SATUNYA cara akun super_admin lahir. Tidak ada endpoint
@@ -21,7 +24,7 @@ use Illuminate\Validation\Rules\Password;
  * dilacak git, jadi kredensial di dalamnya bisa dibaca siapa pun yang membuka
  * repositori — pada akun yang paling berhak di seluruh aplikasi.
  * `tests/Feature/Deployment/InstallSchemaTest.php` bahkan menolak data
- * selain kategori, keahlian, dan riwayat migrasi.
+ * selain kategori, keahlian, kota, dan riwayat migrasi.
  *
  * Kredensialnya karena itu diambil dari environment (`SEKARYA_SUPER_ADMIN_*`)
  * atau dari opsi perintah ini.
@@ -37,6 +40,7 @@ final class AdminCommand extends Command
 
     protected $description = 'Kelola akun pengelola (super_admin & admin)';
 
+    /** [#impure] [#io: db] — create/suspend/activate menulis `admins`; suspend mencabut token */
     public function handle(): int
     {
         return match ((string) $this->argument('action')) {
@@ -69,8 +73,9 @@ final class AdminCommand extends Command
                     'super_admin sudah ada: %s. Hanya boleh satu, dan ia tidak bisa dihapus.',
                     $existing->email,
                 ));
-                $this->line('  Ganti sandinya: hapus baris tokennya lalu jalankan ulang '
-                    .'`sekarya:admin create` setelah barisnya diubah langsung di basis data.');
+                // Dulu menyarankan "jalankan ulang create sesudah barisnya diubah"
+                // — create tetap menolak selama baris super_admin ada.
+                $this->line('  Perintah ini tidak mengganti sandi, dan belum ada jalur ganti sandi pengelola.');
 
                 return self::FAILURE;
             }
@@ -211,12 +216,19 @@ final class AdminCommand extends Command
             return self::FAILURE;
         }
 
-        $admin->forceFill(['status' => $status])->save();
-
         // Status saja tidak menghentikan siapa pun: token akses hidup delapan
-        // jam dan tidak menyimpan status di dalamnya.
+        // jam dan tidak menyimpan status di dalamnya. Satu transaksi, lewat
+        // TokenIssuer (satu-satunya pencabut token): status nonaktif yang
+        // tersimpan tanpa tokennya tercabut adalah penonaktifan setengah jadi.
+        DB::transaction(static function () use ($admin, $status): void {
+            $admin->forceFill(['status' => $status])->save();
+
+            if (! $status->isActive()) {
+                app(TokenIssuer::class)->revokeAll($admin);
+            }
+        });
+
         if (! $status->isActive()) {
-            $admin->tokens()->delete();
             $this->line('  Token dicabut.');
         }
 

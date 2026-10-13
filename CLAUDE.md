@@ -38,9 +38,10 @@ Business logic lives **only** in Action classes. Never in Controllers, Models, R
   (`activities (task_id, worker_id)`, `admins.super_admin_lock`) are kept as the last
   line of defence anyway — a lock only holds inside a transaction, and writes from other
   paths may not take one.
-- **Keyword search uses a FULLTEXT index**, never `LIKE`. `MATCH()` must name exactly
-  the columns of the composite index `tasks_fulltext (title, description)` — a
-  mismatched column list silently skips the index.
+- **Keyword search uses a FULLTEXT index**, never `LIKE` — on the separate tables
+  `task_search` and `review_search` (`MATCH(terms)`), not on `tasks` itself (the old
+  `tasks_fulltext` index was dropped; see **Feed & pencarian nama**). `MATCH()` must name
+  exactly the indexed column list — a mismatch silently skips the index.
 - **`innodb_ft_min_token_size` defaults to 3**, so two-letter words such as "AC" are
   not indexed and cannot be found. Lower it to 1 in the server config if short words
   must be searchable; that needs a server restart plus an index rebuild. InnoDB also
@@ -71,7 +72,7 @@ keduanya dijaga test:
   dan phpMyAdmin melewati komentar itu, sehingga impornya berhenti di `CREATE TABLE`
   pertama tanpa keterangan. Perintahnya mengurutkan menurut ketergantungan.
   Migrasi baru **wajib** ikut ke sini; `tests/Feature/Deployment/InstallSchemaTest.php`
-  menggagalkan suite kalau tidak, dan menolak data selain kategori, keahlian, dan migrasi —
+  menggagalkan suite kalau tidak, dan menolak data selain kategori, keahlian, kota, dan migrasi —
   berkas ini dilacak git, dan riwayat git tidak bisa ditarik kembali.
 - **`.env.production.example`** — template produksi, tiap nilai berkomentar.
 
@@ -86,6 +87,11 @@ Dua hal yang mudah terlewat:
   padahal API-nya terlihat sehat.
   Akun itu sengaja tidak ada di berkas pemasangan SQL maupun seeder, karena keduanya
   dilacak git.
+- **`public_html` hanya berisi yang disalin `.cpanel.yml`** (index.php, .htaccess,
+  favicon, robots, `images/`). Aset statis baru di `public/` wajib ditambahkan ke sana,
+  atau ia 404 di produksi tanpa galat. Klon repo di server (`~/sekarya/sekarya-laravel-api`)
+  tidak boleh disunting langsung — cPanel menolak deploy tanpa log. Rinci:
+  `docs/DEPLOYMENT.md` bagian 10.
 
 ## Feed & pencarian nama
 
@@ -209,6 +215,16 @@ Yang tidak boleh "dirapikan":
   pemberi kerja yang merekrut 30 orang hanya bisa menilai satu dari mereka.
 - `POST /tasks/{task}/start` menurunkan target ke jumlah yang sudah diterima lalu menutup
   lelang — untuk pekerjaan bertanggal yang tidak mendapat pelamar sebanyak targetnya.
+- **Tenggat lewat padahal sebagian pekerja sudah diterima** (keputusan pemilik 2026-10-13,
+  `ExpireBiddingAction`). Dua tenggat diperlakukan SAMA: `bidding_closes_at` dan `needed_at`.
+  `tasks.expiry_warning_minutes` (bawaan 60) sebelumnya pemberi kerja diperingatkan SEKALI
+  (`task_expiring`, penanda `tasks.expiry_warned_at`, di-NULL-kan saat tenggat diubah) —
+  mulai dengan pekerja yang ada lewat `/start`, atau biarkan. Lewat tenggat tanpa dimulai →
+  `expired`, bid diterima → `expired` + push `bid_expired` ke pekerjanya, dan SELURUH dana
+  kembali ke saldo lewat `TaskEscrow::release` — tagihan TETAP `held` bernominal 0, supaya
+  dibuka lagi lewat Ubah menagih ulang (`insufficient_balance` bila kurang). Tidak menaikkan
+  `cancellations` siapa pun: kedaluwarsa oleh sistem. Task TANPA pekerja tetap aturan lama
+  (dana ditahan sampai dibuka lagi atau dibatalkan).
 - **Pembatalan dua jalur, dipilih dari keadaan.** Belum ada yang deal → `POST
   /tasks/{task}/cancel` LANGSUNG (tidak ada yang perlu dimintai setuju). Sudah deal →
   `POST /tasks/{task}/cancel-requests` MEMINTA (alasan opsional); pekerja menjawab dari
@@ -783,6 +799,33 @@ php artisan sekarya:axiom --ping    # one probe event to Axiom
   `App\Support\Rupiah::format()`; every email that is stored or looked up goes through
   `App\Support\Email::normalize()`. Never inline `number_format(..)` / `mb_strtolower(trim(..))`
   for these — two spellings of one rule drift apart silently.
+
+## Komentar: micro-annotation (tambahan, bukan pengganti)
+
+Satu baris tag di awal docblock untuk yang TIDAK terbaca dari tipe. Komentar
+ALASAN/invarian tetap ditulis — tag bilang apa, kalimat bilang kenapa; yang
+mencegah "dirapikan" adalah kenapa-nya. Hanya untuk kode baru/yang disentuh, tidak
+ada perombakan massal.
+
+| Tag | Arti |
+|---|---|
+| `[#pure]` / `[#impure]` | bebas efek samping / menulis state |
+| `[#io: db\|mail\|fcm\|disk]` | jenis I/O |
+| `[#tx: caller]` / `[#tx: own]` | wajib dipanggil di dalam transaksi / membuka sendiri |
+| `[#lock: <tabel>]` | baris yang di-`lockForUpdate()` |
+| `[#ssot]` | satu-satunya jalur untuk aturan itu |
+| `[#warn: …]` | jebakan / edge case |
+
+Exception tetap `@throws` (dibaca IDE), tipe generik tetap `@param`/`@return`.
+`git grep "#tx: caller"` = daftar fungsi yang pemanggilnya wajib di dalam
+`->transaction()`.
+
+**`[#tx: caller]` pada jalur uang dijaga RUNTIME**, bukan cuma tag:
+`App\Support\TransactionGuard::assertActive()` di `WalletLedger` (credit/debit),
+`WorkerPayout::pay`, `TaskEscrow::start/sync` — `LogicException` di luar transaksi.
+Test `RefreshDatabase` selalu di dalam transaksi, jadi penjaga ini tak pernah
+terpicu di sana; `TransactionGuardTest` sengaja tanpa trait itu. Fixture yang
+menulis saldo membuka transaksi sendiri (`TestCase::fundWallet`).
 
 ## Commands
 

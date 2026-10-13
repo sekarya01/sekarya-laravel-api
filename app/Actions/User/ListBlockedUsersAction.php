@@ -17,8 +17,7 @@ final class ListBlockedUsersAction
         return UserBlock::query()
             ->where('blocker_id', $blocker->getKey())
             ->with('blocked')
-            ->orderBy('created_at')
-            ->orderBy('id')
+            ->latestFirst()
             ->cursorPaginate($perPage);
     }
 }

@@ -69,6 +69,7 @@ final class VerificationController
         ]);
     }
 
+    /** [#impure] [#io: db] [#warn: GET menulis jejak verification.viewed] */
     public function show(UserVerification $verification, ViewVerificationAction $action, Request $request): View
     {
         /** @var Admin $admin */

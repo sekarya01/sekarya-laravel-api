@@ -201,6 +201,21 @@ final class SecurityTest extends TestCase
         $this->postJson(route('v1.auth.login'), $payload)->assertStatus(429);
     }
 
+    /** Ejaan lain dari nomor yang sama tidak menambah jatah percobaan. */
+    public function test_phone_spellings_share_one_login_limit(): void
+    {
+        $limit = (int) config('sekarya.rate_limits.login');
+        $spellings = ['081234567890', '6281234567890', '+6281234567890', '+62 812 3456 7890'];
+
+        for ($i = 0; $i < $limit; $i++) {
+            $this->postJson(route('v1.auth.login'), ['phone' => $spellings[$i % 3], 'password' => 'salah'])
+                ->assertUnauthorized();
+        }
+
+        $this->postJson(route('v1.auth.login'), ['phone' => $spellings[3], 'password' => 'salah'])
+            ->assertStatus(429);
+    }
+
     public function test_rate_limit_headers_are_present(): void
     {
         $this->postJson(route('v1.auth.login'), ['email' => 'x@sekarya.test', 'password' => 'y'])

@@ -12,6 +12,7 @@ use App\Models\TaskStatusLog;
 use App\Support\Chat\ChatRoomLifecycle;
 
 /**
+ * [#ssot] [#impure] [#io: db, fcm] [#tx: caller] [#lock: chat_rooms]
  * Satu-satunya jalan memindahkan status task: memvalidasi transisi,
  * menyimpan status baru, dan mencatat jejaknya — dalam satu tempat.
  *

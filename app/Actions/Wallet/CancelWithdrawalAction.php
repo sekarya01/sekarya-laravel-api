@@ -28,6 +28,8 @@ final class CancelWithdrawalAction
     ) {}
 
     /**
+     * [#impure] [#io: db] [#tx: own] [#lock: wallet_withdrawals, wallets]
+     *
      * Tanpa parameter aktor, seperti `CancelTopupAction`.
      *
      * Kepemilikan sudah menjadi gerbang rute (`->can('cancel', 'withdrawal')`,

@@ -11,8 +11,8 @@ use RuntimeException;
  *
  * Karena itu ia TIDAK turunan DomainException: DomainException dipetakan
  * bootstrap/app.php menjadi respons HTTP untuk klien, sedangkan kegagalan
- * push terjadi di latar (job antrean) dan tidak pernah menjadi jawaban
- * sebuah request. Menaruhnya di DomainException akan membuat docs-contract
+ * push terjadi di latar (job: lewat antrean, atau sesudah respons untuk
+ * chat) dan tidak pernah menjadi jawaban sebuah request. Menaruhnya di DomainException akan membuat docs-contract
  * menuntut kode galatnya muncul di openapi.yaml — padahal klien tidak pernah
  * menerimanya.
  *

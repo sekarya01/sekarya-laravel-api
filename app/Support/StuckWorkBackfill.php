@@ -35,6 +35,8 @@ final class StuckWorkBackfill
     ) {}
 
     /**
+     * [#impure] [#io: db] [#tx: own] [#lock: tasks] — satu transaksi per task
+     *
      * @return list<int> id task yang dibuka
      */
     public function run(): array

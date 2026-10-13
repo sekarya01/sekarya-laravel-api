@@ -19,8 +19,7 @@ final class ListReportsAction
         return UserReport::query()
             ->when($status !== null, fn ($q) => $q->where('status', $status))
             ->with(['reporter', 'reported', 'task'])
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
+            ->latestFirst()
             ->cursorPaginate($perPage);
     }
 }

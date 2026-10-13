@@ -33,6 +33,7 @@ final class ReviewVerificationAction
         private readonly AdminAuditRecorder $audit,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: user_worker_verifications] */
     public function handle(
         UserVerification $verification,
         Admin $admin,

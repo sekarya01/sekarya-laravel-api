@@ -19,6 +19,7 @@ use App\Models\User;
  */
 final class RegisterDeviceTokenAction
 {
+    /** [#impure] [#io: db] */
     public function handle(RegisterDeviceData $data, User $user): DeviceToken
     {
         return DeviceToken::query()->updateOrCreate(

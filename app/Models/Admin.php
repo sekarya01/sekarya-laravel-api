@@ -61,6 +61,7 @@ final class Admin extends Authenticatable
     }
 
     /**
+     * [#ssot] [#warn: hook deleting melempar untuk super_admin]
      * super_admin tidak bisa dihapus, dan penjaganya di SINI.
      *
      * Bukan hanya di Action yang melayani endpoint DELETE: penghapusan bisa
@@ -120,7 +121,10 @@ final class Admin extends Authenticatable
         $query->orderByDesc('created_at')->orderByDesc('id');
     }
 
-    /** Catat login yang BENAR-BENAR terjadi (API maupun dasbor) — satu tempat. */
+    /**
+     * [#impure] [#io: db] [#ssot]
+     * Catat login yang BENAR-BENAR terjadi (API maupun dasbor) — satu tempat.
+     */
     public function recordLogin(?string $ip): void
     {
         $this->forceFill([

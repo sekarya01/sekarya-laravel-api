@@ -11,6 +11,7 @@ use App\Models\Admin;
 use Illuminate\Support\Facades\Hash;
 
 /**
+ * [#ssot]
  * SATU-SATUNYA pemeriksa kredensial pengelola — dipakai login API
  * (AdminLoginAction, token) dan login dasbor web (sesi). Dulu web menyalin
  * aturannya; salinan seperti itu yang diam-diam tertinggal saat aturannya

@@ -25,6 +25,7 @@ final class ShowChatAttachmentController
 
     public function __construct(private readonly FilesystemFactory $filesystem) {}
 
+    /** [#io: disk] */
     public function __invoke(string $room, string $file): Response
     {
         $disk = $this->filesystem->disk('public');

@@ -17,6 +17,7 @@ use App\Models\Activity;
  */
 final class UpdateActivityLocationAction
 {
+    /** [#impure] [#io: db] */
     public function handle(Activity $activity, float $latitude, float $longitude): Activity
     {
         if ($activity->status !== ActivityStatus::OnTheWay) {

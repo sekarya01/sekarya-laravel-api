@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
+ * [#ssot]
  * SATU aturan "empat digit terakhir" dan bentuk maskernya.
  *
  * Dipakai saat pengajuan rekening (menulis kolom), oleh penyusulan baris lama,

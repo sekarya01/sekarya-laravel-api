@@ -28,6 +28,8 @@ final class ShowVerificationDocumentAction
     ) {}
 
     /**
+     * [#impure] [#io: db, disk]
+     *
      * @param  string  $kind  `id_card` atau `selfie` (dijaga route `whereIn`).
      * @return string|null Path di disk privat, atau null bila tidak ada.
      */

@@ -23,6 +23,7 @@ final class CreateActivityUpdateAction
         ActivityStatus::InProgress->value,
     ];
 
+    /** [#impure] [#io: db] */
     public function handle(Activity $activity, string $note, ?string $photo = null): ActivityUpdate
     {
         if (! in_array($activity->status->value, self::OPEN, true)) {

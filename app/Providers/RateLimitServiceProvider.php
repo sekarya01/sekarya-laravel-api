@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Support\Email;
+use App\Support\PhoneNumber;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -92,11 +94,21 @@ final class RateLimitServiceProvider extends ServiceProvider
             ->by('admin|'.$this->identity($request).'|'.$request->ip()));
     }
 
-    /** Identitas dari payload, dinormalkan sama seperti di DTO. */
+    /**
+     * Identitas dari payload, lewat SSOT masing-masing.
+     *
+     * Nomor HP memakai bentuk KANONIK: login menemukan akun dari ejaan apa pun
+     * (`PhoneNumber::candidates`), jadi kunci per ejaan mentah membuat
+     * `0811…`, `62811…`, dan `+62811…` masing-masing punya jatah percobaan
+     * sendiri untuk akun yang sama.
+     */
     private function identity(Request $request): string
     {
-        $value = (string) ($request->input('email') ?? $request->input('phone') ?? '');
+        $email = $request->input('email');
+        if (is_string($email) && trim($email) !== '') {
+            return Email::normalize($email);
+        }
 
-        return mb_strtolower(trim($value)) ?: 'anonim';
+        return PhoneNumber::canonical((string) $request->input('phone')) ?? 'anonim';
     }
 }

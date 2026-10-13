@@ -59,6 +59,8 @@ enum AdminAction: string
     /** Room chat dinonaktifkan: seluruh pesan & lampirannya DIHAPUS PERMANEN. */
     case ChatRoomDeactivated = 'chat_room.deactivated';
 
+    case ReportReviewed = 'report.reviewed';
+
     /**
      * Slug tabel yang disentuh, bukan nama kelas PHP.
      *
@@ -98,6 +100,8 @@ enum AdminAction: string
             self::DisputeRefunded => 'task_dispute',
 
             self::ChatRoomDeactivated => 'chat_room',
+
+            self::ReportReviewed => 'user_report',
         };
     }
 

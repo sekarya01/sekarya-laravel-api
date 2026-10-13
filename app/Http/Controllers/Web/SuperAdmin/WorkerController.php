@@ -21,7 +21,7 @@ use Illuminate\View\View;
  * Direktori pekerja (sisi `user_workers`).
  *
  * Filter & urutnya mengikuti ListWorkersAction: hanya akun `active` yang
- * muncul; gender, kota/provinsi teresolusi; terbaru siap bekerja dulu.
+ * muncul; gender, kota/provinsi teresolusi; profil pekerja terbaru dulu.
  * `ready_to_work` adalah penyaring OPSIONAL dua arah (penanda, bukan gerbang).
  */
 final class WorkerController
@@ -85,6 +85,7 @@ final class WorkerController
     }
 
     /**
+     * [#impure] [#io: db] [#warn: GET menulis verification.viewed bila identity menunggu]
      * Detail satu pekerja — SEKALIGUS meja verifikasi identitasnya.
      *
      * Konteks KERJA, bukan akun: identitas teresolusi, alamat kerja, titik &

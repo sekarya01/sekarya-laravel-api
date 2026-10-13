@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
+ * [#ssot]
  * SATU format rupiah untuk teks yang dibaca manusia (push, pesan galat, jejak
  * audit, dasbor): tanpa desimal, titik pemisah ribuan — "Rp1.250.000".
  * API sendiri tetap mengirim angka bulat; ini hanya untuk tampilan.

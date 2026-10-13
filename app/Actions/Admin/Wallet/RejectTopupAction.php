@@ -33,6 +33,7 @@ final class RejectTopupAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: wallet_topups] */
     public function handle(WalletTopup $topup, Admin $admin, RejectWalletRequestData $data): WalletTopup
     {
         return $this->db->transaction(function () use ($topup, $admin, $data): WalletTopup {

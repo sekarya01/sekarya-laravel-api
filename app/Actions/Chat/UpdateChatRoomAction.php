@@ -16,6 +16,7 @@ final class UpdateChatRoomAction
 {
     public function __construct(private readonly ChatAccess $access) {}
 
+    /** [#impure] [#io: db] */
     public function handle(ChatRoom $room, User $user, bool $muted): ChatRoom
     {
         $participant = $this->access->participant($room, $user);

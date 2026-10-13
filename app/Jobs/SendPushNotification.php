@@ -25,10 +25,13 @@ use Illuminate\Http\Request;
  * Dipisah ke antrean karena pengiriman menyentuh jaringan pihak ketiga: kalau
  * dikerjakan di dalam request, latensi Google menjadi latensi pengguna, dan
  * gangguan FCM bisa memperlambat aksi yang sebenarnya sudah berhasil.
+ * Push chat TIDAK lewat antrean: `PushDispatcher::sendTransient` menjalankannya
+ * sesudah respons di proses yang sama.
  *
  * Payload-nya sudah berbentuk nilai siap kirim (bukan model yang perlu dimuat
- * ulang), jadi job ini tidak bergantung pada keadaan basis data saat ia
- * berjalan — cukup id penerima untuk menemukan perangkatnya.
+ * ulang), jadi copy-nya tidak bergantung pada keadaan basis data saat job
+ * berjalan — kecuali snapshot `task_update`/`work_update`, yang SENGAJA dibaca
+ * saat itu (lihat `withTaskSnapshot`).
  */
 final class SendPushNotification implements ShouldQueue
 {
@@ -44,6 +47,7 @@ final class SendPushNotification implements ShouldQueue
         private readonly PushMessage $message,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#warn: jalur chat via dispatchAfterResponse — $tries tidak berlaku] */
     public function handle(PushNotifier $notifier): void
     {
         $user = User::query()->find($this->userId);

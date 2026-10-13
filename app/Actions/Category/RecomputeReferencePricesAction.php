@@ -16,7 +16,8 @@ use Illuminate\Support\Collection;
 /**
  * Menghitung ulang harga referensi per kategori.
  *
- * Sumbernya `agreed_amount` dari task yang SELESAI — bukan budget yang diminta
+ * Sumbernya `bids.amount` yang diterima pada task yang SELESAI (harga per
+ * orang, bukan `tasks.agreed_amount` yang TOTAL) — bukan budget yang diminta
  * pemberi kerja (bisa terlalu rendah) dan bukan penawaran yang masuk (banyak
  * yang kalah lelang). Yang pantas dibayarkan adalah yang benar-benar disepakati
  * dan pekerjaannya beres.
@@ -27,6 +28,7 @@ final class RecomputeReferencePricesAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] — satu transaksi per kategori (kota + nasional) */
     public function handle(): int
     {
         $updated = 0;
@@ -34,42 +36,49 @@ final class RecomputeReferencePricesAction
         $minSample = (int) config('sekarya.category_prices.city_min_sample');
 
         foreach (Category::query()->cursor() as $category) {
-            // Acuan per kota (U17) dihitung dari sumber yang sama.
-            $this->recomputeCityPrices($category, $minSample);
-
-            // Harga PER ORANG, dari penawaran yang diterima — bukan
-            // `tasks.agreed_amount`, yang sejak task bisa merekrut banyak orang
-            // berarti TOTAL seluruh pekerja. Memakai total akan memasukkan satu
-            // task 30 orang sebagai satu "harga" tiga puluh kali lipat dan
-            // menggeser median kategori itu jauh dari kenyataan.
-            $amounts = Bid::query()
-                ->join('tasks', 'tasks.id', '=', 'bids.task_id')
-                ->where('tasks.category_id', $category->getKey())
-                ->where('tasks.status', TaskStatus::Completed)
-                ->where('bids.status', BidStatus::Accepted)
-                ->orderBy('bids.amount')
-                ->pluck('bids.amount')
-                ->all();
-
-            if ($amounts === []) {
-                continue;
-            }
-
-            $this->db->transaction(function () use ($category, $amounts): void {
-                $category->forceFill([
-                    'ref_price_min' => $amounts[0],
-                    'ref_price_max' => $amounts[count($amounts) - 1],
-                    'ref_price_median' => $this->median($amounts),
-                    // > 0 memberi tahu UI bahwa ini data nyata, bukan nilai seed.
-                    'ref_sample_size' => count($amounts),
-                    'ref_computed_at' => now(),
-                ])->save();
-            });
-
-            $updated++;
+            // Kota dan nasional satu transaksi: dulu harga kota ditulis di
+            // luarnya, jadi kegagalan di tengah meninggalkan sebagian kota
+            // terbarui, sebagian terhapus, dan nasionalnya belum.
+            $updated += $this->db->transaction(fn (): int => $this->recompute($category, $minSample));
         }
 
         return $updated;
+    }
+
+    /** [#impure] [#io: db] [#tx: caller] — 1 bila harga nasional diperbarui, 0 bila belum ada sampel */
+    private function recompute(Category $category, int $minSample): int
+    {
+        // Acuan per kota (U17) dihitung dari sumber yang sama.
+        $this->recomputeCityPrices($category, $minSample);
+
+        // Harga PER ORANG, dari penawaran yang diterima — bukan
+        // `tasks.agreed_amount`, yang sejak task bisa merekrut banyak orang
+        // berarti TOTAL seluruh pekerja. Memakai total akan memasukkan satu
+        // task 30 orang sebagai satu "harga" tiga puluh kali lipat dan
+        // menggeser median kategori itu jauh dari kenyataan.
+        $amounts = Bid::query()
+            ->join('tasks', 'tasks.id', '=', 'bids.task_id')
+            ->where('tasks.category_id', $category->getKey())
+            ->where('tasks.status', TaskStatus::Completed)
+            ->where('bids.status', BidStatus::Accepted)
+            ->orderBy('bids.amount')
+            ->pluck('bids.amount')
+            ->all();
+
+        if ($amounts === []) {
+            return 0;
+        }
+
+        $category->forceFill([
+            'ref_price_min' => $amounts[0],
+            'ref_price_max' => $amounts[count($amounts) - 1],
+            'ref_price_median' => $this->median($amounts),
+            // > 0 memberi tahu UI bahwa ini data nyata, bukan nilai seed.
+            'ref_sample_size' => count($amounts),
+            'ref_computed_at' => now(),
+        ])->save();
+
+        return 1;
     }
 
     /**

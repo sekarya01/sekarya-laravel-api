@@ -34,6 +34,7 @@ final class ShipAxiomBatch implements ShouldQueue
      */
     public function __construct(private readonly array $events) {}
 
+    /** [#impure] [#io: http] */
     public function handle(AxiomClient $client): void
     {
         $client->send($this->events);

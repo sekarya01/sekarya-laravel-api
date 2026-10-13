@@ -10,7 +10,8 @@ use App\Models\Task;
 use Illuminate\Http\Request;
 
 /**
- * Pemberi kerja menyatakan sudah transfer.
+ * Pemberi kerja menyatakan sudah transfer — JALUR LAMA, hanya untuk task yang
+ * dibuat sebelum TaskEscrow (tagihan task baru lahir `held` dari saldo).
  *
  * NAMA RUTENYA TETAP `payment/hold`, tapi endpoint ini TIDAK LAGI MENAHAN DANA.
  * Path-nya sengaja dipertahankan supaya klien yang sudah menulis kodenya tidak
@@ -20,7 +21,8 @@ use Illuminate\Http\Request;
  * membuka pekerjaan — atas pernyataan pemberi kerja sendiri. Sekarang ia hanya
  * memindahkan tagihan ke `awaiting_confirmation` dan menaruhnya di antrean
  * pengelola. Yang menahan dana `POST /admin/payments/{payment}/confirm`, dan
- * itu satu-satunya jalan menuju `held`.
+ * itu satu-satunya transisi menuju `held` (tagihan TaskEscrow LAHIR `held`,
+ * bukan bertransisi).
  *
  * Karena itu Action-nya bernama ReportTransferAction, bukan HoldPaymentAction:
  * nama kelas domain harus menyebut apa yang benar-benar dikerjakannya.

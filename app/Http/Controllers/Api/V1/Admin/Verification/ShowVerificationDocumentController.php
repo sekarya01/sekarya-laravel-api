@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
+ * [#impure] [#io: db, disk] [#warn: GET menulis jejak audit]
  * Menyajikan berkas KTP/selfie ke pengelola (G2b). Berkas dibaca dari disk
  * privat dan dialirkan lewat respons ber-auth — tidak ada URL publik, dan
  * setiap pembacaan tercatat (lihat ShowVerificationDocumentAction).

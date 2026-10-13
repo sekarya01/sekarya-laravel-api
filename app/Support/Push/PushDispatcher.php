@@ -8,9 +8,11 @@ use App\Jobs\SendPushNotification;
 use Illuminate\Support\Facades\DB;
 
 /**
+ * [#ssot] [#io: fcm]
  * SATU-SATUNYA pintu keluar push.
  *
- * Job FCM diantrekan SESUDAH commit (`afterCommit`): push tidak bisa ditarik
+ * Job FCM dijadwalkan SESUDAH commit (`afterCommit`; chat lewat
+ * `DB::afterCommit`, tanpa antrean): push tidak bisa ditarik
  * kembali, jadi ia baru berangkat setelah aksinya pasti tersimpan.
  *
  * Server tidak menyimpan kotak masuk notifikasi (dihapus 2026-10-10, tabel
@@ -21,6 +23,7 @@ use Illuminate\Support\Facades\DB;
 final class PushDispatcher
 {
     /**
+     * [#impure] [#io: fcm]
      * Push notifikasi (lewat antrean, sesudah commit). Server TIDAK menyimpan
      * salinan apa pun (keputusan produk 2026-10-10): riwayat lonceng disimpan
      * aplikasi di perangkat dari push ini.
@@ -31,6 +34,7 @@ final class PushDispatcher
     }
 
     /**
+     * [#impure] [#io: fcm] [#warn: tanpa antrean & retry — disengaja, jangan kembalikan ke dispatch()]
      * Push chat — realtime, tanpa antrean.
      *
      * Pesan chat dan sinyal sinkronnya bukan notifikasi lonceng: satu

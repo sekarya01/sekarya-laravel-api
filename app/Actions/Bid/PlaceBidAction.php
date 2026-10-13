@@ -34,6 +34,7 @@ final class PlaceBidAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks, bids] */
     public function handle(PlaceBidData $data, Task $task, User $bidder): Bid
     {
         $bid = $this->db->transaction(function () use ($data, &$task, $bidder): Bid {

@@ -16,6 +16,7 @@ use App\Models\Review;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
  * Penilaian dua arah, terikat pada satu task.
@@ -33,6 +34,7 @@ final class CreateReviewAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: users] */
     public function handle(CreateReviewData $data, Task $task, User $reviewer): Review
     {
         return $this->db->transaction(function () use ($data, $task, $reviewer): Review {
@@ -46,37 +48,55 @@ final class CreateReviewAction
 
             $revieweeId = $this->revieweeFor($task, $role, $data->workerUlid);
 
+            // Semua ulasan untuk SATU orang berurutan: tanpa kunci ini dua
+            // ulasan bersamaan sama-sama lolos cek ganda, dan rata-ratanya
+            // dihitung dari snapshot yang belum melihat ulasan yang lain.
+            User::query()->whereKey($revieweeId)->lockForUpdate()->first();
+
+            // `sharedLock`: pembacaan terkunci melihat yang SUDAH commit,
+            // bukan snapshot awal transaksi (REPEATABLE READ).
             $exists = Review::query()
                 ->where('task_id', $task->getKey())
                 ->where('reviewer_id', $reviewer->getKey())
                 ->where('reviewee_id', $revieweeId)
+                ->sharedLock()
                 ->exists();
 
             if ($exists) {
                 throw ReviewNotAllowedYetException::alreadyReviewed();
             }
 
-            $review = Review::query()->create([
-                'task_id' => $task->getKey(),
-                'reviewer_id' => $reviewer->getKey(),
-                'reviewee_id' => $revieweeId,
-                'reviewer_role' => $role,
-                'rating' => $data->rating,
-                'comment' => $data->comment,
-                // `null`, bukan `[]`, untuk ulasan tanpa tag — sama dengan
-                // ulasan lama. Resource mengeluarkan keduanya sebagai `[]`.
-                'tags' => $data->tags === []
-                    ? null
-                    : array_map(static fn (ReviewTag $t): string => $t->value, $data->tags),
-                // `null`, bukan `[]`, untuk ulasan tanpa foto. Resource
-                // mengeluarkan keduanya sebagai `[]`.
-                'photos' => $data->photos === [] ? null : $data->photos,
-            ]);
+            try {
+                $review = $this->store($data, $task, $reviewer, $revieweeId, $role);
+            } catch (UniqueConstraintViolationException) {
+                // Lapis terakhir: unique (task_id, reviewer_id, reviewee_id).
+                throw ReviewNotAllowedYetException::alreadyReviewed();
+            }
 
             $this->recalculateAggregate($revieweeId, $role);
 
             return $review;
         });
+    }
+
+    private function store(CreateReviewData $data, Task $task, User $reviewer, int $revieweeId, ReviewerRole $role): Review
+    {
+        return Review::query()->create([
+            'task_id' => $task->getKey(),
+            'reviewer_id' => $reviewer->getKey(),
+            'reviewee_id' => $revieweeId,
+            'reviewer_role' => $role,
+            'rating' => $data->rating,
+            'comment' => $data->comment,
+            // `null`, bukan `[]`, untuk ulasan tanpa tag — sama dengan
+            // ulasan lama. Resource mengeluarkan keduanya sebagai `[]`.
+            'tags' => $data->tags === []
+                ? null
+                : array_map(static fn (ReviewTag $t): string => $t->value, $data->tags),
+            // `null`, bukan `[]`, untuk ulasan tanpa foto. Resource
+            // mengeluarkan keduanya sebagai `[]`.
+            'photos' => $data->photos === [] ? null : $data->photos,
+        ]);
     }
 
     /**
@@ -159,6 +179,7 @@ final class CreateReviewAction
             ->where('reviewee_id', $revieweeId)
             ->where('reviewer_role', $reviewerRole)
             ->visible()
+            ->sharedLock()
             ->selectRaw('COUNT(*) as c, AVG(rating) as a')
             ->first();
 

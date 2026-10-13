@@ -34,6 +34,7 @@ final class SendChatMessageAction
         private readonly ChatNotifier $notifier,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: chat_rooms, chat_attachments] */
     public function handle(ChatRoom $room, SendChatMessageData $data, User $user): ChatMessage
     {
         $message = $this->db->transaction(function () use ($room, $data, $user): ChatMessage {

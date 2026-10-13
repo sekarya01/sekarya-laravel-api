@@ -19,9 +19,14 @@ final class StartActivityAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: activities] */
     public function handle(Activity $activity): Activity
     {
         $activity = $this->db->transaction(function () use ($activity): Activity {
+            // Dibaca ulang DI BAWAH KUNCI: model dari rute bisa basi, dan dua
+            // permintaan bersamaan sama-sama lolos pemeriksaan status di bawah.
+            $activity = Activity::query()->whereKey($activity->getKey())->lockForUpdate()->firstOrFail();
+
             // INILAH yang dijaga uang: mulai bekerja, bukan keberadaan
             // activity-nya. Activity lahir saat deal — ia catatan siapa
             // mengerjakan apa; yang tidak boleh terjadi tanpa dana adalah
@@ -30,10 +35,10 @@ final class StartActivityAction
             // Diperiksa di sini, bukan sekali saat barisnya dibuat: dana bisa
             // sudah dikembalikan sejak deal.
             //
-            // Dilewati selama gerbang pembayaran dimatikan — mekanisme
-            // pembayarannya belum ada, jadi tagihan tidak pernah beranjak dari
-            // `pending` dan menuntut `held` berarti tidak ada pekerjaan yang
-            // pernah bisa dimulai. Lihat config/sekarya.payments.
+            // Dilewati selama gerbang pembayaran dimatikan — tagihan task lama
+            // (sebelum TaskEscrow) bisa tetap `pending`, dan menuntut `held`
+            // berarti pekerjaannya tidak pernah bisa dimulai. Task baru selalu
+            // `held` sejak dipasang. Lihat config/sekarya.payments.
             if ((bool) config('sekarya.payments.gate_enabled')
                 && ! $activity->payment->status->opensActivity()) {
                 throw PaymentNotHeldException::becauseStatus($activity->payment->status);

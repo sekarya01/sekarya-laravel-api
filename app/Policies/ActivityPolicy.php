@@ -9,13 +9,13 @@ use App\Models\User;
 
 final class ActivityPolicy
 {
-    /** Yang mengerjakan: mulai & serahkan hasil. */
+    /** Yang mengerjakan: berangkat, mulai, kirim lokasi/kemajuan, serahkan hasil, tanggapi sengketa. */
     public function work(User $user, Activity $activity): bool
     {
         return $this->isWorker($user, $activity);
     }
 
-    /** Yang memberi kerja: setujui atau tolak hasil. */
+    /** Yang memberi kerja: akui kedatangan, setujui hasil, atau ajukan sengketa. */
     public function judge(User $user, Activity $activity): bool
     {
         return $this->isPoster($user, $activity);

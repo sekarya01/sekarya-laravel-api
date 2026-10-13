@@ -15,7 +15,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 final class ActivityUpdate extends Model
 {
-    /** Tidak ada `updated_at`. */
     public const UPDATED_AT = null;
 
     /** @var list<string> */

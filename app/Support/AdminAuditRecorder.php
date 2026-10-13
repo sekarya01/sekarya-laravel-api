@@ -9,6 +9,7 @@ use App\Models\Admin;
 use App\Models\AdminAuditLog;
 
 /**
+ * [#ssot] [#tx: caller]
  * Satu-satunya tempat jejak tindakan pengelola ditulis.
  *
  * Ada supaya `subject_type` tidak pernah diketik dua ejaan untuk satu tabel
@@ -30,6 +31,7 @@ final class AdminAuditRecorder
     /** Batas kolom `reason`. Dipotong di sini, bukan diserahkan ke MySQL. */
     private const int REASON_LIMIT = 500;
 
+    /** [#impure] [#io: db] [#tx: caller] */
     public function record(
         Admin $admin,
         AdminAction $action,

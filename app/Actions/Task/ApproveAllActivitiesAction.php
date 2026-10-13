@@ -28,6 +28,7 @@ final class ApproveAllActivitiesAction
         private readonly ApproveActivityAction $approve,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks, activities, payments, wallets] */
     public function handle(Task $task, User $poster): Task
     {
         return $this->db->transaction(function () use ($task, $poster): Task {

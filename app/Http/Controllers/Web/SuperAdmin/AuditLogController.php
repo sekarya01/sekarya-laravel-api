@@ -14,7 +14,7 @@ use Illuminate\View\View;
  * Baca jejak audit (append-only, tanpa updated_at).
  *
  * API belum punya endpoint untuk ini — dasbor membaca langsung dari basis
- * data, sama seperti kueri SQL di docs/API.md bagian 14.
+ * data, sama seperti kueri SQL di docs/API.md bagian 15 (Jejak audit).
  */
 final class AuditLogController
 {

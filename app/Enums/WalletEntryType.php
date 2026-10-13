@@ -23,7 +23,7 @@ enum WalletEntryType: string
     /** Dana task yang batal dikembalikan ke pemberi kerja. */
     case Refund = 'refund';
 
-    /** Upah pekerja saat dana task dilepas. */
+    /** Upah pekerja (bruto), dikredit per mitra saat hasilnya disetujui. */
     case Earning = 'earning';
 
     /** Biaya layanan yang dipotong dari upah pekerja (G6). */

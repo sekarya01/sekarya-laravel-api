@@ -47,6 +47,7 @@ final class ProofPhotos
     ) {}
 
     /**
+     * [#impure] [#io: disk]
      * Simpan satu foto bukti atas nama pengguna. Disk `public` ber-`throw =>
      * true`, jadi penulisan yang gagal menjadi exception (500 tercatat),
      * bukan `false` yang berubah jadi path kosong.
@@ -61,6 +62,7 @@ final class ProofPhotos
     }
 
     /**
+     * [#io: disk]
      * Path ini foto bukti yang diunggah PENGGUNA INI, dan berkasnya ada.
      *
      * Tiga syarat, semuanya wajib: bentuk path persis seperti yang ditulis
@@ -88,6 +90,7 @@ final class ProofPhotos
     }
 
     /**
+     * [#io: disk] — closure membaca disk saat validasi
      * Aturan validasi untuk satu path foto: harus foto bukti milik [owner]
      * (POST /uploads `purpose=proof`). Dipakai juga oleh foto bukti sengketa —
      * tanpa ini, satu pihak bisa melampirkan foto milik pihak lain.

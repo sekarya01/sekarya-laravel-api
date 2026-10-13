@@ -14,6 +14,7 @@ use App\Support\Chat\ChatAccess;
 use Illuminate\Contracts\Config\Repository as Config;
 use Illuminate\Contracts\Filesystem\Factory as Filesystem;
 use RuntimeException;
+use Throwable;
 
 /**
  * Unggah satu lampiran chat. Langkah pertama dari dua: hasilnya (`id`)
@@ -31,6 +32,7 @@ final class StoreChatAttachmentAction
         private readonly Config $config,
     ) {}
 
+    /** [#impure] [#io: disk, db] — berkas ditulis dulu; insert gagal = berkasnya dihapus lagi */
     public function handle(ChatRoom $room, StoreChatAttachmentData $data, User $user): ChatAttachment
     {
         $this->access->writer($room, $user);
@@ -50,21 +52,31 @@ final class StoreChatAttachmentAction
             throw new RuntimeException('Gagal menyimpan lampiran chat.');
         }
 
-        return ChatAttachment::query()->create([
-            'room_id' => $room->getKey(),
-            'uploader_id' => $user->getKey(),
-            'kind' => $kind,
-            'path' => $path,
-            'thumbnail_path' => $kind === ChatMessageType::Video ? $this->storeThumbnail($room, $data) : null,
-            'file_name' => mb_substr($file->getClientOriginalName(), 0, 255),
-            'extension' => strtolower((string) $file->getClientOriginalExtension()),
-            'mime_type' => mb_substr($mime, 0, 100),
-            'size' => (int) $file->getSize(),
-            'duration' => in_array($kind, [ChatMessageType::Video, ChatMessageType::Audio], true) ? $data->duration : 0,
-            'width' => in_array($kind, [ChatMessageType::Image, ChatMessageType::Video], true) ? $width : 0,
-            'height' => in_array($kind, [ChatMessageType::Image, ChatMessageType::Video], true) ? $height : 0,
-            'waveform' => $kind === ChatMessageType::Audio ? $data->waveform : null,
-        ]);
+        $thumbnail = $kind === ChatMessageType::Video ? $this->storeThumbnail($room, $data) : null;
+
+        try {
+            return ChatAttachment::query()->create([
+                'room_id' => $room->getKey(),
+                'uploader_id' => $user->getKey(),
+                'kind' => $kind,
+                'path' => $path,
+                'thumbnail_path' => $thumbnail,
+                'file_name' => mb_substr($file->getClientOriginalName(), 0, 255),
+                'extension' => strtolower((string) $file->getClientOriginalExtension()),
+                'mime_type' => mb_substr($mime, 0, 100),
+                'size' => (int) $file->getSize(),
+                'duration' => in_array($kind, [ChatMessageType::Video, ChatMessageType::Audio], true) ? $data->duration : 0,
+                'width' => in_array($kind, [ChatMessageType::Image, ChatMessageType::Video], true) ? $width : 0,
+                'height' => in_array($kind, [ChatMessageType::Image, ChatMessageType::Video], true) ? $height : 0,
+                'waveform' => $kind === ChatMessageType::Audio ? $data->waveform : null,
+            ]);
+        } catch (Throwable $e) {
+            // Baris gagal ditulis → berkasnya tak dirujuk siapa pun dan tak
+            // akan pernah terhapus (pembersihan berjalan lewat barisnya).
+            $this->storage->disk('public')->delete(array_filter([$path, $thumbnail]));
+
+            throw $e;
+        }
     }
 
     /**

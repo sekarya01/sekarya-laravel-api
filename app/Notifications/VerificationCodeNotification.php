@@ -9,6 +9,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Mail\Mailable;
 use Illuminate\Notifications\Notification;
 
+/** [#io: mail] */
 final class VerificationCodeNotification extends Notification
 {
     use Queueable;

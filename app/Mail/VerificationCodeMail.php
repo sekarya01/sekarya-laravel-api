@@ -28,6 +28,7 @@ final class VerificationCodeMail extends Mailable
         public readonly string $email,
     ) {}
 
+    /** [#warn: subjek memuat kode verifikasi — jangan pernah dilog] */
     public function envelope(): Envelope
     {
         return new Envelope(

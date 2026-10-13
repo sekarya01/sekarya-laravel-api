@@ -39,6 +39,7 @@ use Database\Seeders\SkillSeeder;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
@@ -185,7 +186,9 @@ abstract class TestCase extends BaseTestCase
         $ledger = app(WalletLedger::class);
         $wallet = $ledger->walletFor($user);
 
-        $ledger->credit($wallet, WalletEntryType::AdjustmentCredit, $amount, null, 'fixture');
+        // Transaksi sendiri: kelas DatabaseTruncation tidak berjalan di dalam
+        // transaksi, dan WalletLedger menolak dipanggil di luarnya.
+        DB::transaction(fn () => $ledger->credit($wallet, WalletEntryType::AdjustmentCredit, $amount, null, 'fixture'));
 
         return $wallet->refresh();
     }

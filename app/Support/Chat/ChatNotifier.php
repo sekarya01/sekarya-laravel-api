@@ -12,6 +12,7 @@ use App\Support\Push\PushDispatcher;
 use App\Support\Push\PushMessages;
 
 /**
+ * [#ssot] [#io: fcm] [#warn: afterCommit + dispatchAfterResponse, tanpa antrean/retry — disengaja]
  * FCM untuk chat — satu-satunya jalur realtime (tanpa WebSocket di hosting
  * bersama). Semua lewat `PushDispatcher::sendTransient`: TANPA antrean
  * (realtime, dikirim sesudah respons), sesudah commit.
@@ -25,6 +26,7 @@ final class ChatNotifier
 {
     public function __construct(private readonly PushDispatcher $push) {}
 
+    /** [#impure] [#io: fcm] */
     public function messageSent(ChatRoom $room, ChatMessage $message, ChatParticipant $sender): void
     {
         $task = $room->task;
@@ -51,8 +53,8 @@ final class ChatNotifier
         }
     }
 
-    /** @return iterable<ChatParticipant> */
     /**
+     * [#impure] [#io: fcm]
      * Sinyal senyap hanya ke [userIds] yang masih peserta aktif — mis. tanda
      * baca ke pengirim pesan yang terdampak, bukan ke seluruh grup.
      *
@@ -70,6 +72,7 @@ final class ChatNotifier
             ->each(fn (mixed $id) => $this->push->sendTransient((int) $id, $message));
     }
 
+    /** @return iterable<ChatParticipant> */
     private function recipients(ChatRoom $room, ?int $exceptUserId): iterable
     {
         return $room->participants()

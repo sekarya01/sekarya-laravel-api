@@ -12,6 +12,7 @@ use App\Exceptions\Domain\InvalidStatusTransitionException;
 use App\Models\Activity;
 use App\Models\Admin;
 use App\Models\Payment;
+use App\Models\Task;
 use App\Support\AdminAuditRecorder;
 use App\Support\Rupiah;
 use App\Support\WorkOpening;
@@ -19,10 +20,12 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Collection;
 
 /**
- * Pengelola melihat dana masuk → dana ditahan → ACTIVITY DIBUKA.
+ * Pengelola melihat dana masuk → dana ditahan → activity yang belum ada dibuka.
  *
- * Inilah SATU-SATUNYA jalan menuju `held`, dan `held` adalah gerbang yang
- * membuka pekerjaan. Sebelumnya jalan itu dimiliki pemberi kerja sendiri
+ * Jalur transfer manual LAMA, hanya untuk tagihan task yang dibuat sebelum
+ * TaskEscrow (task baru lahir `held` dari saldo). Untuk tagihan itu inilah
+ * SATU-SATUNYA jalan menuju `held`, dan `held` adalah gerbang yang membolehkan
+ * pekerjaan DIMULAI (`StartActivityAction`). Sebelumnya jalan itu dimiliki pemberi kerja sendiri
  * (endpoint `payment/hold`), yang berarti pernyataan "saya sudah transfer"
  * dan fakta "dananya ada" adalah hal yang sama. Sekarang tidak.
  *
@@ -39,10 +42,20 @@ final class ConfirmPaymentAction
         private readonly AdminAuditRecorder $audit,
     ) {}
 
-    /** @return Collection<int, Activity> */
+    /**
+     * [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks → payments]
+     * [#warn: jalur lama — hanya tagihan sebelum TaskEscrow]
+     *
+     * @return Collection<int, Activity>
+     */
     public function handle(Payment $payment, Admin $admin, ?string $ip = null): Collection
     {
         return $this->db->transaction(function () use ($payment, $admin, $ip): Collection {
+            // Task dikunci LEBIH DULU, baru tagihan — urutan yang sama dengan
+            // CancelTaskAction. Urutan terbalik antara dua jalur = deadlock;
+            // tanpa kunci task, status yang diperiksa di bawah bisa basi.
+            $task = Task::query()->whereKey($payment->task_id)->lockForUpdate()->firstOrFail();
+
             // Row lock sungguhan di InnoDB: mencegah dua pengelola yang
             // membuka antrean yang sama sama-sama menahan dana. unique
             // (task_id, worker_id) di activities tetap jadi pengaman terakhir —
@@ -59,8 +72,6 @@ final class ConfirmPaymentAction
                     PaymentStatus::Held->value,
                 );
             }
-
-            $task = $fresh->task;
 
             // Perekrutan harus sudah ditutup. Diperiksa ulang di sini, bukan
             // hanya saat laporan masuk: yang mengubah status task adalah
@@ -80,15 +91,14 @@ final class ConfirmPaymentAction
                 'rejection_reason' => null,
             ])->save();
 
-            // Baris activity inilah yang menegakkan aturan "tidak ada activity
-            // tanpa dana ditahan" — bukan disiplin kode. Pembayarannya satu
-            // untuk semua pekerja, jadi penjaganya unique (task_id, worker_id):
-            // satu orang paling banyak satu activity per task, berapa kali pun
-            // konfirmasi terpanggil.
+            // Activity biasanya SUDAH dibuka saat deal (perekrutan ditutup);
+            // di sini hanya disusulkan untuk task warisan yang barisnya belum
+            // ada. Pembayarannya satu untuk semua pekerja, jadi penjaganya
+            // unique (task_id, worker_id): satu orang paling banyak satu
+            // activity per task, berapa kali pun konfirmasi terpanggil.
             //
             // Pembukaannya sendiri dipinjam dari WorkOpening, karena jalur
-            // sementara (gerbang pembayaran dimatikan) harus membuka pekerjaan
-            // dengan cara yang sama persis.
+            // deal harus membuka pekerjaan dengan cara yang sama persis.
             $activities = $this->opening->open(
                 $task,
                 $fresh,

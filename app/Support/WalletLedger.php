@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use RuntimeException;
 
 /**
+ * [#ssot] [#tx: caller] [#lock: wallets]
  * SATU-SATUNYA tempat saldo berubah.
  *
  * Bukan kenyamanan — ia penjaga tiga invarian yang tidak bisa ditegakkan dari
@@ -45,6 +46,7 @@ final class WalletLedger
     private const int DESCRIPTION_LIMIT = 200;
 
     /**
+     * [#impure] [#io: db]
      * Dompet milik seseorang, dibuat kalau belum ada. Jalur TULIS.
      *
      * Jalur BACA memakai `User::walletOrNew()` — sebuah GET yang membuat baris
@@ -55,7 +57,12 @@ final class WalletLedger
         return Wallet::query()->firstOrCreate(['user_id' => $user->getKey()]);
     }
 
-    /** Saldo bertambah. */
+    /**
+     * [#impure] [#io: db] [#tx: caller] [#lock: wallets]
+     * Saldo bertambah.
+     *
+     * @throws \LogicException di luar transaksi
+     */
     public function credit(
         Wallet $wallet,
         WalletEntryType $type,
@@ -74,9 +81,11 @@ final class WalletLedger
     }
 
     /**
+     * [#impure] [#io: db] [#tx: caller] [#lock: wallets]
      * Saldo berkurang.
      *
      * @throws InsufficientBalanceException kalau saldo tidak mencukupi
+     * @throws \LogicException di luar transaksi
      */
     public function debit(
         Wallet $wallet,
@@ -109,6 +118,8 @@ final class WalletLedger
         ?Model $reference,
         ?string $description,
     ): WalletEntry {
+        TransactionGuard::assertActive('WalletLedger');
+
         // Nol dan negatif ditolak sebagai galat pemrogram, bukan sebagai
         // pelanggaran aturan bisnis: keduanya hanya bisa datang dari kode yang
         // salah menghitung, tidak pernah dari pengguna. Baris bernilai nol

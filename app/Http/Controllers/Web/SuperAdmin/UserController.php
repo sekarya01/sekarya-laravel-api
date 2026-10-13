@@ -24,12 +24,14 @@ use Illuminate\View\View;
  * Moderasi pengguna.
  *
  * `email` adalah pencocokan PERSIS (kolom unique, terindeks) — bukan
- * pencarian sebagian. Proyek ini tidak memakai LIKE di mana pun.
+ * pencarian sebagian. Tidak ada LIKE di sini (satu-satunya pengecualian
+ * tercatat: ListWalletEntriesAction, dibatasi satu dompet).
  * Suspend/ban mencabut seluruh token (di dalam Action); reinstate akun yang
  * belum verifikasi email kembali ke pending_verification.
  *
- * Daftar memakai pagination BERNOMOR. Aturan saring & urut disalin dari
- * ListUsersAction — kalau Action itu berubah, samakan di sini.
+ * Daftar memakai pagination BERNOMOR. Saring status/email & urut disalin dari
+ * ListUsersAction — kalau Action itu berubah, samakan di sini. Saring
+ * gender/kesiapan/ULID hanya ada di dasbor.
  */
 final class UserController
 {

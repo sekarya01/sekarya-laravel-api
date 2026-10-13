@@ -150,13 +150,15 @@ final class AxiomServiceProvider extends ServiceProvider
         ));
 
         /*
-         * PENTING: di aplikasi ini ketiga listener di atas TIDAK PERNAH menyala.
+         * PENTING: di jalur API ketiga listener di atas TIDAK PERNAH menyala.
          *
          * `LoginAction` memverifikasi hash sendiri lalu menerbitkan token
          * Sanctum; `Auth::attempt()` tidak pernah dipanggil, jadi Laravel tidak
-         * pernah memancarkan Login/Logout/Failed. Mereka tetap dipasang supaya
-         * jalur berbasis guard (mis. panel admin ber-sesi) langsung tercatat
-         * begitu ditambahkan.
+         * pernah memancarkan Login/Logout/Failed untuk API. Yang memancarkan
+         * Login/Logout hanya dasbor super admin ber-sesi (guard `admin_web`,
+         * `SuperAdmin\AuthController`); `Failed` tetap tidak, karena dasbor
+         * memeriksa kredensial lewat `VerifyAdminCredentialsAction`, bukan
+         * `Auth::attempt()`.
          *
          * Catatan auth yang SUNGGUHAN untuk API ini diturunkan dari nama rute
          * dan status respons di AxiomRequestLogger — lihat `axiom.auth_routes`.

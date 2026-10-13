@@ -17,7 +17,11 @@ use Illuminate\Database\Eloquent\Collection;
  */
 final class ListCategoriesAction
 {
-    /** @return Collection<int, Category> */
+    /**
+     * [#warn: harga kota di-forceFill di memori saja; jangan ->save()]
+     *
+     * @return Collection<int, Category>
+     */
     public function handle(?string $city = null): Collection
     {
         $categories = Category::query()->active()->get();

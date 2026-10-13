@@ -42,6 +42,7 @@ final class ChangeUserStatusAction
         private readonly AdminAuditRecorder $audit,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] */
     public function handle(User $user, Admin $admin, ChangeUserStatusData $data): User
     {
         return $this->db->transaction(function () use ($user, $admin, $data): User {

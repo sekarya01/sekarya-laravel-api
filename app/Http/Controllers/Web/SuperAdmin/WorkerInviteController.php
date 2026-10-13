@@ -8,6 +8,7 @@ use App\Actions\Admin\WorkerInvite\CreateWorkerInviteCodeAction;
 use App\Actions\Admin\WorkerInvite\DeactivateWorkerInviteCodeAction;
 use App\Data\Admin\CreateWorkerInviteCodeData;
 use App\Data\CursorPageData;
+use App\Exceptions\Domain\DomainException;
 use App\Models\Admin;
 use App\Models\WorkerInviteCode;
 use Illuminate\Database\Eloquent\Builder;
@@ -93,10 +94,10 @@ final class WorkerInviteController
 
         try {
             $result = $action->handle(CreateWorkerInviteCodeData::fromValues($validated, $request->ip()), $admin);
-        } catch (\Throwable $e) {
-            report($e);
-
-            return back()->withErrors(['action' => 'Gagal menerbitkan kode. Coba lagi.'])
+        } catch (DomainException $e) {
+            // Galat bisnis tampil apa adanya; galat sistem dibiarkan naik ke
+            // handler (500 + laporan), bukan disamarkan jadi "coba lagi".
+            return back()->withErrors(['action' => $e->getMessage()])
                 ->withInput()->with('open_modal', 'create-invite');
         }
 
@@ -127,10 +128,8 @@ final class WorkerInviteController
 
         try {
             $action->handle($code, $admin, $request->ip());
-        } catch (\Throwable $e) {
-            report($e);
-
-            return back()->withErrors(['action' => 'Gagal menonaktifkan kode. Coba lagi.']);
+        } catch (DomainException $e) {
+            return back()->withErrors(['action' => $e->getMessage()]);
         }
 
         return redirect()->route('super_admin.worker_invites.show', $code->getKey())

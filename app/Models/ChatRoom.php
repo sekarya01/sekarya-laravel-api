@@ -16,8 +16,8 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\Query\JoinClause;
 
 /**
- * Satu room chat per task. Nama & foto room dibaca dari task-nya, tidak
- * disalin. `status` dan penanda waktunya TIDAK mass-assignable — yang
+ * Satu room chat per task. Nama room dibaca dari task-nya; fotonya
+ * (`avatar`) DIBEKUKAN saat room lahir. `status` dan penanda waktunya TIDAK mass-assignable — yang
  * memindahkannya hanya `ChatRoomLifecycle` dan `DeactivateChatRoomAction`.
  */
 final class ChatRoom extends Model

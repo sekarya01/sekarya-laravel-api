@@ -28,6 +28,7 @@ final class FcmPushNotifier implements PushNotifier
         private readonly LogManager $log,
     ) {}
 
+    /** [#impure] [#io: fcm, db, log] [#warn: token perangkat mati dihapus dari DB] */
     public function send(User $user, PushMessage $message): void
     {
         if (! $this->client->isEnabled()) {

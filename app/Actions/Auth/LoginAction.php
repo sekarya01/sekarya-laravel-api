@@ -21,7 +21,11 @@ final class LoginAction
         private readonly TokenIssuer $tokens,
     ) {}
 
-    /** @return array{user: User, access: NewAccessToken, long_lived: NewAccessToken} */
+    /**
+     * [#impure] [#io: db] [#tx: own]
+     *
+     * @return array{user: User, access: NewAccessToken, long_lived: NewAccessToken}
+     */
     public function handle(LoginData $data): array
     {
         return $this->db->transaction(function () use ($data): array {

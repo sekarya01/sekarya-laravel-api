@@ -28,6 +28,7 @@ final class SubmitVerificationAction
         private readonly VerificationDocuments $documents,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] */
     public function handle(SubmitVerificationData $data, User $user): UserVerification
     {
         return $this->db->transaction(function () use ($data, $user): UserVerification {
@@ -36,9 +37,6 @@ final class SubmitVerificationAction
                 'type' => $data->type,
                 'status' => VerificationStatus::Pending,
                 'submitted_at' => now(),
-                'reviewed_at' => null,
-                'reviewed_by' => null,
-                'rejection_reason' => null,
             ];
 
             if ($data->type === VerificationType::Identity) {
@@ -85,7 +83,14 @@ final class SubmitVerificationAction
                 ->first();
 
             if ($pending !== null) {
-                $pending->fill($attributes)->save();
+                // Kolom review milik PENGELOLA — sengaja tidak mass-assignable,
+                // jadi dulu `fill()` membuangnya diam-diam dan sisa tinjauan
+                // lama ikut menempel di pengajuan ulang. Dikosongkan eksplisit.
+                $pending->fill($attributes)->forceFill([
+                    'reviewed_at' => null,
+                    'reviewed_by' => null,
+                    'rejection_reason' => null,
+                ])->save();
 
                 return $pending->refresh();
             }

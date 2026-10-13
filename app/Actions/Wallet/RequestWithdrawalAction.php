@@ -33,6 +33,7 @@ final class RequestWithdrawalAction
         private readonly WalletLedger $ledger,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] [#lock: wallet_withdrawals, wallets] */
     public function handle(User $user, CreateWithdrawalData $data): WalletWithdrawal
     {
         return $this->db->transaction(function () use ($user, $data): WalletWithdrawal {

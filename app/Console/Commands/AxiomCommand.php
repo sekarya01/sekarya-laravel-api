@@ -30,6 +30,7 @@ final class AxiomCommand extends Command
 
     protected $description = 'Periksa konfigurasi Axiom, audit penyaringan PII, kirim event uji';
 
+    /** [#io: disk, http] — http hanya `--ping`; `--audit` tidak mengirim apa pun */
     public function handle(AxiomLogger $logger, Redactor $redactor, AxiomClient $client): int
     {
         $this->status();
@@ -83,6 +84,7 @@ final class AxiomCommand extends Command
     }
 
     /**
+     * [#io: disk]
      * Kunci `AXIOM_*` yang muncul lebih dari sekali di `.env`.
      *
      * Kegagalan ini tidak bersuara dan sangat mudah terjadi: Dotenv memakai

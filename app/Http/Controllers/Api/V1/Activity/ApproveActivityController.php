@@ -9,7 +9,10 @@ use App\Http\Requests\Api\V1\Activity\ReviewSubmissionRequest;
 use App\Http\Resources\Api\V1\ActivityResource;
 use App\Models\Activity;
 
-/** Setujui hasil → task selesai → dana dilepas. */
+/**
+ * Setujui hasil SATU mitra → upahnya dibayar. Task baru selesai bila semua
+ * mitra sudah diputuskan (TaskSettlement::sync).
+ */
 final class ApproveActivityController
 {
     public function __construct(private readonly ApproveActivityAction $action) {}

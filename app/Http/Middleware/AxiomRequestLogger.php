@@ -65,6 +65,7 @@ final class AxiomRequestLogger
         return $response;
     }
 
+    /** [#impure] [#io: http] */
     public function terminate(Request $request, Response $response): void
     {
         try {

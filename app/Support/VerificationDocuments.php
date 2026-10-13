@@ -37,6 +37,7 @@ final class VerificationDocuments
     ) {}
 
     /**
+     * [#impure] [#io: disk]
      * Simpan satu dokumen atas nama pengguna. Disk `private_docs` ber-`throw =>
      * true`, jadi penulisan yang gagal menjadi exception (500 tercatat),
      * bukan `false` yang berubah jadi path kosong.
@@ -51,6 +52,7 @@ final class VerificationDocuments
     }
 
     /**
+     * [#io: disk]
      * Path ini dokumen yang diunggah PENGGUNA INI, dan berkasnya ada.
      *
      * Tiga syarat, semuanya wajib: bentuk path persis seperti yang ditulis

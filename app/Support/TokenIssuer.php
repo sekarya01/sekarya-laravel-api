@@ -9,6 +9,7 @@ use App\Models\User;
 use Laravel\Sanctum\NewAccessToken;
 
 /**
+ * [#ssot]
  * Satu-satunya tempat token diterbitkan, dirotasi, dan dicabut.
  *
  * Ada supaya aturan umur token dan aturan rotasi tidak tersebar di beberapa
@@ -30,6 +31,8 @@ use Laravel\Sanctum\NewAccessToken;
 final class TokenIssuer
 {
     /**
+     * [#impure] [#io: db] [#tx: caller] — cabut lalu terbitkan; ketiga
+     * pemanggilnya (Login, VerifyEmail, AdminLogin) membuka transaksi.
      * Pasangan token untuk sesi baru (setelah verifikasi atau login).
      *
      * Token lama dicabut lebih dulu: satu perangkat satu sesi. Kalau nanti
@@ -48,6 +51,7 @@ final class TokenIssuer
     }
 
     /**
+     * [#impure] [#io: db]
      * Tukar long_lived token jadi access token baru.
      *
      * Access token LAMA dicabut di sini — itu inti aturannya: setelah token
@@ -61,7 +65,7 @@ final class TokenIssuer
         return $this->createAccess($owner);
     }
 
-    /** Cabut semua access token, sisakan long_lived. */
+    /** [#impure] [#io: db] Cabut semua access token, sisakan long_lived. */
     public function revokeAccessTokens(User|Admin $owner): void
     {
         $owner->tokens()
@@ -69,7 +73,7 @@ final class TokenIssuer
             ->delete();
     }
 
-    /** Cabut seluruh token — logout menyeluruh. */
+    /** [#impure] [#io: db] Cabut seluruh token — logout menyeluruh. */
     public function revokeAll(User|Admin $owner): void
     {
         $owner->tokens()->delete();

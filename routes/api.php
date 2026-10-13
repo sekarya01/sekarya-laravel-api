@@ -618,9 +618,9 @@ Route::prefix('v1')->name('v1.')->group(function (): void {
             // sedangkan Action menolak hal yang sama dengan
             // `admin_access_denied`. Satu kegagalan, satu bentuk respons.
             //
-            // Sasaran super_admin ditolak di dalam Action, dengan kode
-            // `super_admin_protected`. Penjaga terakhirnya hook `deleting` di
-            // model Admin, dan jumlahnya dijaga indeks unique di basis data.
+            // Sasaran super_admin ditolak hook `deleting` di model Admin, dengan
+            // kode `super_admin_protected` — berlaku untuk jalur penghapusan
+            // apa pun. Jumlahnya dijaga indeks unique di basis data.
             Route::middleware('admin.manages-admins')->group(function (): void {
                 Route::get('admins', ListAdminsController::class)->name('admins.index');
                 Route::post('admins', CreateAdminController::class)->name('admins.store');

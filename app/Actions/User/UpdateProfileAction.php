@@ -13,6 +13,7 @@ final class UpdateProfileAction
 {
     public function __construct(private readonly ConnectionInterface $db) {}
 
+    /** [#impure] [#io: db] [#tx: own] */
     public function handle(UpdateProfileData $data, User $user): User
     {
         return $this->db->transaction(function () use ($data, $user): User {

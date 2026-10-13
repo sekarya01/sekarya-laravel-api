@@ -12,6 +12,7 @@ final class LogoutAction
     public function __construct(private readonly TokenIssuer $tokens) {}
 
     /**
+     * [#impure] [#io: db]
      * Logout mencabut SEMUA token, termasuk long_lived.
      *
      * Mencabut access token saja akan menyisakan long_lived token yang masih

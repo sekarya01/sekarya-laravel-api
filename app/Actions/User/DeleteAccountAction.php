@@ -23,6 +23,7 @@ use App\Models\WalletWithdrawal;
 use App\Support\TokenIssuer;
 use App\Support\VerificationDocuments;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -50,6 +51,10 @@ final class DeleteAccountAction
         private readonly TokenIssuer $tokens,
     ) {}
 
+    /**
+     * [#impure] [#io: db, disk, fcm] [#tx: own]
+     * [#warn: berkas KTP/selfie dihapus SESUDAH commit — rollback tak boleh kehilangan berkas]
+     */
     public function handle(DeleteAccountData $data, User $user): void
     {
         if (! Hash::check($data->password, $user->password)) {
@@ -125,7 +130,14 @@ final class DeleteAccountAction
         }
     }
 
-    /** NIK, rekening, dan path foto dibersihkan; berkas privatnya dihapus. */
+    /**
+     * NIK, rekening, dan path foto dibersihkan; berkas privatnya dihapus.
+     *
+     * Berkas dihapus SESUDAH commit. Di dalam transaksi, kegagalan langkah
+     * sesudahnya memulihkan barisnya tapi tidak berkasnya — akun yang batal
+     * dihapus kehilangan KTP-nya, dan verifikasinya menunjuk berkas yang
+     * sudah tidak ada.
+     */
     private function anonymizeVerifications(int $id): void
     {
         UserVerification::query()
@@ -134,7 +146,7 @@ final class DeleteAccountAction
             ->each(function (UserVerification $verification): void {
                 foreach ([$verification->id_card_photo_path, $verification->selfie_photo_path] as $path) {
                     if (is_string($path) && $path !== '') {
-                        Storage::disk(VerificationDocuments::DISK)->delete($path);
+                        DB::afterCommit(static fn () => Storage::disk(VerificationDocuments::DISK)->delete($path));
                     }
                 }
 

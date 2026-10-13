@@ -31,6 +31,7 @@ final class DeleteChatMessageAction
         private readonly Filesystem $storage,
     ) {}
 
+    /** [#impure] [#io: db, disk, fcm] [#tx: own] [#warn: berkas & push sesudah commit; berkas gagal hapus = yatim] */
     public function handle(ChatMessage $message, User $user): ChatMessage
     {
         $room = ChatRoom::query()->withTrashed()->findOrFail($message->room_id);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
+ * [#ssot]
  * SATU normalisasi alamat email untuk menulis DAN mencari (pendaftaran,
  * login, pemulihan sandi, pengelola, dasbor, CLI). Kalau dua jalur memakai
  * aturan berbeda, "Budi@x.test" yang terdaftar tidak pernah cocok dengan

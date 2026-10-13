@@ -15,9 +15,6 @@ use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         // Push: satu client FCM (menyimpan access token OAuth2 di cache) dan
@@ -37,9 +34,6 @@ class AppServiceProvider extends ServiceProvider
         ));
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         //

@@ -27,6 +27,7 @@ final class RefreshAccessTokenAction
         private readonly TokenIssuer $tokens,
     ) {}
 
+    /** [#impure] [#io: db] [#tx: own] */
     public function handle(User $user): NewAccessToken
     {
         return $this->db->transaction(function () use ($user): NewAccessToken {

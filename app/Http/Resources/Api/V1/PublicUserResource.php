@@ -8,6 +8,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 
 /**
+ * [#io: db] [#warn: tanpa withIdentityVerified() = 2 kueri per orang]
+ *
  * Orang lain — dilihat pemberi kerja saat menimbang penawaran.
  *
  * Batas pengungkapan: nomor HP, email, alamat, dan foto verifikasi TIDAK
@@ -49,8 +51,8 @@ final class PublicUserResource extends BaseResource
             'province' => $this->province,
             // Badge terverifikasi: dari withCount di Action, atau dihitung.
             'identity_verified' => $this->resource->isIdentityVerified(),
-            // Terdaftar sebagai pekerja. Dihitung dari ada-tidaknya profil
-            // pekerja, bukan kolom — lihat User::readyToWork().
+            // Punya profil pekerja DAN identitas terverifikasi. Dihitung,
+            // bukan kolom — lihat User::readyToWork().
             'ready_to_work' => $this->resource->readyToWork(),
             'as_worker' => [
                 // Judul/profesi mitra (U16) — "Teknisi AC". null bila tidak diisi.

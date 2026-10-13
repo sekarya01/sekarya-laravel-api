@@ -15,6 +15,7 @@ use App\Support\Chat\ChatRoomLifecycle;
 use Illuminate\Support\Collection;
 
 /**
+ * [#ssot] [#tx: caller]
  * Membuka pekerjaan: satu activity per pekerja yang diterima, lalu task
  * berpindah ke `active`.
  *
@@ -42,6 +43,8 @@ final class WorkOpening
     ) {}
 
     /**
+     * [#impure] [#io: db] [#tx: caller] — idempoten (unique task_id, worker_id)
+     *
      * @return Collection<int, Activity>
      */
     public function open(

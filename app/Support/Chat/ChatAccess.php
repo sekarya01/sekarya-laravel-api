@@ -13,6 +13,7 @@ use App\Models\ChatRoom;
 use App\Models\User;
 
 /**
+ * [#ssot]
  * Gerbang tunggal seluruh aksi chat. Urutannya disengaja: keanggotaan dulu
  * (bukan peserta = 404, room orang lain tidak dikonfirmasi ada), baru status
  * room (410 hanya untuk pesertanya).

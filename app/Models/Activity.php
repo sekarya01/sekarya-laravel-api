@@ -15,8 +15,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
- * Eksekusi pekerjaan. Keberadaan barisnya sendiri menegakkan aturan:
- * activity tidak bisa ada tanpa pembayaran yang sudah ditahan.
+ * Eksekusi pekerjaan — satu baris per pekerja yang diterima, lahir saat DEAL
+ * (`App\Support\WorkOpening`), TIDAK menunggu dana ditahan. Yang dijaga uang
+ * adalah MULAI BEKERJA (`StartActivityAction` menuntut `held`), bukan
+ * keberadaan barisnya.
  */
 final class Activity extends Model
 {

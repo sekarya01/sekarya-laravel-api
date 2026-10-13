@@ -29,7 +29,8 @@ final class AdminPaymentResource extends BaseResource
             'awaits_confirmation' => $this->status->awaitsConfirmation(),
 
             // Kapan pemberi kerja MENGAKU transfer — bukan kapan barisnya
-            // dibuat. Baris tagihan sudah ada sejak pelamar pertama diterima.
+            // dibuat. Baris tagihan lahir lebih dulu — sejak TaskEscrow, saat
+            // task dipasang; pada task lama, saat pelamar pertama diterima.
             'reported_at' => $this->iso($this->reported_at),
             'rejection_reason' => $this->rejection_reason,
             'paid_at' => $this->iso($this->paid_at),

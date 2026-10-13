@@ -13,6 +13,7 @@ use App\Models\Task;
 use App\Models\User;
 
 /**
+ * [#ssot] [#tx: caller]
  * Buku perekrutan sebuah task: berapa yang sudah diterima, berapa tagihannya,
  * dan kapan lelang ditutup.
  *
@@ -30,6 +31,7 @@ final class TaskHiring
     ) {}
 
     /**
+     * [#impure] [#io: db] [#tx: caller]
      * Hitung ULANG penghitung dan tagihan dari baris `bids`.
      *
      * Bukan increment: penghitung yang dinaikkan sedikit demi sedikit akan
@@ -75,6 +77,7 @@ final class TaskHiring
     }
 
     /**
+     * [#impure] [#io: db] [#tx: caller]
      * Tutup perekrutan: sisa pelamar ditolak, task masuk status dealt.
      *
      * Pelamar yang masih menunggu HARUS ditutup di sini. Membiarkannya pending

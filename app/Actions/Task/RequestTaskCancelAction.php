@@ -6,8 +6,10 @@ namespace App\Actions\Task;
 
 use App\Enums\CancelApprovalStatus;
 use App\Enums\CancelRequestStatus;
+use App\Enums\TaskStatus;
 use App\Exceptions\Domain\CancelRequestPendingException;
 use App\Exceptions\Domain\NoWorkersHiredException;
+use App\Exceptions\Domain\TaskNotCancellableException;
 use App\Models\Task;
 use App\Models\TaskCancelRequest;
 use App\Models\User;
@@ -22,11 +24,9 @@ use Illuminate\Database\ConnectionInterface;
  *
  * - Belum ada pekerja (`workers_hired == 0`) → `CancelTaskAction` LANGSUNG
  *   lewat `POST tasks/{task}/cancel`. Tidak ada yang perlu dimintai setuju.
- * - Sudah ada yang deal → ke sini. Action ini MENOLAK bila task-nya belum
- *   deal (`no_workers_hired`, lewat `DomainException` anonim? tidak — lewat
- *   `TaskNotDealt`: tidak ada; dipakai `NoWorkersHiredException` yang sudah
- *   ada), dan MENOLAK bila masih ada permintaan `pending`
- *   (`cancel_request_pending`).
+ * - Sudah ada yang deal → ke sini. Action ini MENOLAK bila belum ada pekerja
+ *   yang diterima (`no_workers_hired`, `NoWorkersHiredException`), dan MENOLAK
+ *   bila masih ada permintaan `pending` (`cancel_request_pending`).
  */
 final class RequestTaskCancelAction
 {
@@ -35,9 +35,19 @@ final class RequestTaskCancelAction
         private readonly PushDispatcher $push,
     ) {}
 
+    /** [#impure] [#io: db, fcm] [#tx: own] [#lock: tasks → task_cancel_requests] */
     public function handle(Task $task, User $requester, ?string $reason = null): TaskCancelRequest
     {
         return $this->db->transaction(function () use ($task, $requester, $reason): TaskCancelRequest {
+            // Dibaca ulang di bawah kunci: dari model rute, task yang sudah
+            // selesai atau batal bisa diberi permintaan yang baru ditolak
+            // saat disetujui — pekerja ditanyai sesuatu yang tak bisa terjadi.
+            $task = Task::query()->whereKey($task->getKey())->lockForUpdate()->firstOrFail();
+
+            if (! $task->status->canTransitionTo(TaskStatus::Cancelled)) {
+                throw TaskNotCancellableException::becauseStatus($task->status);
+            }
+
             if ($task->workers_hired <= 0) {
                 throw NoWorkersHiredException::forCancelRequest();
             }

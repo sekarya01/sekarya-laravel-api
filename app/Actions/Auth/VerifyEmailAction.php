@@ -39,7 +39,12 @@ final class VerifyEmailAction
         private readonly TokenIssuer $tokens,
     ) {}
 
-    /** @return array{user: User, access: NewAccessToken, long_lived: NewAccessToken} */
+    /**
+     * [#impure] [#io: db] [#tx: own] [#lock: email_verification_codes] [#ssot]
+     * [#warn: `attempts` naik DI LUAR transaksi — disengaja]
+     *
+     * @return array{user: User, access: NewAccessToken, long_lived: NewAccessToken}
+     */
     public function handle(VerifyEmailData $data): array
     {
         $user = User::query()->where('email', $data->email)->first();
